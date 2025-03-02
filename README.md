@@ -1,4 +1,4 @@
-Shadow is an experimental framework for predicting user actions in complex environment such as editors
+Shadow is an experimental framework for predicting user actions in complex environment such as text editors
 
 For instance, let's say we have code which can format text. A lot of users first write text and then format, so we probably want to delay formatting suggestion until a user stopped. But then how do you define "stop"
 
