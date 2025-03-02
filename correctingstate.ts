@@ -1,4 +1,5 @@
 import { ShadowAction } from "./action";
+import type { IShadow } from "./IShadow";
 import { IShadowState, PValue, updateWeight } from "./ishadowstate";
 
 /**
@@ -8,12 +9,13 @@ export class CorrectingState implements IShadowState {
   public weight: PValue = 0 as PValue;
   private triggerLevel = 0.8;
 
+  private readonly editing: IShadowState;
   private typeDelta = 0.01;
   private correctDelta = 0.01;
   private moveDelta = -0.01;
 
-  public constructor(writingState: IShadowState) {
-
+  public constructor(shadow: IShadow) {
+    this.editing = shadow.getState("editor.editing");
   }
 
   public onAction(action: ShadowAction): PValue {

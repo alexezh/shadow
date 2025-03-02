@@ -1,5 +1,6 @@
 import { ActionName, ShadowAction } from "./action";
 import { CorrectingState } from "./correctingstate";
+import { DisplaySectionSummaryState } from "./displaysectionsummary";
 import { FormattingState } from "./formattingstate";
 import type { IShadow } from "./IShadow";
 import { ActionArgs, EditArgs, IShadowState, StateName, TimeValue } from "./ishadowstate";
@@ -33,6 +34,10 @@ class Shadow implements IShadow {
     this.states.set(stateName, state);
   }
 
+  getState(stateName: StateName): IShadowState {
+    return this.getState(stateName);
+  }
+
   public registerOnMatch(pattern: any, func: () => void) {
 
   }
@@ -41,7 +46,7 @@ class Shadow implements IShadow {
 
 //export type ActionCategory = "none" | "editor" | "ai";
 
-let lane = new Shadow();
+let shadow = new Shadow();
 
 // lane.registerOnMatch("nake N changes ", () => {
 //   lane.triggerState("editor.write")
@@ -51,16 +56,17 @@ let lane = new Shadow();
 //   lane.triggerState("editor.formatting")
 // });
 
-lane.addState("editor.writing", new WritingState());
-lane.addState("editor.formatting", new FormattingState());
-lane.addState("editor.correcting", new CorrectingState());
+shadow.addState("editor.writing", new WritingState());
+shadow.addState("editor.formatting", new FormattingState());
+shadow.addState("editor.correcting", new CorrectingState(shadow));
+shadow.addState("display.sectionsummary", new DisplaySectionSummaryState(shadow));
 
 //lane.addState("editor.editing", null);
 
-lane.registerOnMatch(null, () => {
+shadow.registerOnMatch(null, () => {
 
 });
 
-lane.processAction(new ShadowAction<EditArgs>("editor.type"));
-lane.processAction(new ShadowAction<EditArgs>("editor.type"));
-lane.processAction(new ShadowAction<EditArgs>("editor.moveip"));
+shadow.processAction(new ShadowAction<EditArgs>("editor.type"));
+shadow.processAction(new ShadowAction<EditArgs>("editor.type"));
+shadow.processAction(new ShadowAction<EditArgs>("editor.moveip"));
