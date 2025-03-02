@@ -1,6 +1,9 @@
 import { ActionName, ShadowAction } from "./action";
+import { CorrectingState } from "./correctingstate";
+import { FormattingState } from "./formattingstate";
+import type { IShadow } from "./IShadow";
 import { ActionArgs, EditArgs, IShadowState, StateName, TimeValue } from "./ishadowstate";
-import { ShadowWritingState } from "./writingstate";
+import { WritingState } from "./writingstate";
 
 /**
  * manages set of states which are changed based on actions
@@ -13,7 +16,7 @@ import { ShadowWritingState } from "./writingstate";
  * 
  * initially state compute is heuristic based, but can be replaced with small model
 */
-class Shadow {
+class Shadow implements IShadow {
   private readonly actions: ShadowAction[] = [];
   private readonly states: Map<StateName, IShadowState> = new Map<StateName, IShadowState>();
 
@@ -48,7 +51,9 @@ let lane = new Shadow();
 //   lane.triggerState("editor.formatting")
 // });
 
-lane.addState("editor.writing", new ShadowWritingState());
+lane.addState("editor.writing", new WritingState());
+lane.addState("editor.formatting", new FormattingState());
+lane.addState("editor.correcting", new CorrectingState());
 
 //lane.addState("editor.editing", null);
 

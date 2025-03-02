@@ -47,3 +47,14 @@ export type MoveArgs = ActionArgs & {
 // class MemoryLane {
 //   public actions: Action[];
 // }
+
+export function updateWeight(v: PValue, d: number): PValue {
+  let t = v + d;
+  if (t > 1) {
+    return 1 as PValue;
+  } else if (t < 0) {
+    return 0 as PValue;
+  } else {
+    return t as PValue;
+  }
+}

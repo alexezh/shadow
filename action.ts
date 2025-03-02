@@ -6,13 +6,14 @@ export type ActionName = "none" |
   "editor.type" |
   "editor.moveip" |
   "editor.format" |
+  // user applied suggestion from grammar checker
   "editor.correct" |
   "editor.inserttable" |
   "editor.insertpicture" |
   "ai.summary" |
   // agent suggesting toc
   "ai.toc" |
-  "ai.suggest.struggle" |
+  // "ai.suggest.struggle" |
   // agent which detects that user is struggling and might need help to rewrite
   "ai.accept.struggle" |
   "ai.reject.struggle" |
