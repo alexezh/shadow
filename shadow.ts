@@ -1,10 +1,10 @@
 import { ActionName, ShadowAction } from "./action";
 import { CorrectingState } from "./correctingstate";
 import { DisplaySectionSummaryState } from "./displaysectionsummary";
-import { FormattingState } from "./formattingstate";
-import type { IShadow } from "./IShadow";
-import { ActionArgs, EditArgs, IShadowState, StateName, TimeValue } from "./ishadowstate";
-import { WritingState } from "./writingstate";
+import { FormattingAgent } from "./formattingagent";
+import type { IShadow } from "./ishadow";
+import { ActionArgs, TypeArgs, IShadowAgent, StateAgent, TimeValue } from "./ishadowagent";
+import { WritingAgent } from "./writingagent";
 
 /**
  * manages set of states which are changed based on actions
@@ -19,22 +19,26 @@ import { WritingState } from "./writingstate";
 */
 class Shadow implements IShadow {
   private readonly actions: ShadowAction[] = [];
-  private readonly states: Map<StateName, IShadowState> = new Map<StateName, IShadowState>();
+  private readonly agents: Map<StateAgent, IShadowAgent> = new Map<StateAgent, IShadowAgent>();
 
   public processAction(action: ShadowAction) {
     // TODO: need to sort states
     // what do we do with recursive dependencies?
     this.actions.push(action);
-    for (let [key, state] of this.states) {
+    for (let [key, state] of this.agents) {
       state.onAction(action);
     }
   }
 
-  public addState(stateName: StateName, state: IShadowState) {
-    this.states.set(stateName, state);
+  public invokeAction(action: ActionName): void {
+
   }
 
-  getState(stateName: StateName): IShadowState {
+  public addState(stateName: StateAgent, state: IShadowAgent) {
+    this.agents.set(stateName, state);
+  }
+
+  getState(stateName: StateAgent): IShadowAgent {
     return this.getState(stateName);
   }
 
@@ -56,8 +60,8 @@ let shadow = new Shadow();
 //   lane.triggerState("editor.formatting")
 // });
 
-shadow.addState("editor.writing", new WritingState());
-shadow.addState("editor.formatting", new FormattingState());
+shadow.addState("editor.writing", new WritingAgent());
+shadow.addState("editor.formatting", new FormattingAgent());
 shadow.addState("editor.correcting", new CorrectingState(shadow));
 shadow.addState("display.sectionsummary", new DisplaySectionSummaryState(shadow));
 
@@ -67,6 +71,6 @@ shadow.registerOnMatch(null, () => {
 
 });
 
-shadow.processAction(new ShadowAction<EditArgs>("editor.type"));
-shadow.processAction(new ShadowAction<EditArgs>("editor.type"));
-shadow.processAction(new ShadowAction<EditArgs>("editor.moveip"));
+shadow.processAction(new ShadowAction<TypeArgs>("editor.type"));
+shadow.processAction(new ShadowAction<TypeArgs>("editor.type"));
+shadow.processAction(new ShadowAction<TypeArgs>("editor.moveip"));

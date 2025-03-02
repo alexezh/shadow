@@ -1,4 +1,4 @@
-import { type ActionArgs, type TimeValue } from "./ishadowstate";
+import { type ActionArgs, type TimeValue } from "./ishadowagent";
 
 export type ActionName = "none" |
   // logged when a user typed non-trivial amount of text
@@ -10,19 +10,9 @@ export type ActionName = "none" |
   "editor.correct" |
   "editor.inserttable" |
   "editor.insertpicture" |
-  "ai.summary" |
-  // agent suggesting toc
-  "ai.toc" |
-  // "ai.suggest.struggle" |
-  // agent which detects that user is struggling and might need help to rewrite
-  "ai.accept.struggle" |
-  "ai.reject.struggle" |
-  // agent which detects that a user accepts grammar suggestions of certain tyoe
-  // and suggests to fix them all
-  "ai.fixall" |
-  // grammar 
-  "ai.grammar" |
-  "ai.rewrite";
+  "sectionsummary.display" |
+  "sectionsummary.reject" |
+  "sectionsummary.accept"
 
 export class ShadowAction<T extends ActionArgs = ActionArgs> {
   public readonly name: ActionName = "none";

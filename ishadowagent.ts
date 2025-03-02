@@ -1,14 +1,23 @@
 import type { ShadowAction } from "./action";
 
-export interface IShadowState {
+/**
+ * different components of shadow as packaged as agents
+ * 
+ * agents receive and generate actions; such as if an agent wants to display suggestion
+ * it generates an action back to the system. Agents can depend on other agents when making 
+ * decisions. 
+ * 
+ * BTW, alternative name is State, but agent is cooler at this point
+ */
+export interface IShadowAgent {
   onAction(action: ShadowAction): PValue;
   readonly weight: PValue;
 }
 
-export type StateName =
+export type StateAgent =
   "editor.formatting" |
   "editor.writing" | // mostly new text
-  "editor.editing" | // changing existing text
+  //  "editor.editing" | // changing existing text
   "editor.correcting" |
   "editor.struggle" |
   "display.struggle" |
@@ -37,11 +46,20 @@ export type ActionArgs = {
   __tagargs: never;
 }
 
-export type EditArgs = ActionArgs & {
+export type TypeArgs = ActionArgs & {
+  cp: ShadowCp
 }
 
-export type MoveArgs = ActionArgs & {
-  distance?: TextDistance,
+/**
+ * most probably implemented as fragmented position
+ * does not really matter as it is just passed to IShadowTextBody
+ */
+export type ShadowCp = {
+  __tag_paraId: never;
+}
+
+export type MoveIpArgs = ActionArgs & {
+  cp: ShadowCp
 }
 
 // class MemoryLane {

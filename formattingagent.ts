@@ -1,7 +1,7 @@
 import { ShadowAction } from "./action";
-import { IShadowState, PValue, updateWeight } from "./ishadowstate";
+import { IShadowAgent, PValue, updateWeight } from "./ishadowagent";
 
-export class FormattingState implements IShadowState {
+export class FormattingAgent implements IShadowAgent {
   weight: PValue = 0 as PValue;
   private typeDelta = -0.01;
   private formatDelta = 0.01;
