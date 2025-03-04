@@ -35,16 +35,12 @@ class Shadow implements IShadow {
     this.processAction(new ShadowAction(action, args));
   }
 
-  public addState(stateName: AgentName, state: IShadowAgent) {
+  public addAgent(stateName: AgentName, state: IShadowAgent) {
     this.agents.set(stateName, state);
   }
 
-  getState(stateName: AgentName): IShadowAgent {
-    return this.getState(stateName);
-  }
-
-  public registerOnMatch(pattern: any, func: () => void) {
-
+  getAgent(stateName: AgentName): IShadowAgent {
+    return this.getAgent(stateName);
   }
 }
 
@@ -62,16 +58,12 @@ let body = new ShadowTextBody();
 //   lane.triggerState("editor.formatting")
 // });
 
-shadow.addState("editor.writing", new WritingAgent(shadow, body));
-shadow.addState("editor.formatting", new FormattingAgent());
-shadow.addState("editor.correcting", new CorrectingAgent(shadow));
-shadow.addState("display.sectionsummary", new DisplaySectionSummaryState(shadow, body));
+shadow.addAgent("editor.writing", new WritingAgent(shadow, body));
+shadow.addAgent("editor.formatting", new FormattingAgent());
+shadow.addAgent("editor.correcting", new CorrectingAgent(shadow));
+shadow.addAgent("display.sectionsummary", new DisplaySectionSummaryState(shadow, body));
 
 //lane.addState("editor.editing", null);
-
-shadow.registerOnMatch(null, () => {
-
-});
 
 shadow.processAction(new ShadowAction<TypeArgs>("editor.type", { cp: 0 as ShadowCp, inserted: 3, deleted: 0 });
 shadow.processAction(new ShadowAction<TypeArgs>("editor.type", { cp: 0 as ShadowCp, inserted: 2, deleted: 0 });

@@ -38,7 +38,7 @@ export class WritingAgent implements IShadowAgent {
       // remember position we stated typing
       if (!this.startPosName) {
         this.startPosName = this.body.addDurablePosition((action.args as TypeArgs).cp)
-        this.shadow.invokeAction("editor.startwriting", {});
+        this.shadow.invokeAction("editor.startwriting", { cp: (action.args as TypeArgs).cp });
       }
     } else if (action.name === "editor.format") {
       weight = updateWeight(weight, this.formatDelta);
@@ -52,10 +52,6 @@ export class WritingAgent implements IShadowAgent {
           this.shadow.invokeAction("editor.endwriting");
         }
       }
-    }
-
-    if (weight > this.triggerLevel) {
-      //this.
     }
 
     this.weight = weight;

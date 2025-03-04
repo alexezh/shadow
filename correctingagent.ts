@@ -15,7 +15,7 @@ export class CorrectingAgent implements IShadowAgent {
   private moveDelta = -0.01;
 
   public constructor(shadow: IShadow) {
-    this.writing = shadow.getState("editor.writing");
+    this.writing = shadow.getAgent("editor.writing");
   }
 
   public onAction(action: ShadowAction): PValue {

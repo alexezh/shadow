@@ -11,6 +11,9 @@ export class ShadowTextBody implements IShadowTextBody {
   getDurablePosition(name: DurablePositionId): ShadowCp {
     throw new Error("Method not implemented.");
   }
+  getCharacterDistance(pos1: ShadowCp, pos2: ShadowCp): number {
+    throw new Error("Method not implemented.");
+  }
   getNormalizedDistance(pos1: ShadowCp, pos2: ShadowCp): NormalizedDistance {
     throw new Error("Method not implemented.");
   }

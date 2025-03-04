@@ -9,12 +9,12 @@ export interface IShadow {
    */
   invokeAction<T extends ActionArgs = ActionArgs>(action: ActionName, args?: T): void;
 
-  addState(stateName: AgentName, state: IShadowAgent);
+  addAgent(stateName: AgentName, state: IShadowAgent);
 
   /**
    * TODO: add dependency tracking
    */
-  getState(stateName: AgentName): IShadowAgent;
+  getAgent(stateName: AgentName): IShadowAgent;
 }
 
 export type TextVersion = number & {
@@ -40,6 +40,7 @@ export interface IShadowTextBody {
   removeDurablePosition(name: DurablePositionId): void;
   getDurablePosition(name: DurablePositionId): ShadowCp;
 
+  getCharacterDistance(pos1: ShadowCp, pos2: ShadowCp): number;
   getNormalizedDistance(pos1: ShadowCp, pos2: ShadowCp): NormalizedDistance;
 
   getTextVersion(): TextVersion;
