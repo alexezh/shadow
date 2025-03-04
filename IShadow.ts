@@ -1,5 +1,5 @@
 import type { ActionName, ShadowAction } from "./action";
-import type { IShadowAgent, ShadowCp, StateAgent } from "./ishadowagent";
+import type { IShadowAgent, ShadowCp, AgentName } from "./ishadowagent";
 
 export interface IShadow {
   processAction(action: ShadowAction);
@@ -9,12 +9,12 @@ export interface IShadow {
    */
   invokeAction(action: ActionName): void;
 
-  addState(stateName: StateAgent, state: IShadowAgent);
+  addState(stateName: AgentName, state: IShadowAgent);
 
   /**
    * TODO: add dependency tracking
    */
-  getState(stateName: StateAgent): IShadowAgent;
+  getState(stateName: AgentName): IShadowAgent;
 }
 
 export type TextVersion = number & {
@@ -42,3 +42,5 @@ export interface IShadowTextBody {
   getTextVersion(): TextVersion;
   getChangeStats(ver: TextVersion): number;
 }
+
+var actionLog: (text: string) => void;

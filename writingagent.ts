@@ -6,14 +6,14 @@ import { IShadowAgent, MoveIpArgs, PValue, TypeArgs, updateWeight } from "./isha
  * track when a user types mostly new text in a continuous region
  */
 export class WritingAgent implements IShadowAgent {
+  private readonly body: IShadowTextBody;
+  private readonly shadow: IShadow;
   public weight: PValue = 0 as PValue;
   private triggerLevel = 0.8;
 
   private typeDelta = 0.01;
   private formatDelta = -0.01;
   private moveDelta = -0.01;
-  private readonly body: IShadowTextBody;
-  private readonly shadow: IShadow;
   private startPosName = "writingstate";
   private startPos: boolean = false;
 
@@ -40,11 +40,7 @@ export class WritingAgent implements IShadowAgent {
       if (!this.startPos) {
         this.body.addDurablePosition(this.startPosName, (action.args as TypeArgs).cp)
         this.startPos = true;
-      } else {
-        let dist = this.body.getNormalizedDistance(this.body.getDurablePosition(this.startPosName), (action.args as MoveIpArgs).cp);
-        if (dist > this.suggestionDistance) {
-          this.shadow.invokeAction("sectionsummary.display");
-        }
+        this.shadow.invokeAction("editor.startwriting");
       }
     } else if (action.name === "editor.format") {
       weight = updateWeight(weight, this.formatDelta);
@@ -55,6 +51,7 @@ export class WritingAgent implements IShadowAgent {
         let dist = this.body.getNormalizedDistance(this.body.getDurablePosition(this.startPosName), (action.args as MoveIpArgs).cp);
         if (dist > this.contiguousDistance) {
           this.startPos = false;
+          this.shadow.invokeAction("editor.endwriting");
         }
       }
     }

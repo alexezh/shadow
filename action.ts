@@ -6,11 +6,15 @@ export type ActionName = "none" |
   "editor.type" |
   "editor.moveip" |
   "editor.format" |
+  "editor.startwriting" |
+  "editor.endwriting" |
   // user applied suggestion from grammar checker
   "editor.correct" |
   "editor.inserttable" |
   "editor.insertpicture" |
   "sectionsummary.display" |
+  // TODO: need similarity for actions; such as reject for section should change
+  // weight for reject for other similar agents
   "sectionsummary.reject" |
   "sectionsummary.accept"
 

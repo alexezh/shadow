@@ -14,7 +14,7 @@ export interface IShadowAgent {
   readonly weight: PValue;
 }
 
-export type StateAgent =
+export type AgentName =
   "editor.formatting" |
   "editor.writing" | // mostly new text
   //  "editor.editing" | // changing existing text
@@ -43,18 +43,19 @@ export type TextDistance = number & {
 }
 
 export type ActionArgs = {
-  __tagargs: never;
 }
 
 export type TypeArgs = ActionArgs & {
-  cp: ShadowCp
+  cp: ShadowCp,
+  inserted: number,
+  deleted: number
 }
 
 /**
  * most probably implemented as fragmented position
  * does not really matter as it is just passed to IShadowTextBody
  */
-export type ShadowCp = {
+export type ShadowCp = number & {
   __tag_paraId: never;
 }
 

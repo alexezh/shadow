@@ -1,9 +1,10 @@
 import { ActionName, ShadowAction } from "./action";
-import { CorrectingState } from "./correctingstate";
+import { CorrectingAgent } from "./correctingagent";
 import { DisplaySectionSummaryState } from "./displaysectionsummary";
 import { FormattingAgent } from "./formattingagent";
 import type { IShadow } from "./ishadow";
-import { ActionArgs, TypeArgs, IShadowAgent, StateAgent, TimeValue } from "./ishadowagent";
+import { ActionArgs, TypeArgs, IShadowAgent, AgentName, TimeValue, MoveIpArgs, ShadowCp } from "./ishadowagent";
+import { ShadowTextBody } from "./shadowtextbody";
 import { WritingAgent } from "./writingagent";
 
 /**
@@ -19,7 +20,7 @@ import { WritingAgent } from "./writingagent";
 */
 class Shadow implements IShadow {
   private readonly actions: ShadowAction[] = [];
-  private readonly agents: Map<StateAgent, IShadowAgent> = new Map<StateAgent, IShadowAgent>();
+  private readonly agents: Map<AgentName, IShadowAgent> = new Map<AgentName, IShadowAgent>();
 
   public processAction(action: ShadowAction) {
     // TODO: need to sort states
@@ -34,11 +35,11 @@ class Shadow implements IShadow {
 
   }
 
-  public addState(stateName: StateAgent, state: IShadowAgent) {
+  public addState(stateName: AgentName, state: IShadowAgent) {
     this.agents.set(stateName, state);
   }
 
-  getState(stateName: StateAgent): IShadowAgent {
+  getState(stateName: AgentName): IShadowAgent {
     return this.getState(stateName);
   }
 
@@ -51,6 +52,7 @@ class Shadow implements IShadow {
 //export type ActionCategory = "none" | "editor" | "ai";
 
 let shadow = new Shadow();
+let body = new ShadowTextBody();
 
 // lane.registerOnMatch("nake N changes ", () => {
 //   lane.triggerState("editor.write")
@@ -60,10 +62,10 @@ let shadow = new Shadow();
 //   lane.triggerState("editor.formatting")
 // });
 
-shadow.addState("editor.writing", new WritingAgent());
+shadow.addState("editor.writing", new WritingAgent(shadow, body));
 shadow.addState("editor.formatting", new FormattingAgent());
-shadow.addState("editor.correcting", new CorrectingState(shadow));
-shadow.addState("display.sectionsummary", new DisplaySectionSummaryState(shadow));
+shadow.addState("editor.correcting", new CorrectingAgent(shadow));
+shadow.addState("display.sectionsummary", new DisplaySectionSummaryState(shadow, body));
 
 //lane.addState("editor.editing", null);
 
@@ -71,6 +73,6 @@ shadow.registerOnMatch(null, () => {
 
 });
 
-shadow.processAction(new ShadowAction<TypeArgs>("editor.type"));
-shadow.processAction(new ShadowAction<TypeArgs>("editor.type"));
-shadow.processAction(new ShadowAction<TypeArgs>("editor.moveip"));
+shadow.processAction(new ShadowAction<TypeArgs>("editor.type", { cp: 0 as ShadowCp, inserted: 3, deleted: 0 });
+shadow.processAction(new ShadowAction<TypeArgs>("editor.type", { cp: 0 as ShadowCp, inserted: 2, deleted: 0 });
+shadow.processAction(new ShadowAction<MoveIpArgs>("editor.moveip", { cp: 0 as ShadowCp }));

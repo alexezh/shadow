@@ -1,11 +1,11 @@
 import { ShadowAction } from "./action";
-import type { IShadow } from "./ishadow";
+import { IShadow } from "./ishadow";
 import { IShadowAgent, PValue, updateWeight } from "./ishadowagent";
 
 /**
  * detects sequence of moves and edits
  */
-export class CorrectingState implements IShadowAgent {
+export class CorrectingAgent implements IShadowAgent {
   public weight: PValue = 0 as PValue;
   private triggerLevel = 0.8;
 
