@@ -1,14 +1,14 @@
-import { IShadowTextBody, NormalizedDistance, TextVersion } from "./ishadow";
+import { DurablePositionId, IShadowTextBody, NormalizedDistance, TextVersion } from "./ishadow";
 import { ShadowCp } from "./ishadowagent";
 
 export class ShadowTextBody implements IShadowTextBody {
-  addDurablePosition(name: string, pos: ShadowCp) {
+  addDurablePosition(pos: ShadowCp): DurablePositionId {
     throw new Error("Method not implemented.");
   }
-  removeDurablePosition(name: string) {
+  removeDurablePosition(name: DurablePositionId): void {
     throw new Error("Method not implemented.");
   }
-  getDurablePosition(name: string): ShadowCp {
+  getDurablePosition(name: DurablePositionId): ShadowCp {
     throw new Error("Method not implemented.");
   }
   getNormalizedDistance(pos1: ShadowCp, pos2: ShadowCp): NormalizedDistance {

@@ -63,6 +63,10 @@ export type MoveIpArgs = ActionArgs & {
   cp: ShadowCp
 }
 
+export type StartWritingArgs = ActionArgs & {
+  cp: ShadowCp
+}
+
 // class MemoryLane {
 //   public actions: Action[];
 // }

@@ -1,5 +1,5 @@
 import type { ActionName, ShadowAction } from "./action";
-import type { IShadowAgent, ShadowCp, AgentName } from "./ishadowagent";
+import type { IShadowAgent, ShadowCp, AgentName, ActionArgs } from "./ishadowagent";
 
 export interface IShadow {
   processAction(action: ShadowAction);
@@ -7,7 +7,7 @@ export interface IShadow {
   /**
    * generate action back to system
    */
-  invokeAction(action: ActionName): void;
+  invokeAction<T extends ActionArgs = ActionArgs>(action: ActionName, args?: T): void;
 
   addState(stateName: AgentName, state: IShadowAgent);
 
@@ -28,14 +28,17 @@ export type NormalizedDistance = number & {
   __tag_normpos: never;
 }
 
+export type DurablePositionId = string & {
+  __tag_durpos: never;
+}
 /**
  * represents the body of the text; wrapper over ISwmBody and other types
  * hiding number of details.
  */
 export interface IShadowTextBody {
-  addDurablePosition(name: string, pos: ShadowCp);
-  removeDurablePosition(name: string);
-  getDurablePosition(name: string): ShadowCp;
+  addDurablePosition(, pos: ShadowCp): DurablePositionId;
+  removeDurablePosition(name: DurablePositionId): void;
+  getDurablePosition(name: DurablePositionId): ShadowCp;
 
   getNormalizedDistance(pos1: ShadowCp, pos2: ShadowCp): NormalizedDistance;
 

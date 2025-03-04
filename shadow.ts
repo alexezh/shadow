@@ -31,8 +31,8 @@ class Shadow implements IShadow {
     }
   }
 
-  public invokeAction(action: ActionName): void {
-
+  public invokeAction<T extends ActionArgs = ActionArgs>(action: ActionName, args?: T): void {
+    this.processAction(new ShadowAction(action, args));
   }
 
   public addState(stateName: AgentName, state: IShadowAgent) {
