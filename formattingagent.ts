@@ -1,17 +1,17 @@
-import { ShadowAction } from "./action";
-import { IShadowAgent, PValue, updateWeight } from "./ishadowagent";
+import type { ShadowMessage } from "./shadowmessage";
+import { type IShadowAgent, type PValue, updateWeight } from "./ishadowagent";
 
 export class FormattingAgent implements IShadowAgent {
   weight: PValue = 0 as PValue;
   private typeDelta = -0.01;
   private formatDelta = 0.01;
 
-  onAction(action: ShadowAction): PValue {
+  public onAction(action: ShadowMessage): PValue {
     let weight = this.weight;
 
-    if (action.name === "editor.format") {
+    if (action.id === "user.format") {
       weight = updateWeight(weight, this.formatDelta);
-    } else if (action.name === "editor.type") {
+    } else if (action.id === "user.type") {
       weight = updateWeight(weight, this.typeDelta);
     }
 
@@ -19,5 +19,4 @@ export class FormattingAgent implements IShadowAgent {
 
     return this.weight;
   }
-
 }
