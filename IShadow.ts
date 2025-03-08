@@ -2,8 +2,8 @@ import type {
   ShadowMessageArgs,
   ShadowMessageId,
   ShadowMessage,
-} from "./shadowmessage";
-import type { IShadowAgent, GlobalCp, AgentName } from "./ishadowagent";
+} from "./shadowmessage.ts";
+import type { IShadowAgent, GlobalCp, AgentName } from "./ishadowagent.ts";
 
 export interface IShadow {
   loadDocument(): void;

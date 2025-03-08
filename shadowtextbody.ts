@@ -1,5 +1,5 @@
-import { DurablePositionId, IShadowTextBody, NormalizedDistance, TextVersion } from "./ishadow";
-import type { GlobalCp } from "./ishadowagent";
+import { DurablePositionId, IShadowTextBody, NormalizedDistance, TextVersion } from "./ishadow.ts";
+import type { GlobalCp } from "./ishadowagent.ts";
 
 export class ShadowTextBody implements IShadowTextBody {
   addDurablePosition(pos: GlobalCp): DurablePositionId {

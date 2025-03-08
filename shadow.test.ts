@@ -1,9 +1,9 @@
-import { ShadowMessage } from "./shadowmessage";
-import { FormattingAgent } from "./formattingagent";
-import type { TypeArgs, MoveIpArgs, GlobalCp } from "./ishadowagent";
-import { ShadowTextBody } from "./shadowtextbody";
-import { TypingAgent } from "./typingagent";
-import { Shadow } from "./shadow";
+import { ShadowMessage } from "./shadowmessage.ts";
+import { FormattingAgent } from "./formattingagent.ts";
+import type { TypeArgs, MoveIpArgs, GlobalCp } from "./ishadowagent.ts";
+import { ShadowTextBody } from "./shadowtextbody.ts";
+import { TypingAgent } from "./typingagent.ts";
+import { Shadow } from "./shadow.ts";
 
 export function runShadowTest() {
   let body = new ShadowTextBody();

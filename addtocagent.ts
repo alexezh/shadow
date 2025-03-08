@@ -1,12 +1,12 @@
-import type { ShadowMessageId, ShadowMessage } from "./shadowmessage";
-import type { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow";
+import type { ShadowMessageId, ShadowMessage } from "./shadowmessage.ts";
+import type { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow.ts";
 import {
   type IShadowAgent,
   type PValue,
   type StartWritingArgs,
   type TypeArgs,
   updateWeight,
-} from "./ishadowagent";
+} from "./ishadowagent.ts";
 
 /**
  * monitors edits and suggests to add TOC
@@ -14,7 +14,7 @@ import {
 export class AddTocAgent implements IShadowAgent {
   private readonly body: IShadowTextBody;
   private readonly shadow: IShadow;
-  public weight: PValue;
+  public weight: PValue = 0.0 as PValue;
   private rejectDelta = -0.3;
   private acceptDelta = 0.3;
   private suggestionDistance = 300;

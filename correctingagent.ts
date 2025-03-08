@@ -1,6 +1,6 @@
-import { ShadowMessage } from "./shadowmessage";
-import { IShadow } from "./ishadow";
-import { IShadowAgent, PValue, updateWeight } from "./ishadowagent";
+import { ShadowMessage } from "./shadowmessage.ts";
+import { IShadow } from "./ishadow.ts";
+import { IShadowAgent, PValue, updateWeight } from "./ishadowagent.ts";
 
 /**
  * detects sequence of moves and edits

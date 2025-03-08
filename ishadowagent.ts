@@ -2,7 +2,7 @@ import type {
   ShadowMessageArgs,
   ShadowMessageId,
   ShadowMessage,
-} from "./shadowmessage";
+} from "./shadowmessage.ts";
 
 /**
  * different components of shadow as packaged as agents

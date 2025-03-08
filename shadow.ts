@@ -2,12 +2,12 @@ import {
   type ShadowMessageArgs,
   type ShadowMessageId,
   ShadowMessage,
-} from "./shadowmessage";
-import type { IShadow, IShadowTextBody } from "./ishadow";
-import type { IShadowAgent, AgentName } from "./ishadowagent";
-import { TypingAgent } from "./typingagent";
-import { FormattingAgent } from "./formattingagent";
-import { AddTocAgent } from "./addtocagent";
+} from "./shadowmessage.ts";
+import type { IShadow, IShadowTextBody } from "./ishadow.ts";
+import type { IShadowAgent, AgentName } from "./ishadowagent.ts";
+import { TypingAgent } from "./typingagent.ts";
+import { FormattingAgent } from "./formattingagent.ts";
+import { AddTocAgent } from "./addtocagent.ts";
 
 /**
  * manages set of states which are changed based on actions

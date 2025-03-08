@@ -1,5 +1,5 @@
-import type { ShadowMessage } from "./shadowmessage";
-import { type IShadowAgent, type PValue, updateWeight } from "./ishadowagent";
+import type { ShadowMessage } from "./shadowmessage.ts";
+import { type IShadowAgent, type PValue, updateWeight } from "./ishadowagent.ts";
 
 export class FormattingAgent implements IShadowAgent {
   weight: PValue = 0 as PValue;

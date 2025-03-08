@@ -1,4 +1,4 @@
-import type { TimeValue } from "./ishadowagent";
+import type { TimeValue } from "./ishadowagent.ts";
 
 export type ShadowMessageArgs = {};
 

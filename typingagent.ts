@@ -1,12 +1,12 @@
-import type { ShadowMessageId, ShadowMessage } from "./shadowmessage";
-import type { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow";
+import type { ShadowMessageId, ShadowMessage } from "./shadowmessage.ts";
+import type { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow.ts";
 import {
   type IShadowAgent,
   type MoveIpArgs,
   type PValue,
   type TypeArgs,
   updateWeight,
-} from "./ishadowagent";
+} from "./ishadowagent.ts";
 
 /**
  * track when a user types mostly new text in a continuous region
