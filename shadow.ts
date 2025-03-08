@@ -5,14 +5,9 @@ import {
 } from "./shadowmessage";
 import type { IShadow, IShadowTextBody } from "./ishadow";
 import type { IShadowAgent, AgentName } from "./ishadowagent";
-import { AFrameworkApplication } from "@1js/msoserviceplatform";
 import { TypingAgent } from "./typingagent";
-import type { ISwmDocument } from "../Swm/Swm";
-import { ShadowTextBody } from "./shadowtextbody";
 import { FormattingAgent } from "./formattingagent";
-import { ULS, ULSCat, ULSTraceLevel } from "@1js/wac-browsertelemetry";
 import { AddTocAgent } from "./addtocagent";
-import type { IWireGraph_Swimmable } from "../WireGraph/IWireGraph_Swimmable";
 
 /**
  * manages set of states which are changed based on actions
@@ -25,7 +20,7 @@ import type { IWireGraph_Swimmable } from "../WireGraph/IWireGraph_Swimmable";
  *
  * initially state compute is heuristic based, but can be replaced with small model
  */
-class Shadow implements IShadow {
+export class Shadow implements IShadow {
   private readonly actions: ShadowMessage[] = [];
   private readonly agents: Map<AgentName, IShadowAgent> = new Map<
     AgentName,
@@ -34,13 +29,10 @@ class Shadow implements IShadow {
   private body?: IShadowTextBody;
 
   public loadDocument(
-    doc: ISwmDocument,
-    swimmable: IWireGraph_Swimmable
   ): void {
-    this.body = new ShadowTextBody(swimmable, doc.body.id);
-    this.addAgent("editor.writing", new TypingAgent(this, this.body));
+    this.addAgent("editor.writing", new TypingAgent(this, this.body!));
     this.addAgent("editor.formatting", new FormattingAgent());
-    this.addAgent("addtoc", new AddTocAgent(this, this.body));
+    this.addAgent("addtoc", new AddTocAgent(this, this.body!));
   }
 
   public processMessage(action: ShadowMessage) {
@@ -56,13 +48,6 @@ class Shadow implements IShadow {
     msg: ShadowMessageId,
     args?: T
   ): void {
-    ULS.sendTraceTag(
-      0x1e251003 /* tag_4jrad */,
-      ULSCat.msoulscat_Wac_WireGraph,
-      ULSTraceLevel.info,
-      `invokeAction: [msg: ${msg}]`
-    );
-
     this.processMessage(new ShadowMessage(msg, args));
   }
 
@@ -70,33 +55,15 @@ class Shadow implements IShadow {
     this.agents.set(stateName, state);
   }
 
+  public canDisplaySuggestion(id: ShadowMessageId): boolean {
+    return true;
+  }
+  public displaySuggestion(id: ShadowMessageId): void {
+
+  }
+
   getAgent(stateName: AgentName): IShadowAgent {
     return this.getAgent(stateName);
   }
-
-  @cached
-  public static get useShadow(): boolean {
-    return AFrameworkApplication?.appSettingsManager?.getBooleanFeatureGate(
-      "Microsoft.Office.WordOnline.UseShadow",
-      false
-    );
-  }
 }
 
-let shadow: IShadow | null = null;
-
-export function getShadow(): IShadow | null {
-  return shadow;
-}
-
-export function initShadow(): boolean {
-  if (!Shadow.useShadow) {
-    return false;
-  } else {
-    if (!shadow) {
-      // we are going to initialize later once we have a document
-      shadow = new Shadow();
-    }
-    return true;
-  }
-}

@@ -4,13 +4,11 @@ import type {
   ShadowMessage,
 } from "./shadowmessage";
 import type { IShadowAgent, GlobalCp, AgentName } from "./ishadowagent";
-import type { ISwmDocument } from "../Swm/Swm";
-import type { IWireGraph_Swimmable } from "../WireGraph/IWireGraph_Swimmable";
 
 export interface IShadow {
-  loadDocument(doc: ISwmDocument, swimmable: IWireGraph_Swimmable): void;
+  loadDocument(): void;
 
-  processMessage(message: ShadowMessage);
+  processMessage(message: ShadowMessage): void;
 
   /**
    * generate action back to system
@@ -20,7 +18,10 @@ export interface IShadow {
     args?: T
   ): void;
 
-  addAgent(stateName: AgentName, state: IShadowAgent);
+  addAgent(stateName: AgentName, state: IShadowAgent): void;
+
+  canDisplaySuggestion(id: ShadowMessageId): boolean;
+  displaySuggestion(id: ShadowMessageId): void;
 
   /**
    * TODO: add dependency tracking

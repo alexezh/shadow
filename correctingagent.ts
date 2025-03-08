@@ -1,4 +1,4 @@
-import { ShadowAction } from "./action";
+import { ShadowMessage } from "./shadowmessage";
 import { IShadow } from "./ishadow";
 import { IShadowAgent, PValue, updateWeight } from "./ishadowagent";
 
@@ -18,13 +18,13 @@ export class CorrectingAgent implements IShadowAgent {
     this.writing = shadow.getAgent("editor.writing");
   }
 
-  public onAction(action: ShadowAction): PValue {
+  public onAction(action: ShadowMessage): PValue {
     let weight = this.weight;
-    if (action.name === "editor.type") {
+    if (action.id === "user.type") {
       weight = updateWeight(weight, this.typeDelta);
-    } else if (action.name === "editor.correct") {
+    } else if (action.id === "editor.correct") {
       weight = updateWeight(weight, this.correctDelta);
-    } else if (action.name === "editor.moveip") {
+    } else if (action.id === "user.moveip") {
       weight = updateWeight(weight, this.moveDelta);
     }
 

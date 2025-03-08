@@ -1,4 +1,4 @@
-import { ActionName, ShadowAction } from "./action";
+import { ShadowMessageId, ShadowMessage } from "./shadowmessage";
 import { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow";
 import { IShadowAgent, MoveIpArgs, PValue, StartWritingArgs, TimeValue, TypeArgs, updateWeight } from "./ishadowagent";
 
@@ -16,7 +16,7 @@ export class DisplaySectionSummaryState implements IShadowAgent {
   private suggestionDistance = 300;
   private startPosName: DurablePositionId | null = null;
 
-  public get suggestion(): ActionName[] {
+  public get suggestion(): ShadowMessageId[] {
     return ["sectionsummary.display"];
   }
 
@@ -27,15 +27,15 @@ export class DisplaySectionSummaryState implements IShadowAgent {
     // we want to track amount of new text a user has entered
   }
 
-  public onAction(action: ShadowAction): PValue {
+  public onAction(action: ShadowMessage): PValue {
     let weight = this.weight;
-    if (action.name === "sectionsummary.reject") {
+    if (action.id === "sectionsummary.reject") {
       weight = updateWeight(weight, this.rejectDelta)
-    } else if (action.name === "sectionsummary.accept") {
+    } else if (action.id === "sectionsummary.accept") {
       weight = updateWeight(weight, this.acceptDelta)
-    } else if (action.name === "editor.startwriting") {
+    } else if (action.id === "editor.startwriting") {
       this.body.addDurablePosition((action.args as StartWritingArgs).cp);
-    } else if (action.name === "editor.type") {
+    } else if (action.id === "user.type") {
       if (this.startPosName && this.shadow.canDisplaySuggestion("sectionsummary.display")) {
         let dist = this.body.getNormalizedDistance(this.body.getDurablePosition(this.startPosName), (action.args as TypeArgs).cp);
         if (dist > this.suggestionDistance) {

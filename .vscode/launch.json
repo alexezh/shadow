@@ -13,7 +13,7 @@
       ],
       "args": [
         "--experimental-transform-types",
-        "${workspaceFolder}/mmm.ts"
+        "${workspaceFolder}/shadow.test.ts"
       ],
       //"program": "${workspaceFolder}/mmm.ts",
     }
