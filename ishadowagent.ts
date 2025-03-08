@@ -1,4 +1,4 @@
-import type { ShadowAction } from "./action";
+import type { ActionName, ShadowAction } from "./action";
 
 /**
  * different components of shadow as packaged as agents
@@ -12,6 +12,7 @@ import type { ShadowAction } from "./action";
 export interface IShadowAgent {
   onAction(action: ShadowAction): PValue;
   readonly weight: PValue;
+  readonly suggestion?: ActionName[];
 }
 
 export type AgentName =

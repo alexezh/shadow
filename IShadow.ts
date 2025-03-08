@@ -1,20 +1,34 @@
 import type { ActionName, ShadowAction } from "./action";
 import type { IShadowAgent, ShadowCp, AgentName, ActionArgs } from "./ishadowagent";
 
+export interface IShadowStorage {
+
+}
+
 export interface IShadow {
-  processAction(action: ShadowAction);
+  /**
+   * 
+   * @param action 
+   */
+  processAction(action: ShadowAction): void;
 
   /**
    * generate action back to system
    */
   invokeAction<T extends ActionArgs = ActionArgs>(action: ActionName, args?: T): void;
 
-  addAgent(stateName: AgentName, state: IShadowAgent);
+  addAgent(stateName: AgentName, state: IShadowAgent): void;
 
   /**
    * TODO: add dependency tracking
    */
   getAgent(stateName: AgentName): IShadowAgent;
+
+  /**
+   * agents can declare if they can emit suggestions
+   */
+  canDisplaySuggestion(action: ActionName): boolean;
+  displaySuggestion<T extends ActionArgs = ActionArgs>(action: ActionName, args?: T): void;
 }
 
 export type TextVersion = number & {
@@ -36,7 +50,7 @@ export type DurablePositionId = string & {
  * hiding number of details.
  */
 export interface IShadowTextBody {
-  addDurablePosition(, pos: ShadowCp): DurablePositionId;
+  addDurablePosition(pos: ShadowCp): DurablePositionId;
   removeDurablePosition(name: DurablePositionId): void;
   getDurablePosition(name: DurablePositionId): ShadowCp;
 

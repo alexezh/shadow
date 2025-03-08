@@ -1,4 +1,4 @@
-import { ActionName, ShadowAction } from "./action";
+import { type ActionName, ShadowAction } from "./action.ts";
 import { CorrectingAgent } from "./correctingagent";
 import { DisplaySectionSummaryState } from "./displaysectionsummary";
 import { FormattingAgent } from "./formattingagent";
@@ -6,6 +6,17 @@ import type { IShadow } from "./ishadow";
 import { ActionArgs, TypeArgs, IShadowAgent, AgentName, TimeValue, MoveIpArgs, ShadowCp } from "./ishadowagent";
 import { ShadowTextBody } from "./shadowtextbody";
 import { WritingAgent } from "./writingagent";
+
+// rate of accept
+// rate pf accept categpru
+// relative position and direction of scroll
+// time since display to accept/reject
+// ==== which will accept next =====
+// move_relative ... move to top ..., move to bottom, move next section
+// reuse_copy - edits similar to previous edits... need to remember previous edits ...
+// will be annoying to wait for suggestion, but then we can do it
+// test suggestion - see if user will do it. but does not intro to users who do not know
+// 
 
 /**
  * manages set of states which are changed based on actions
@@ -35,8 +46,19 @@ class Shadow implements IShadow {
     this.processAction(new ShadowAction(action, args));
   }
 
-  public addAgent(stateName: AgentName, state: IShadowAgent) {
-    this.agents.set(stateName, state);
+  canDisplaySuggestion(action: ActionName): boolean {
+    return false;
+  }
+
+  public displaySuggestion<T extends ActionArgs = ActionArgs>(action: ActionName, args?: T): void {
+
+  }
+
+  public addAgent(stateName: AgentName, agent: IShadowAgent) {
+    this.agents.set(stateName, agent);
+    if (agent.suggestion) {
+
+    }
   }
 
   getAgent(stateName: AgentName): IShadowAgent {
@@ -65,6 +87,6 @@ shadow.addAgent("display.sectionsummary", new DisplaySectionSummaryState(shadow,
 
 //lane.addState("editor.editing", null);
 
-shadow.processAction(new ShadowAction<TypeArgs>("editor.type", { cp: 0 as ShadowCp, inserted: 3, deleted: 0 });
-shadow.processAction(new ShadowAction<TypeArgs>("editor.type", { cp: 0 as ShadowCp, inserted: 2, deleted: 0 });
+shadow.processAction(new ShadowAction<TypeArgs>("editor.type", { cp: 0 as ShadowCp, inserted: 3, deleted: 0 }));
+shadow.processAction(new ShadowAction<TypeArgs>("editor.type", { cp: 0 as ShadowCp, inserted: 2, deleted: 0 }));
 shadow.processAction(new ShadowAction<MoveIpArgs>("editor.moveip", { cp: 0 as ShadowCp }));

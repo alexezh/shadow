@@ -1,4 +1,4 @@
-import { ShadowAction } from "./action";
+import { ActionName, ShadowAction } from "./action";
 import { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow";
 import { IShadowAgent, MoveIpArgs, PValue, StartWritingArgs, TimeValue, TypeArgs, updateWeight } from "./ishadowagent";
 
@@ -8,13 +8,17 @@ import { IShadowAgent, MoveIpArgs, PValue, StartWritingArgs, TimeValue, TypeArgs
 export class DisplaySectionSummaryState implements IShadowAgent {
   private readonly body: IShadowTextBody;
   private readonly shadow: IShadow;
-  public weight: PValue;
+  public weight: PValue = 0 as PValue;
   private lastDisplayed: TimeValue = -1 as TimeValue;
   private sessionDisable: PValue = 0 as PValue;
   private rejectDelta = -0.3;
   private acceptDelta = 0.3;
   private suggestionDistance = 300;
   private startPosName: DurablePositionId | null = null;
+
+  public get suggestion(): ActionName[] {
+    return ["sectionsummary.display"];
+  }
 
   public constructor(shadow: IShadow, body: IShadowTextBody) {
     this.body = body;
@@ -32,10 +36,10 @@ export class DisplaySectionSummaryState implements IShadowAgent {
     } else if (action.name === "editor.startwriting") {
       this.body.addDurablePosition((action.args as StartWritingArgs).cp);
     } else if (action.name === "editor.type") {
-      if (this.startPosName) {
+      if (this.startPosName && this.shadow.canDisplaySuggestion("sectionsummary.display")) {
         let dist = this.body.getNormalizedDistance(this.body.getDurablePosition(this.startPosName), (action.args as TypeArgs).cp);
         if (dist > this.suggestionDistance) {
-          this.shadow.invokeAction("sectionsummary.display");
+          this.shadow.displaySuggestion("sectionsummary.display");
         }
       }
     }

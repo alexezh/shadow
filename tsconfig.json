@@ -1,14 +1,16 @@
 {
   "version": "3.0.3",
   "compilerOptions": {
-    "target": "es5",
+    "target": "ES2020",
     "module": "esnext",
     "removeComments": true,
-    "outDir": "./out",
+    //"outDir": "./out",
+    "rootDir": "./",
     "sourceMap": true,
     "alwaysStrict": true,
     "declaration": true,
     "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
     "types": [],
     "lib": [
       "dom",
@@ -22,10 +24,10 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "moduleResolution": "node",
-    "noEmit": false,
+    "noEmit": true,
   },
   "include": [
-    "src/**/*.ts"
+    "*.ts"
   ],
   "exclude": [
     "./out.d.ts",

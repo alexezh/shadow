@@ -1,0 +1,13 @@
+{
+  "name": "shadow",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@types/node": "^16.18.65"
+  },
+  "scripts": {},
+  "eslintConfig": {
+    "extends": []
+  }
+}
