@@ -1,7 +1,27 @@
 import type { DurablePositionId, IShadowTextBody, NormalizedDistance, TextVersion } from "./ishadow.ts";
-import type { GlobalCp } from "./shadowmessage.ts";
+import type { GlobalCp, CellObjectId, ShadowRevisionId, WireCp } from "./shadowmessage.ts";
 
-export class ShadowTextBody implements IShadowTextBody {
+export enum EditOpKind {
+  AddChar,
+  RemoveChar,
+  AddPara,
+  MergePara,
+  SplitPara,
+  DeletePara
+}
+
+export type EditOp = {
+  kind: EditOpKind,
+  paraId: CellObjectId,
+  cp: WireCp,
+  count: number;
+}
+
+export class ShadowTextBodyMock implements IShadowTextBody {
+  getEditRange(rev: ShadowRevisionId): { start: GlobalCp, end: GlobalCp } {
+    return { start: 22 as GlobalCp, end: 33 as GlobalCp };
+  }
+
   addDurablePosition(pos: GlobalCp): DurablePositionId {
     throw new Error("Method not implemented.");
   }

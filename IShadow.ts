@@ -2,6 +2,7 @@ import type {
   ShadowMessageArgs,
   ShadowMessageId,
   ShadowMessage,
+  ShadowRevisionId,
 } from "./shadowmessage.ts";
 import type { IShadowAgent, AgentName } from "./ishadowagent.ts";
 import {
@@ -9,7 +10,7 @@ import {
 } from "./shadowmessage.ts";
 
 export interface IShadow {
-  loadDocument(): void;
+  loadDocument(body: IShadowTextBody): void;
 
   processMessage(message: ShadowMessage): void;
 
@@ -48,9 +49,11 @@ export type DurablePositionId = string & {
  * hiding number of details.
  */
 export interface IShadowTextBody {
+  getEditRange(rev: ShadowRevisionId): { start: GlobalCp, end: GlobalCp };
+
   addDurablePosition(pos: GlobalCp): DurablePositionId;
-  removeDurablePosition(name: DurablePositionId): void;
-  getDurablePosition(name: DurablePositionId): GlobalCp;
+  removeDurablePosition(name: DurablePositionId | null): void;
+  getDurablePosition(name: DurablePositionId | null): GlobalCp | null;
 
   getCharacterDistance(pos1: GlobalCp, pos2: GlobalCp): number;
   getNormalizedDistance(pos1: GlobalCp, pos2: GlobalCp): NormalizedDistance;

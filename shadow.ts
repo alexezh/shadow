@@ -1,14 +1,9 @@
 import {
-  type ShadowMessageArgs,
   type ShadowMessageId,
   ShadowMessage,
-  ShadowMessageT,
 } from "./shadowmessage.ts";
 import type { IShadow, IShadowTextBody } from "./ishadow.ts";
 import type { IShadowAgent, AgentName } from "./ishadowagent.ts";
-import { TypingAgent } from "./typingagent.ts";
-import { FormattingAgent } from "./formattingagent.ts";
-import { AddTocAgent } from "./addtocagent.ts";
 
 /**
  * manages set of states which are changed based on actions
@@ -29,11 +24,8 @@ export class Shadow implements IShadow {
   >();
   private body?: IShadowTextBody;
 
-  public loadDocument(
-  ): void {
-    this.addAgent("typing", new TypingAgent(this, this.body!));
-    this.addAgent("formatting", new FormattingAgent());
-    this.addAgent("addtoc", new AddTocAgent(this, this.body!));
+  public loadDocument(body: IShadowTextBody): void {
+    this.body = body;
   }
 
   public processMessage(action: ShadowMessage) {

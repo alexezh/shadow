@@ -1,15 +1,17 @@
 import { FormattingAgent } from "./formattingagent.ts";
-import { ShadowTextBody } from "./shadowtextbody.ts";
+import { ShadowTextBodyMock } from "./shadowtextbodymock.ts";
 import { TypingAgent } from "./typingagent.ts";
 import { Shadow } from "./shadow.ts";
 import {
   GlobalCp,
+  ShadowRevisionId,
   type MoveIpArgs,
   type TypeArgs,
 } from "./shadowmessage.ts";
+import { AddTocAgent } from "./addtocagent.ts";
 
 export function runShadowTest() {
-  let body = new ShadowTextBody();
+  let body = new ShadowTextBodyMock();
 
   // lane.registerOnMatch("nake N changes ", () => {
   //   lane.triggerState("editor.write")
@@ -23,6 +25,8 @@ export function runShadowTest() {
 
   shadow.addAgent("typing", new TypingAgent(shadow, body));
   shadow.addAgent("formatting", new FormattingAgent());
+  shadow.addAgent("addtoc", new AddTocAgent(shadow, body!));
+
   //shadow.addAgent("display.sectionsummary", new DisplaySectionSummaryState(shadow, body));
 
   //lane.addState("editor.editing", null);
@@ -31,18 +35,14 @@ export function runShadowTest() {
     {
       id: "user.type",
       args: {
-        cp: 0 as GlobalCp,
-        inserted: 3,
-        deleted: 0,
+        rev: "1" as ShadowRevisionId,
       }
     }
   );
   shadow.processMessage(
     {
       id: "user.type", args: {
-        cp: 0 as GlobalCp,
-        inserted: 2,
-        deleted: 0,
+        rev: "2" as ShadowRevisionId,
       }
     });
 

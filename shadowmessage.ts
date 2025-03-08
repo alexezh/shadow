@@ -5,6 +5,7 @@ export type ShadowMessageId =
   // logged when a user typed non-trivial amount of text
   // the exact logic for some events will be defined by lower level models
   | "user.type"
+  // optional. logged when a user moved to different position
   | "user.moveip"
   | "user.format"
   | "editor.startwriting"
@@ -40,11 +41,21 @@ export type TextDistance = number & {
   __tagdist: never;
 };
 
+export type ShadowRevisionId = string & {
+  __tagrev: never;
+}
+
 export type TypeArgs = ShadowMessageArgs & {
-  cp: GlobalCp;
-  inserted: number;
-  deleted: number;
+  rev: ShadowRevisionId;
 };
+
+export type CellObjectId = string & {
+  __tagparaid: never;
+}
+
+export type WireCp = number & {
+  __tagcp: never;
+}
 
 /**
  * most probably implemented as fragmented position
