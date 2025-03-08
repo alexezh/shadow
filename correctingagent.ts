@@ -1,6 +1,9 @@
 import { ShadowMessage } from "./shadowmessage.ts";
 import { IShadow } from "./ishadow.ts";
-import { IShadowAgent, PValue, updateWeight } from "./ishadowagent.ts";
+import { IShadowAgent, updateWeight } from "./ishadowagent.ts";
+import {
+  type PValue,
+} from "./shadowmessage.ts";
 
 /**
  * detects sequence of moves and edits
@@ -15,7 +18,7 @@ export class CorrectingAgent implements IShadowAgent {
   private moveDelta = -0.01;
 
   public constructor(shadow: IShadow) {
-    this.writing = shadow.getAgent("editor.writing");
+    this.writing = shadow.getAgent("typing");
   }
 
   public onAction(action: ShadowMessage): PValue {

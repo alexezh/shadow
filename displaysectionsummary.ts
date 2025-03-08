@@ -1,6 +1,11 @@
-import { ShadowMessageId, ShadowMessage } from "./shadowmessage.ts";
-import { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow.ts";
-import { IShadowAgent, MoveIpArgs, PValue, StartWritingArgs, TimeValue, TypeArgs, updateWeight } from "./ishadowagent.ts";
+import { ShadowMessageId, ShadowMessage, TimeValue, StartWritingArgs } from "./shadowmessage.ts";
+import type { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow.ts";
+import { IShadowAgent, updateWeight } from "./ishadowagent.ts";
+import {
+  type MoveIpArgs,
+  type PValue,
+  type TypeArgs,
+} from "./shadowmessage.ts";
 
 /**
  * display summary for section when a user typed enoigh data to make decision

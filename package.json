@@ -2,6 +2,7 @@
   "name": "shadow",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",
     "@types/node": "^16.18.65"

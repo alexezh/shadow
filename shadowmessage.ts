@@ -1,5 +1,3 @@
-import type { TimeValue } from "./ishadowagent.ts";
-
 export type ShadowMessageArgs = {};
 
 export type ShadowMessageId =
@@ -24,15 +22,66 @@ export type ShadowMessageId =
   | "sectionsummary.reject"
   | "sectionsummary.accept";
 
-export class ShadowMessage<T extends ShadowMessageArgs = ShadowMessageArgs> {
-  public readonly id: ShadowMessageId = "none";
-  public readonly args?: T;
-  public readonly invokedTime?: TimeValue;
+/**
+* number is more compact representation of time
+*/
+export type TimeValue = number & {
+  __tagtime: never;
+};
 
-  constructor(name: ShadowMessageId, args?: T) {
-    this.id = name;
-    this.args = args;
-  }
+export type PValue = number & {
+  __tagprob: never;
+};
 
-  // original states
+/**
+ * 0-1 same paragraphs, 1000 and -1000 end of document
+ */
+export type TextDistance = number & {
+  __tagdist: never;
+};
+
+export type TypeArgs = ShadowMessageArgs & {
+  cp: GlobalCp;
+  inserted: number;
+  deleted: number;
+};
+
+/**
+ * most probably implemented as fragmented position
+ * does not really matter as it is just passed to IShadowTextBody
+ */
+export type GlobalCp = number & {
+  __tag_globalcp: never;
+};
+
+export type MoveIpArgs = ShadowMessageArgs & {
+  cp: GlobalCp;
+};
+
+export type StartWritingArgs = ShadowMessageArgs & {
+  cp: GlobalCp;
+};
+
+export type ShadowMessageT<TId extends ShadowMessageId, T extends ShadowMessageArgs = ShadowMessageArgs> = {
+  id: TId;
+  args?: T;
+  invokedTime?: TimeValue;
 }
+
+export type ShadowMessage =
+  ShadowMessageT<"none">
+  | ShadowMessageT<"user.type", TypeArgs>
+  | ShadowMessageT<"user.format">
+  | ShadowMessageT<"user.moveip">
+  | ShadowMessageT<"editor.startwriting", StartWritingArgs>
+  | ShadowMessageT<"editor.endwriting">
+  // user applied suggestion from grammar checker
+  | ShadowMessageT<"editor.correct">
+  | ShadowMessageT<"editor.inserttable">
+  | ShadowMessageT<"editor.insertpicture">
+  | ShadowMessageT<"addtoc.display">
+  | ShadowMessageT<"addtoc.reject">
+  | ShadowMessageT<"addtoc.accept">
+  | ShadowMessageT<"sectionsummary.display">
+  | ShadowMessageT<"sectionsummary.reject">
+  | ShadowMessageT<"sectionsummary.accept">;

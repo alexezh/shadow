@@ -2,6 +2,7 @@ import {
   type ShadowMessageArgs,
   type ShadowMessageId,
   ShadowMessage,
+  ShadowMessageT,
 } from "./shadowmessage.ts";
 import type { IShadow, IShadowTextBody } from "./ishadow.ts";
 import type { IShadowAgent, AgentName } from "./ishadowagent.ts";
@@ -30,8 +31,8 @@ export class Shadow implements IShadow {
 
   public loadDocument(
   ): void {
-    this.addAgent("editor.writing", new TypingAgent(this, this.body!));
-    this.addAgent("editor.formatting", new FormattingAgent());
+    this.addAgent("typing", new TypingAgent(this, this.body!));
+    this.addAgent("formatting", new FormattingAgent());
     this.addAgent("addtoc", new AddTocAgent(this, this.body!));
   }
 
@@ -44,11 +45,8 @@ export class Shadow implements IShadow {
     }
   }
 
-  public invokeAction<T extends ShadowMessageArgs = ShadowMessageArgs>(
-    msg: ShadowMessageId,
-    args?: T
-  ): void {
-    this.processMessage(new ShadowMessage(msg, args));
+  public invokeAction(msg: ShadowMessage): void {
+    this.processMessage(msg);
   }
 
   public addAgent(stateName: AgentName, state: IShadowAgent) {

@@ -1,9 +1,12 @@
-import { ShadowMessage } from "./shadowmessage.ts";
 import { FormattingAgent } from "./formattingagent.ts";
-import type { TypeArgs, MoveIpArgs, GlobalCp } from "./ishadowagent.ts";
 import { ShadowTextBody } from "./shadowtextbody.ts";
 import { TypingAgent } from "./typingagent.ts";
 import { Shadow } from "./shadow.ts";
+import {
+  GlobalCp,
+  type MoveIpArgs,
+  type TypeArgs,
+} from "./shadowmessage.ts";
 
 export function runShadowTest() {
   let body = new ShadowTextBody();
@@ -18,29 +21,33 @@ export function runShadowTest() {
 
   let shadow = new Shadow();
 
-  shadow.addAgent("editor.writing", new TypingAgent(shadow, body));
-  shadow.addAgent("editor.formatting", new FormattingAgent());
+  shadow.addAgent("typing", new TypingAgent(shadow, body));
+  shadow.addAgent("formatting", new FormattingAgent());
   //shadow.addAgent("display.sectionsummary", new DisplaySectionSummaryState(shadow, body));
 
   //lane.addState("editor.editing", null);
 
   shadow.processMessage(
-    new ShadowMessage<TypeArgs>("user.type", {
-      cp: 0 as GlobalCp,
-      inserted: 3,
-      deleted: 0,
-    })
+    {
+      id: "user.type",
+      args: {
+        cp: 0 as GlobalCp,
+        inserted: 3,
+        deleted: 0,
+      }
+    }
   );
   shadow.processMessage(
-    new ShadowMessage<TypeArgs>("user.type", {
-      cp: 0 as GlobalCp,
-      inserted: 2,
-      deleted: 0,
-    })
-  );
+    {
+      id: "user.type", args: {
+        cp: 0 as GlobalCp,
+        inserted: 2,
+        deleted: 0,
+      }
+    });
+
   shadow.processMessage(
-    new ShadowMessage<MoveIpArgs>("user.moveip", { cp: 0 as GlobalCp })
-  );
+    { id: "user.moveip", args: { cp: 0 as GlobalCp } });
 }
 
 // describe("Shadow", () => {
@@ -48,3 +55,4 @@ export function runShadowTest() {
 
 //   it("simple", () => { });
 // });
+runShadowTest();

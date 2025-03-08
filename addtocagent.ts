@@ -1,12 +1,13 @@
-import type { ShadowMessageId, ShadowMessage } from "./shadowmessage.ts";
+import type { ShadowMessageId, ShadowMessage, StartWritingArgs } from "./shadowmessage.ts";
 import type { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow.ts";
 import {
   type IShadowAgent,
-  type PValue,
-  type StartWritingArgs,
-  type TypeArgs,
   updateWeight,
 } from "./ishadowagent.ts";
+import {
+  type PValue,
+  type TypeArgs,
+} from "./shadowmessage.ts";
 
 /**
  * monitors edits and suggests to add TOC
@@ -46,7 +47,7 @@ export class AddTocAgent implements IShadowAgent {
           (action.args as TypeArgs).cp
         );
         if (dist > this.suggestionDistance) {
-          this.shadow.invokeAction("addtoc.display");
+          this.shadow.invokeAction({ id: "addtoc.display" });
         }
       }
     }

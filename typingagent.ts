@@ -1,12 +1,17 @@
 import type { ShadowMessageId, ShadowMessage } from "./shadowmessage.ts";
 import type { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow.ts";
 import {
-  type IShadowAgent,
   type MoveIpArgs,
   type PValue,
   type TypeArgs,
+} from "./shadowmessage.ts";
+import {
+  type IShadowAgent,
   updateWeight,
 } from "./ishadowagent.ts";
+
+// how do I detect that change is single range?
+// if I can capture every object, I can look at sequenc
 
 /**
  * track when a user types mostly new text in a continuous region
@@ -44,8 +49,10 @@ export class TypingAgent implements IShadowAgent {
         this.startPosName = this.body.addDurablePosition(
           (action.args as TypeArgs).cp
         );
-        this.shadow.invokeAction("editor.startwriting", {
-          cp: (action.args as TypeArgs).cp,
+        this.shadow.invokeAction({
+          id: "editor.startwriting", args: {
+            cp: (action.args as TypeArgs).cp,
+          }
         });
       }
     } else if (action.id === "user.format") {
@@ -60,7 +67,7 @@ export class TypingAgent implements IShadowAgent {
         );
         if (dist > this.contiguousDistance) {
           this.startPosName = null;
-          this.shadow.invokeAction("editor.endwriting");
+          this.shadow.invokeAction({ id: "editor.endwriting" });
         }
       }
     }

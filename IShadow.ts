@@ -3,7 +3,10 @@ import type {
   ShadowMessageId,
   ShadowMessage,
 } from "./shadowmessage.ts";
-import type { IShadowAgent, GlobalCp, AgentName } from "./ishadowagent.ts";
+import type { IShadowAgent, AgentName } from "./ishadowagent.ts";
+import {
+  type GlobalCp
+} from "./shadowmessage.ts";
 
 export interface IShadow {
   loadDocument(): void;
@@ -13,10 +16,7 @@ export interface IShadow {
   /**
    * generate action back to system
    */
-  invokeAction<T extends ShadowMessageArgs = ShadowMessageArgs>(
-    action: ShadowMessageId,
-    args?: T
-  ): void;
+  invokeAction(msg: ShadowMessage): void;
 
   addAgent(stateName: AgentName, state: IShadowAgent): void;
 
