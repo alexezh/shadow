@@ -6,7 +6,7 @@ import { Q } from './q.js';
 
 import { swap } from './byte-swapper.js';
 
-var DigestHashBuilder = function () {
+export function DigestHashBuilder() {
 
     var CODE_SIZE = 32;
 

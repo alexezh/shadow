@@ -10,6 +10,7 @@ import {
 } from "./shadowmessage.ts";
 import { AddTocAgent } from "./addtocagent.ts";
 import { tlsh } from "./tlsh/tlsh.js"
+import { DigestHashBuilder } from "./tlsh/digests/digest-hash-builder.js"
 
 export function runShadowTest() {
   let body = new ShadowTextBodyMock();
@@ -58,7 +59,7 @@ export function runShadowTest() {
 // });
 //runShadowTest();
 
-let val = tlsh(`import {
+let text = `import {
   type ShadowMessageId,
   ShadowMessage,
 } from "./shadowmessage.ts";
@@ -115,6 +116,30 @@ export class Shadow implements IShadow {
   getAgent(stateName: AgentName): IShadowAgent {
     return this.getAgent(stateName);
   }
-}`);
+}`;
 
-console.log(val);
+function measure(func: () => void): { val: any, duration: number } {
+  let start = performance.now();
+  let val1 = tlsh(text);
+  let end = performance.now();
+  return { val: val1, duration: end - start };
+}
+
+let val1 = measure(() => tlsh(text));
+for (let i = 0; i < 10; i++) {
+  val1 = measure(() => tlsh(text));
+}
+
+let val2 = tlsh(text);
+console.log(val1.duration + " " + val1.val);
+console.log(val2);
+
+let start = performance.now();
+// @ts-ignore
+var digest1 = new DigestHashBuilder().withHash(val1.val).build();
+// @ts-ignore
+var digest2 = new DigestHashBuilder().withHash(val2).build();
+let res = digest2.calculateDifference(digest1, true);
+let end = performance.now();
+
+console.log((end - start) + " " + res);
