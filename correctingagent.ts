@@ -1,5 +1,5 @@
-import { ShadowMessage } from "./shadowmessage.ts";
-import { IShadow } from "./ishadow.ts";
+import type { ShadowMessage } from "./shadowmessage.ts";
+import type { IShadow } from "./ishadow.ts";
 import { IShadowAgent, updateWeight } from "./ishadowagent.ts";
 import {
   type PValue,

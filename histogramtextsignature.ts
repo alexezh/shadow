@@ -4,7 +4,7 @@
  * disappear across documents. We are going to  
  */
 export class HistogramTextSignature {
-  private _histogram = new Map<number, number>();
+  private _histogram = new Map<string, number>();
 
   public addWord(w: string): void {
     let v = this._histogram.get(w);
@@ -19,7 +19,7 @@ export class HistogramTextSignature {
   public computeKey(): string {
     let lowFreq = 0;
     for (let [_, c] of this._histogram) {
-      if (c < )
+      //if (c < )
     }
     return "";
   }

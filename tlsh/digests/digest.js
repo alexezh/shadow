@@ -1,27 +1,27 @@
-var composeString = require('./digest-string-composer');
+import { composeString } from './digest-string-composer.js';
 
-var Digest = function (checksum, lValue, q, body){
+export var Digest = function (checksum, lValue, q, body) {
 
-    this.getLValue = function(){
+    this.getLValue = function () {
         return lValue;
     };
 
-    this.getQ = function(){
+    this.getQ = function () {
         return q;
     };
 
-    this.getChecksum = function(){
+    this.getChecksum = function () {
         return checksum;
     };
 
-    this.getBody = function(){
+    this.getBody = function () {
         return body;
     };
 
-    this.calculateDifference = function(other, lengthDiff){
+    this.calculateDifference = function (other, lengthDiff) {
         var difference = 0;
 
-        if(lengthDiff){
+        if (lengthDiff) {
             difference += lValue.calculateDifference(other.getLValue());
         }
 
@@ -32,9 +32,8 @@ var Digest = function (checksum, lValue, q, body){
         return difference;
     };
 
-    this.toString = function(){
+    this.toString = function () {
         return composeString(this);
     };
 };
 
-module.exports = Digest;

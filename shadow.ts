@@ -1,6 +1,6 @@
 import {
   type ShadowMessageId,
-  ShadowMessage,
+  type ShadowMessage,
 } from "./shadowmessage.ts";
 import type { IShadow, IShadowTextBody } from "./ishadow.ts";
 import type { IShadowAgent, AgentName } from "./ishadowagent.ts";

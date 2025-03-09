@@ -1,6 +1,6 @@
-var Triplet = require('./triplet');
+import { Triplet } from './triplet.js';
 
-var SlideWindow = function (){
+export var SlideWindow = (function () {
 
     var SLIDING_WINDOW_SIZE = 5;
 
@@ -10,29 +10,29 @@ var SlideWindow = function (){
 
     var counter = 0;
 
-    var getValue = function(index){
+    var getValue = function (index) {
         return storage[index];
     };
 
-    var getHash = function(c1, c2, c3, salt){
+    var getHash = function (c1, c2, c3, salt) {
         return new Triplet(c1, c2, c3, salt).getHash();
     };
 
-    var isComplete = function(){
+    var isComplete = function () {
         return counter >= SLIDING_WINDOW_SIZE;
     };
 
-    this.put = function(value){
+    this.put = function (value) {
         storage[this.getPivot()] = value & 0xff;
         counter++;
     };
 
-    this.getPivot = function(){
+    this.getPivot = function () {
         return counter % SLIDING_WINDOW_SIZE;
     };
 
-    this.getTripletHashes = function(fromStartWindow){
-        if(!isComplete()) return [];
+    this.getTripletHashes = function (fromStartWindow) {
+        if (!isComplete()) return [];
 
         var startWindow = fromStartWindow;
         var j2 = (startWindow + 1) % SLIDING_WINDOW_SIZE;
@@ -50,32 +50,31 @@ var SlideWindow = function (){
         ];
     };
 
-    this.getChecksum = function(fromStartWindow, lastChecksum){
-        if(!isComplete()) return null;
-        
+    this.getChecksum = function (fromStartWindow, lastChecksum) {
+        if (!isComplete()) return null;
+
         var endWindow = (fromStartWindow + 4) % SLIDING_WINDOW_SIZE;
-        
+
         var checksum = new Array(CHECKSUM_LENGTH);
-        
-        for (var i = 0; i < CHECKSUM_LENGTH; i++) {         
-            var c1 = getValue(fromStartWindow);         
-            var c2 = getValue(endWindow);           
-            var c3 = 0;         
+
+        for (var i = 0; i < CHECKSUM_LENGTH; i++) {
+            var c1 = getValue(fromStartWindow);
+            var c2 = getValue(endWindow);
+            var c3 = 0;
             var salt = 0;
-            
-            if(lastChecksum){
+
+            if (lastChecksum) {
                 c3 = lastChecksum[i];
             }
-            
+
             if (i !== 0) {
                 salt = checksum[i - 1];
             }
-            
+
             checksum[i] = getHash(c1, c2, c3, salt);
         }
-        
+
         return checksum;
     };
-};
+})();
 
-module.exports = SlideWindow;

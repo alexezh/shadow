@@ -1,10 +1,10 @@
-var Checksum = function (checksumData){
+export var Checksum = function (checksumData) {
 
     var areEquals = function (anArray, otherArray) {
         var i = anArray.length;
-        
+
         if (i != otherArray.length) return false;
-       
+
         while (i--) {
             if (anArray[i] !== otherArray[i]) return false;
         }
@@ -12,14 +12,12 @@ var Checksum = function (checksumData){
         return true;
     };
 
-    this.calculateDifference = function(other) {
+    this.calculateDifference = function (other) {
         if (!areEquals(checksumData, other.getValue())) return 1;
         return 0;
     };
 
-    this.getValue = function(){
+    this.getValue = function () {
         return checksumData;
     };
 };
-
-module.exports = Checksum;

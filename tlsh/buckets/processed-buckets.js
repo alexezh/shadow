@@ -1,39 +1,39 @@
-var DigestBuilder = require('./digest-builder');
+import { DigestBuilder } from './digest-builder.js';
 
-var ProcessedBuckets = function (checksum, bucketArray, processedDataLength, quartiles){
-    
+export var ProcessedBuckets = (function (checksum, bucketArray, processedDataLength, quartiles) {
+
     var MINIMUM_HASH_INPUT_LENGTH = 512;
     var CODE_SIZE = 32;
 
-    var isPositiveBucket = function(index){
+    var isPositiveBucket = function (index) {
         return bucketArray[index] > 0;
     };
 
-    var hasMinimumNonZeroBuckets = function(){
+    var hasMinimumNonZeroBuckets = function () {
         var nonzero = 0;
 
-        for(var i=0; i < (CODE_SIZE*4); i++) {
+        for (var i = 0; i < (CODE_SIZE * 4); i++) {
             if (isPositiveBucket(i)) {
-              nonzero++;
+                nonzero++;
             }
         }
 
         return nonzero > (CODE_SIZE * 2);
     };
 
-    var hasMinimumAmountOfDataProcessed = function(){
+    var hasMinimumAmountOfDataProcessed = function () {
         return processedDataLength >= MINIMUM_HASH_INPUT_LENGTH;
     };
 
-    var calculateBody = function(){
+    var calculateBody = function () {
         var body = new Array(CODE_SIZE);
-                
+
         for (var i = 0; i < CODE_SIZE; i++) {
             var h = 0;
-            
+
             for (var j = 0; j < 4; j++) {
                 var k1 = bucketArray[4 * i + j];
-                
+
                 if (quartiles.getThird() < k1) {
                     h += 3 << (j * 2);
                 } else if (quartiles.getSecond() < k1) {
@@ -42,25 +42,23 @@ var ProcessedBuckets = function (checksum, bucketArray, processedDataLength, qua
                     h += 1 << (j * 2);
                 }
             }
-            
+
             body[i] = h;
         }
-        
+
         return body;
     };
 
-    this.isProcessedDataTooSimple = function(){
+    this.isProcessedDataTooSimple = function () {
         return !hasMinimumAmountOfDataProcessed() || !hasMinimumNonZeroBuckets();
     };
 
-    this.buildDigest = function(){
+    this.buildDigest = function () {
         return new DigestBuilder()
-                    .withChecksum(checksum)
-                    .withLength(processedDataLength)
-                    .withQuartiles(quartiles)
-                    .withBody(calculateBody())
-                    .build();
+            .withChecksum(checksum)
+            .withLength(processedDataLength)
+            .withQuartiles(quartiles)
+            .withBody(calculateBody())
+            .build();
     };
-};
-
-module.exports = ProcessedBuckets;
+})();

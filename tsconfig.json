@@ -30,6 +30,7 @@
     "*.ts"
   ],
   "exclude": [
+    "**/*.js",
     "./out.d.ts",
     "./node_modules/*"
   ]

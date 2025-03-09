@@ -1,5 +1,5 @@
-var CalculateBitPairsMappedValue = (function(){
-    
+export var calculateBitPairsMappedValue = (function () {
+
     var BIT_PAIRS_DIFF_TABLE_SIZE = 256;
 
     var BIT_PAIRS_DIFF_TABLE = generateDefaultBitPairsTable();
@@ -8,7 +8,7 @@ var CalculateBitPairsMappedValue = (function(){
         var result = new Array(BIT_PAIRS_DIFF_TABLE_SIZE);
 
         for (var i = 0; i < result.length; i++) {
-            result[i] = new Array(BIT_PAIRS_DIFF_TABLE_SIZE);   
+            result[i] = new Array(BIT_PAIRS_DIFF_TABLE_SIZE);
         }
 
         for (i = 0; i < BIT_PAIRS_DIFF_TABLE_SIZE; i++) {
@@ -19,8 +19,8 @@ var CalculateBitPairsMappedValue = (function(){
 
                 for (var z = 0; z < 4; z++) {
                     var d = Math.abs(x % 4 - y % 4);
-                    
-                    if(d == 3){
+
+                    if (d == 3) {
                         diff += d * 2;
                     } else {
                         diff += d;
@@ -34,16 +34,14 @@ var CalculateBitPairsMappedValue = (function(){
 
                 result[i][j] = diff;
             }
-        } 
+        }
 
         return result;
-    }    
+    }
 
-    var getValue = function(row, column){
+    var getValue = function (row, column) {
         return BIT_PAIRS_DIFF_TABLE[row][column];
     };
 
     return getValue;
 })();
-
-module.exports = CalculateBitPairsMappedValue;

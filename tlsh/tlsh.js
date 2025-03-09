@@ -1,8 +1,8 @@
-var processBuckets = require('./buckets/bucket-processor');
-var InsufficientComplexityError = require('./errors/insufficient-complexity-error');
+import { processBuckets } from './buckets/bucket-processor.js';
+import { InsufficientComplexityError } from './errors/insufficient-complexity-error.js';
 
-module.exports = function(data){
-    var processedBuckets = processBuckets(data);    
+export function tlsh(data) {
+    var processedBuckets = processBuckets(data);
 
     if (processedBuckets.isProcessedDataTooSimple()) {
         throw new InsufficientComplexityError("Input data hasn't enough complexity");

@@ -7,7 +7,7 @@ import {
 } from "./shadowmessage.ts";
 import {
   type IShadowAgent,
-  TunableNumber,
+  type TunableNumber,
   updateWeight,
 } from "./ishadowagent.ts";
 

@@ -1,26 +1,24 @@
-var calculateModularDifference = require('./modular-difference-calculator');
+import { calculateModularDifference } from './modular-difference-calculator.js';
 
-var LValue = function (value){
+export var LValue = function (value) {
 
     var RANGE_LVALUE = 256;
 
-    this.calculateDifference = function(other){
+    this.calculateDifference = function (other) {
         var ldiff = calculateModularDifference(value, other.getValue(), RANGE_LVALUE);
 
-        if(ldiff === 0){
+        if (ldiff === 0) {
             return 0;
         }
 
-        if(ldiff === 1){
+        if (ldiff === 1) {
             return 1;
         }
 
         return ldiff * 12;
     };
 
-    this.getValue = function(){
+    this.getValue = function () {
         return value;
     };
 };
-
-module.exports = LValue;

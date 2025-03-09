@@ -1,4 +1,4 @@
-var CalculatePearsonHash = (function() {
+export var calculatePearsonHash = (function () {
 
     var PERMUTATION_TABLE = [
         1, 87, 49, 12, 176, 178, 102, 166, 121, 193, 6, 84, 249, 230, 44, 163,
@@ -19,10 +19,10 @@ var CalculatePearsonHash = (function() {
         51, 65, 28, 144, 254, 221, 93, 189, 194, 139, 112, 43, 71, 109, 184, 209
     ];
 
-    var compute = function(data){
+    var compute = function (data) {
         var h = 0;
 
-        data.forEach(function(i){
+        data.forEach(function (i) {
             h = PERMUTATION_TABLE[h ^ i];
         });
 
@@ -31,5 +31,3 @@ var CalculatePearsonHash = (function() {
 
     return compute;
 })();
-
-module.exports = CalculatePearsonHash;

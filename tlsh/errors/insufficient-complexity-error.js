@@ -1,4 +1,4 @@
-var InsufficientComplexityError = function(message) {
+export function InsufficientComplexityError(message) {
   this.name = 'InsufficientComplexityError';
   this.message = message;
   this.stack = (new Error()).stack;
@@ -7,4 +7,3 @@ var InsufficientComplexityError = function(message) {
 InsufficientComplexityError.prototype = Object.create(Error.prototype);
 InsufficientComplexityError.prototype.constructor = InsufficientComplexityError;
 
-module.exports = InsufficientComplexityError;
