@@ -1,5 +1,5 @@
-import { ShadowMessageId, ShadowMessage, TimeValue, StartWritingArgs } from "./shadowmessage.ts";
-import type { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow.ts";
+import { ShadowMessageId, ShadowMessage, TimeValue, StartWritingArgs, DurablePositionId } from "./shadowmessage.ts";
+import type { IShadow, IShadowTextBody } from "./ishadow.ts";
 import { IShadowAgent, updateWeight } from "./ishadowagent.ts";
 import {
   type MoveIpArgs,
@@ -38,14 +38,14 @@ export class DisplaySectionSummaryState implements IShadowAgent {
       weight = updateWeight(weight, this.rejectDelta)
     } else if (action.id === "sectionsummary.accept") {
       weight = updateWeight(weight, this.acceptDelta)
-    } else if (action.id === "editor.startwriting") {
+    } else if (action.id === "typing.startwriting") {
       this.body.addDurablePosition((action.args as StartWritingArgs).cp);
     } else if (action.id === "user.type") {
       if (this.startPosName && this.shadow.canDisplaySuggestion("sectionsummary.display")) {
-        let dist = this.body.getNormalizedDistance(this.body.getDurablePosition(this.startPosName), (action.args as TypeArgs).cp);
-        if (dist > this.suggestionDistance) {
-          this.shadow.displaySuggestion("sectionsummary.display");
-        }
+        // let dist = this.body.getNormalizedDistance(this.body.getDurablePosition(this.startPosName), (action.args as TypeArgs).cp);
+        // if (dist > this.suggestionDistance) {
+        //   this.shadow.displaySuggestion("sectionsummary.display");
+        // }
       }
     }
 

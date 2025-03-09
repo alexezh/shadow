@@ -50,3 +50,10 @@ export function updateWeight(v: PValue, d: number): PValue {
     return t as PValue;
   }
 }
+
+/**
+ * placeholder for parameter which can be tuned
+ */
+export type TunableNumber = number & {
+  __tag_tunable: never
+}

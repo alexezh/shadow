@@ -1,5 +1,5 @@
-import type { DurablePositionId, IShadowTextBody, NormalizedDistance, TextVersion } from "./ishadow.ts";
-import type { GlobalCp, CellObjectId, ShadowRevisionId, WireCp } from "./shadowmessage.ts";
+import type { IShadowTextBody, NormalizedDistance, TextVersion } from "./ishadow.ts";
+import type { GlobalCp, CellObjectId, ShadowRevisionId, WireCp, DurablePositionId } from "./shadowmessage.ts";
 
 export enum EditOpKind {
   AddChar,

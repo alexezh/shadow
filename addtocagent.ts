@@ -1,5 +1,5 @@
-import type { ShadowMessageId, ShadowMessage, StartWritingArgs } from "./shadowmessage.ts";
-import type { DurablePositionId, IShadow, IShadowTextBody } from "./ishadow.ts";
+import type { ShadowMessageId, ShadowMessage, StartWritingArgs, DurablePositionId } from "./shadowmessage.ts";
+import type { IShadow, IShadowTextBody } from "./ishadow.ts";
 import {
   type IShadowAgent,
   updateWeight,
@@ -38,17 +38,17 @@ export class AddTocAgent implements IShadowAgent {
       weight = updateWeight(weight, this.rejectDelta);
     } else if (action.id === "addtoc.accept") {
       weight = updateWeight(weight, this.acceptDelta);
-    } else if (action.id === "editor.startwriting") {
+    } else if (action.id === "typing.startwriting") {
       this.body.addDurablePosition((action.args as StartWritingArgs).cp);
     } else if (action.id === "user.type") {
       if (this.startPosName) {
-        let dist = this.body.getNormalizedDistance(
-          this.body.getDurablePosition(this.startPosName),
-          (action.args as TypeArgs).cp
-        );
-        if (dist > this.suggestionDistance) {
-          this.shadow.invokeAction({ id: "addtoc.display" });
-        }
+        // let dist = this.body.getNormalizedDistance(
+        //   this.body.getDurablePosition(this.startPosName),
+        //   (action.args as TypeArgs).cp
+        // );
+        // if (dist > this.suggestionDistance) {
+        //   this.shadow.invokeAction({ id: "addtoc.display" });
+        // }
       }
     }
 

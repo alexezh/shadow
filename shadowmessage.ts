@@ -8,8 +8,8 @@ export type ShadowMessageId =
   // optional. logged when a user moved to different position
   | "user.moveip"
   | "user.format"
-  | "editor.startwriting"
-  | "editor.endwriting"
+  | "typing.startwriting"
+  | "typing.endwriting"
   // user applied suggestion from grammar checker
   | "editor.correct"
   | "editor.inserttable"
@@ -57,6 +57,10 @@ export type WireCp = number & {
   __tagcp: never;
 }
 
+export type DurablePositionId = string & {
+  __tag_durpos: never;
+};
+
 /**
  * most probably implemented as fragmented position
  * does not really matter as it is just passed to IShadowTextBody
@@ -70,7 +74,7 @@ export type MoveIpArgs = ShadowMessageArgs & {
 };
 
 export type StartWritingArgs = ShadowMessageArgs & {
-  cp: GlobalCp;
+  pos: DurablePositionId
 };
 
 export type ShadowMessageT<TId extends ShadowMessageId, T extends ShadowMessageArgs = ShadowMessageArgs> = {
@@ -83,9 +87,9 @@ export type ShadowMessage =
   ShadowMessageT<"none">
   | ShadowMessageT<"user.type", TypeArgs>
   | ShadowMessageT<"user.format">
-  | ShadowMessageT<"user.moveip">
-  | ShadowMessageT<"editor.startwriting", StartWritingArgs>
-  | ShadowMessageT<"editor.endwriting">
+  | ShadowMessageT<"user.moveip", TypeArgs>
+  | ShadowMessageT<"typing.startwriting", StartWritingArgs>
+  | ShadowMessageT<"typing.endwriting">
   // user applied suggestion from grammar checker
   | ShadowMessageT<"editor.correct">
   | ShadowMessageT<"editor.inserttable">

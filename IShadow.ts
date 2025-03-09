@@ -3,6 +3,7 @@ import type {
   ShadowMessageId,
   ShadowMessage,
   ShadowRevisionId,
+  DurablePositionId,
 } from "./shadowmessage.ts";
 import type { IShadowAgent, AgentName } from "./ishadowagent.ts";
 import {
@@ -41,9 +42,6 @@ export type NormalizedDistance = number & {
   __tag_normpos: never;
 };
 
-export type DurablePositionId = string & {
-  __tag_durpos: never;
-};
 /**
  * represents the body of the text; wrapper over ISwmBody and other types
  * hiding number of details.
