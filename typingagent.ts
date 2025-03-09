@@ -100,7 +100,9 @@ export class TypingAgent implements IShadowAgent {
     if (action.id === "user.type" || action.id === "user.moveip") {
       weight = updateWeight(weight, this.typeDelta);
 
-      let range = this.body.getEditRange(action.args!.rev);
+      let range = (action.id === "user.moveip") ?
+        { start: action.args!.cp, end: action.args!.cp + 1 as GlobalCp }
+        : this.body.getEditRange(action.args!.rev);
 
       let res = this.updateEditRegion(range);
 
@@ -162,6 +164,8 @@ export class TypingAgent implements IShadowAgent {
 
             this.shadow.invokeAction({
               id: "typing.endwriting", args: {
+                editCount: this.curEditRegion!.editCount,
+                duration: now - this.curEditRegion!.firstEditTime as TimeValue
               }
             });
 
@@ -177,6 +181,13 @@ export class TypingAgent implements IShadowAgent {
     }
 
     if (this.lastEditRegion) {
+      this.shadow.invokeAction({
+        id: "typing.endwriting", args: {
+          editCount: this.lastEditRegion!.editCount,
+          duration: now - this.lastEditRegion!.firstEditTime as TimeValue
+        }
+      });
+
       this.deleteEditRegion(this.lastEditRegion);
     }
     this.lastEditRegion = this.curEditRegion;

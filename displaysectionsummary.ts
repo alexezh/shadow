@@ -39,7 +39,7 @@ export class DisplaySectionSummaryState implements IShadowAgent {
     } else if (action.id === "sectionsummary.accept") {
       weight = updateWeight(weight, this.acceptDelta)
     } else if (action.id === "typing.startwriting") {
-      this.body.addDurablePosition((action.args as StartWritingArgs).cp);
+      // this.body.addDurablePosition((action.args as StartWritingArgs).cp);
     } else if (action.id === "user.type") {
       if (this.startPosName && this.shadow.canDisplaySuggestion("sectionsummary.display")) {
         // let dist = this.body.getNormalizedDistance(this.body.getDurablePosition(this.startPosName), (action.args as TypeArgs).cp);

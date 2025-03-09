@@ -77,6 +77,11 @@ export type StartWritingArgs = ShadowMessageArgs & {
   pos: DurablePositionId
 };
 
+export type EndWritingArgs = ShadowMessageArgs & {
+  editCount: number
+  duration: TimeValue;
+};
+
 export type ShadowMessageT<TId extends ShadowMessageId, T extends ShadowMessageArgs = ShadowMessageArgs> = {
   id: TId;
   args?: T;
@@ -87,9 +92,9 @@ export type ShadowMessage =
   ShadowMessageT<"none">
   | ShadowMessageT<"user.type", TypeArgs>
   | ShadowMessageT<"user.format">
-  | ShadowMessageT<"user.moveip", TypeArgs>
+  | ShadowMessageT<"user.moveip", MoveIpArgs>
   | ShadowMessageT<"typing.startwriting", StartWritingArgs>
-  | ShadowMessageT<"typing.endwriting">
+  | ShadowMessageT<"typing.endwriting", EndWritingArgs>
   // user applied suggestion from grammar checker
   | ShadowMessageT<"editor.correct">
   | ShadowMessageT<"editor.inserttable">
