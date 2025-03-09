@@ -1,4 +1,4 @@
-export var Quartiles = (function (data) {
+export var Quartiles = function (data) {
     if (data.length < ARRAY_SAMPLE_SIZE) throw new Error();
 
     var ARRAY_SAMPLE_SIZE = 128;
@@ -9,23 +9,26 @@ export var Quartiles = (function (data) {
         return (a - b);
     });
 
-    this.getQ1Ratio = function () {
-        return Math.floor(this.getFirst() * 100 / this.getThird()) % Q_RATIO_MODULE;
+    let res = {
+        getFirst: function () {
+            return sampleArray[ARRAY_SAMPLE_SIZE / 4 - 1];
+        },
+
+        getSecond: function () {
+            return sampleArray[ARRAY_SAMPLE_SIZE / 2 - 1];
+        },
+
+        getThird: function () {
+            return sampleArray[ARRAY_SAMPLE_SIZE - (ARRAY_SAMPLE_SIZE / 4) - 1];
+        }
+    }
+
+    res.getQ1Ratio = function () {
+        return Math.floor(res.getFirst() * 100 / res.getThird()) % Q_RATIO_MODULE;
     };
 
-    this.getQ2Ratio = function () {
-        return Math.floor(this.getSecond() * 100 / this.getThird()) % Q_RATIO_MODULE;
+    res.getQ2Ratio = function () {
+        return Math.floor(res.getSecond() * 100 / res.getThird()) % Q_RATIO_MODULE;
     };
-
-    this.getFirst = function () {
-        return sampleArray[ARRAY_SAMPLE_SIZE / 4 - 1];
-    };
-
-    this.getSecond = function () {
-        return sampleArray[ARRAY_SAMPLE_SIZE / 2 - 1];
-    };
-
-    this.getThird = function () {
-        return sampleArray[ARRAY_SAMPLE_SIZE - (ARRAY_SAMPLE_SIZE / 4) - 1];
-    };
-})();
+    return res;
+};

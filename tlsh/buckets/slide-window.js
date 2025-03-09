@@ -1,6 +1,6 @@
 import { Triplet } from './triplet.js';
 
-export var SlideWindow = (function () {
+export var SlideWindow = function () {
 
     var SLIDING_WINDOW_SIZE = 5;
 
@@ -22,59 +22,60 @@ export var SlideWindow = (function () {
         return counter >= SLIDING_WINDOW_SIZE;
     };
 
-    this.put = function (value) {
-        storage[this.getPivot()] = value & 0xff;
-        counter++;
-    };
+    return {
+        put: function (value) {
+            storage[this.getPivot()] = value & 0xff;
+            counter++;
+        },
 
-    this.getPivot = function () {
-        return counter % SLIDING_WINDOW_SIZE;
-    };
+        getPivot: function () {
+            return counter % SLIDING_WINDOW_SIZE;
+        },
 
-    this.getTripletHashes = function (fromStartWindow) {
-        if (!isComplete()) return [];
+        getTripletHashes: function (fromStartWindow) {
+            if (!isComplete()) return [];
 
-        var startWindow = fromStartWindow;
-        var j2 = (startWindow + 1) % SLIDING_WINDOW_SIZE;
-        var j3 = (startWindow + 2) % SLIDING_WINDOW_SIZE;
-        var j4 = (startWindow + 3) % SLIDING_WINDOW_SIZE;
-        var endWindow = (startWindow + 4) % SLIDING_WINDOW_SIZE;
+            var startWindow = fromStartWindow;
+            var j2 = (startWindow + 1) % SLIDING_WINDOW_SIZE;
+            var j3 = (startWindow + 2) % SLIDING_WINDOW_SIZE;
+            var j4 = (startWindow + 3) % SLIDING_WINDOW_SIZE;
+            var endWindow = (startWindow + 4) % SLIDING_WINDOW_SIZE;
 
-        return [
-            getHash(storage[startWindow], storage[endWindow], storage[j4], 2),
-            getHash(storage[startWindow], storage[endWindow], storage[j3], 3),
-            getHash(storage[startWindow], storage[j4], storage[j3], 5),
-            getHash(storage[startWindow], storage[j4], storage[j2], 7),
-            getHash(storage[startWindow], storage[endWindow], storage[j2], 11),
-            getHash(storage[startWindow], storage[j3], storage[j2], 13)
-        ];
-    };
+            return [
+                getHash(storage[startWindow], storage[endWindow], storage[j4], 2),
+                getHash(storage[startWindow], storage[endWindow], storage[j3], 3),
+                getHash(storage[startWindow], storage[j4], storage[j3], 5),
+                getHash(storage[startWindow], storage[j4], storage[j2], 7),
+                getHash(storage[startWindow], storage[endWindow], storage[j2], 11),
+                getHash(storage[startWindow], storage[j3], storage[j2], 13)
+            ];
+        },
 
-    this.getChecksum = function (fromStartWindow, lastChecksum) {
-        if (!isComplete()) return null;
+        getChecksum: function (fromStartWindow, lastChecksum) {
+            if (!isComplete()) return null;
 
-        var endWindow = (fromStartWindow + 4) % SLIDING_WINDOW_SIZE;
+            var endWindow = (fromStartWindow + 4) % SLIDING_WINDOW_SIZE;
 
-        var checksum = new Array(CHECKSUM_LENGTH);
+            var checksum = new Array(CHECKSUM_LENGTH);
 
-        for (var i = 0; i < CHECKSUM_LENGTH; i++) {
-            var c1 = getValue(fromStartWindow);
-            var c2 = getValue(endWindow);
-            var c3 = 0;
-            var salt = 0;
+            for (var i = 0; i < CHECKSUM_LENGTH; i++) {
+                var c1 = getValue(fromStartWindow);
+                var c2 = getValue(endWindow);
+                var c3 = 0;
+                var salt = 0;
 
-            if (lastChecksum) {
-                c3 = lastChecksum[i];
+                if (lastChecksum) {
+                    c3 = lastChecksum[i];
+                }
+
+                if (i !== 0) {
+                    salt = checksum[i - 1];
+                }
+
+                checksum[i] = getHash(c1, c2, c3, salt);
             }
 
-            if (i !== 0) {
-                salt = checksum[i - 1];
-            }
-
-            checksum[i] = getHash(c1, c2, c3, salt);
+            return checksum;
         }
-
-        return checksum;
-    };
-})();
-
+    }
+}

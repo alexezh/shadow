@@ -1,6 +1,6 @@
 import { DigestBuilder } from './digest-builder.js';
 
-export var ProcessedBuckets = (function (checksum, bucketArray, processedDataLength, quartiles) {
+export var ProcessedBuckets = function (checksum, bucketArray, processedDataLength, quartiles) {
 
     var MINIMUM_HASH_INPUT_LENGTH = 512;
     var CODE_SIZE = 32;
@@ -49,16 +49,18 @@ export var ProcessedBuckets = (function (checksum, bucketArray, processedDataLen
         return body;
     };
 
-    this.isProcessedDataTooSimple = function () {
-        return !hasMinimumAmountOfDataProcessed() || !hasMinimumNonZeroBuckets();
-    };
+    return {
+        isProcessedDataTooSimple: function () {
+            return !hasMinimumAmountOfDataProcessed() || !hasMinimumNonZeroBuckets();
+        },
 
-    this.buildDigest = function () {
-        return new DigestBuilder()
-            .withChecksum(checksum)
-            .withLength(processedDataLength)
-            .withQuartiles(quartiles)
-            .withBody(calculateBody())
-            .build();
-    };
-})();
+        buildDigest: function () {
+            return new DigestBuilder()
+                .withChecksum(checksum)
+                .withLength(processedDataLength)
+                .withQuartiles(quartiles)
+                .withBody(calculateBody())
+                .build();
+        }
+    }
+}

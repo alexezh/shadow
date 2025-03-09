@@ -25,7 +25,7 @@ export var composeString = (function () {
         var swapChecksum = function (checksum) {
             var swappedChecksum = new Array(TLSH_CHECKSUM_LEN);
 
-            for (k = 0; k < TLSH_CHECKSUM_LEN; k++) {
+            for (let k = 0; k < TLSH_CHECKSUM_LEN; k++) {
                 swappedChecksum[k] = swap(checksum.getValue()[k]);
             }
 
@@ -43,7 +43,7 @@ export var composeString = (function () {
         var swapBody = function (body) {
             var swappedBody = new Array(CODE_SIZE);
 
-            for (i = 0; i < CODE_SIZE; i++) {
+            for (let i = 0; i < CODE_SIZE; i++) {
                 swappedBody[i] = body.getValue(CODE_SIZE - 1 - i);
             }
 

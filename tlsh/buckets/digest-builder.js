@@ -4,7 +4,7 @@ import { Digest } from '../digests/digest.js';
 import { LValue } from '../digests/lvalue.js';
 import { Q } from '../digests/q.js';
 
-export var DigestBuilder = (function () {
+export var DigestBuilder = function () {
 
     var MOD_VALUE = 256;
 
@@ -79,4 +79,4 @@ export var DigestBuilder = (function () {
         withBody: withBody,
         build: build
     };
-})();
+}
