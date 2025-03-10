@@ -10,5 +10,11 @@
   "scripts": {},
   "eslintConfig": {
     "extends": []
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.26.0",
+    "@typescript-eslint/parser": "^8.26.0",
+    "eslint": "^9.22.0",
+    "eslint-define-config": "^2.1.0"
   }
 }

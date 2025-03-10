@@ -17,6 +17,9 @@
       "dom.iterable",
       "esnext"
     ],
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true, // Required for type imports
+    "preserveValueImports": false,
     "allowJs": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
