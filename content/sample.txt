@@ -1,0 +1,5 @@
+This is a sample text document that can be read using the read_content MCP method.
+
+It contains multiple paragraphs and demonstrates how text content is stored and retrieved.
+
+You can use this for testing the read_content functionality with format: text.

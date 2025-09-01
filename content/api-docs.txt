@@ -1,0 +1,18 @@
+OpenAI MCP Service API Documentation
+
+METHODS:
+1. get_instructions - Retrieve stored instructions for given terms
+2. store_data - Store text with embeddings based on terms  
+3. load_data - Load all text data matching terms
+4. read_content - Read document content from content directory
+
+READ_CONTENT METHOD:
+- Parameters: name (string), format ('text' | 'html')
+- Returns: Document content as text
+- Files are read from ./content directory
+- Text format reads .txt files
+- HTML format reads .html files
+
+USAGE EXAMPLES:
+- read_content(name="sample", format="text") -> reads content/sample.txt
+- read_content(name="guide", format="html") -> reads content/guide.html
