@@ -1,0 +1,148 @@
+import { Database } from './database.js';
+import { INITIAL_RULES } from './init.js';
+import { OpenAIClient } from './openai-client.js';
+import * as readline from 'readline';
+
+export class ConsoleApp {
+  private database: Database;
+  private openaiClient: OpenAIClient;
+  private rl: readline.Interface;
+
+  constructor() {
+    this.database = new Database();
+    this.openaiClient = new OpenAIClient();
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+  }
+
+  async start(): Promise<void> {
+    await this.database.initialize();
+    console.log('Console mode started. Available commands: init, list-rules, get-rule, store-rule, exit');
+
+    this.promptUser();
+  }
+
+  private promptUser(): void {
+    this.rl.question('> ', async (input) => {
+      const trimmed = input.trim();
+      if (trimmed === 'exit') {
+        await this.stop();
+        return;
+      }
+
+      try {
+        await this.handleCommand(trimmed);
+      } catch (error) {
+        console.error(`Error: ${error}`);
+      }
+
+      this.promptUser();
+    });
+  }
+
+  private async handleCommand(command: string): Promise<void> {
+    const parts = command.split(' ');
+    const cmd = parts[0];
+
+    switch (cmd) {
+      case 'init':
+        await this.handleInit();
+        break;
+
+      case 'list-rules':
+        await this.handleListRules();
+        break;
+
+      case 'get-rule':
+        if (parts.length < 2) {
+          console.log('Usage: get-rule <term1> [term2] ...');
+          return;
+        }
+        await this.handleGetRule(parts.slice(1));
+        break;
+
+      case 'store-rule':
+        await this.handleStoreRule();
+        break;
+
+      default:
+        console.log('Unknown command. Available: init, list-rules, get-rule, store-rule, exit');
+    }
+  }
+
+  private async handleInit(): Promise<void> {
+    console.log('Initializing database with default rules...');
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const rule of INITIAL_RULES) {
+      try {
+        const embedding = await this.openaiClient.generateEmbedding(rule.terms);
+        await this.database.storeEmbedding(rule.terms, rule.text, embedding);
+        console.log(`✓ Stored rule for [${rule.terms.join(', ')}]`);
+        successCount++;
+      } catch (error) {
+        console.error(`✗ Failed to store rule for [${rule.terms.join(', ')}]: ${error}`);
+        errorCount++;
+      }
+    }
+
+    console.log(`\nInitialization complete: ${successCount} rules stored, ${errorCount} errors`);
+  }
+
+  private async handleListRules(): Promise<void> {
+    const allRules = await this.database.getAllRules();
+    if (allRules.length === 0) {
+      console.log('No rules found.');
+      return;
+    }
+
+    console.log('Available rules:');
+    allRules.forEach((rule, index) => {
+      console.log(`${index + 1}. Terms: ${rule.terms} (${rule.text.substring(0, 50)}...)`);
+    });
+  }
+
+  private async handleGetRule(terms: string[]): Promise<void> {
+    const texts = await this.database.getAllTextsForTerms(terms);
+
+    if (texts.length === 0) {
+      console.log(`No rules found for terms: ${terms.join(', ')}`);
+      return;
+    }
+
+    console.log(`Rules for terms [${terms.join(', ')}]:`);
+    texts.forEach((text, index) => {
+      console.log(`\n${index + 1}. ${text}`);
+    });
+  }
+
+  private async handleStoreRule(): Promise<void> {
+    return new Promise((resolve) => {
+      this.rl.question('Enter terms (space-separated): ', (termsInput) => {
+        const terms = termsInput.trim().split(/\s+/);
+
+        this.rl.question('Enter rule text: ', async (text) => {
+          try {
+            const embedding = await this.openaiClient.generateEmbedding(terms);
+            await this.database.storeEmbedding(terms, text.trim(), embedding);
+            console.log(`Rule stored successfully for terms: ${terms.join(', ')}`);
+          } catch (error) {
+            console.error(`Failed to store rule: ${error}`);
+          }
+          resolve();
+        });
+      });
+    });
+  }
+
+  async stop(): Promise<void> {
+    this.rl.close();
+    await this.database.close();
+    console.log('Console app stopped.');
+    process.exit(0);
+  }
+}

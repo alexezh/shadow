@@ -106,24 +106,35 @@ export class MCPServer {
 
   private async handleGetInstructions(args: { terms: string[] }) {
     try {
-      const instructions = await this.openaiClient.generateInstructions(args.terms);
+      const texts = await this.database.getAllTextsForTerms(args.terms);
+      
+      if (texts.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `No instructions found for terms: ${args.terms.join(', ')}`
+            }
+          ]
+        };
+      }
       
       return {
         content: [
           {
             type: 'text',
-            text: instructions
+            text: texts.join('\n\n')
           }
         ]
       };
     } catch (error) {
-      throw new Error(`Failed to generate instructions: ${error}`);
+      throw new Error(`Failed to get instructions: ${error}`);
     }
   }
 
   private async handleStoreData(args: { terms: string[], text: string }) {
     try {
-      const embedding = await this.openaiClient.generateEmbedding(args.text);
+      const embedding = await this.openaiClient.generateEmbedding(args.terms);
       await this.database.storeEmbedding(args.terms, args.text, embedding);
       
       return {

@@ -67,6 +67,17 @@ export class Database {
     return results.map(row => row.text);
   }
 
+  async getAllRules(): Promise<Array<{terms: string, text: string}>> {
+    const results = await this.allAsync(
+      'SELECT terms, text FROM embeddings ORDER BY created_at DESC'
+    );
+
+    return results.map(row => ({
+      terms: row.terms,
+      text: row.text
+    }));
+  }
+
   async close(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.close((err) => {

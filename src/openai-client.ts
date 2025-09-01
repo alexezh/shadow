@@ -13,7 +13,7 @@ export class OpenAIClient {
     const prompt = `Generate detailed instructions for the following terms: ${terms.join(', ')}`;
     
     const response = await this.client.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
@@ -31,10 +31,11 @@ export class OpenAIClient {
     return response.choices[0]?.message?.content || '';
   }
 
-  async generateEmbedding(text: string): Promise<number[]> {
+  async generateEmbedding(terms: string[]): Promise<number[]> {
+    const termsText = terms.join(' ');
     const response = await this.client.embeddings.create({
-      model: 'text-embedding-ada-002',
-      input: text
+      model: 'text-embedding-3-small',
+      input: termsText
     });
 
     return response.data[0]?.embedding || [];

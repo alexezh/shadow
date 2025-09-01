@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
+    "console": "node dist/index.js --console",
+    "dev": "ts-node src/index.ts",
+    "dev:console": "ts-node src/index.ts --console"
   },
   "keywords": ["mcp", "openai", "embeddings"],
   "author": "",
