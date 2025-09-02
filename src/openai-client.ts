@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { MCPLocalClient } from './mcp-client.js';
 import { Database } from './database.js';
+import { ChatCompletionTool } from 'openai/resources/index.js';
 
 export async function generateEmbedding(client: OpenAI, terms: string[]): Promise<number[]> {
   const termsText = terms.join(' ');
@@ -49,132 +50,7 @@ export class OpenAIClient {
     return generateEmbedding(this.client, terms)
   }
 
-  async chatWithMCPTools(systemPrompt: string, userMessage: string): Promise<string> {
-    // Define MCP tools configuration for OpenAI function calling
-    const mcpTools = [
-      {
-        type: 'function' as const,
-        function: {
-          name: 'get_instructions',
-          description: 'Get stored instructions for given terms',
-          parameters: {
-            type: 'object',
-            properties: {
-              terms: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'List of terms to get instructions for'
-              }
-            },
-            required: ['terms']
-          }
-        }
-      },
-      {
-        type: 'function' as const,
-        function: {
-          name: 'get_contentrange',
-          description: 'Read range of document content. Omit start_para and end_para to read entire document from start to end',
-          parameters: {
-            type: 'object',
-            properties: {
-              name: { type: 'string', description: 'Document name' },
-              format: { type: 'string', enum: ['text', 'html'] },
-              start_para: { type: 'string', description: 'Starting paragraph ID (optional)' },
-              end_para: { type: 'string', description: 'Ending paragraph ID (optional)' }
-            },
-            required: ['name', 'format']
-          }
-        }
-      },
-      {
-        type: 'function' as const,
-        function: {
-          name: 'store_asset',
-          description: 'Store text data with embeddings',
-          parameters: {
-            type: 'object',
-            properties: {
-              terms: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Terms associated with the text'
-              },
-              text: { type: 'string', description: 'Text content to store' }
-            },
-            required: ['terms', 'text']
-          }
-        }
-      },
-      {
-        type: 'function' as const,
-        function: {
-          name: 'load_asset',
-          description: 'Load stored data by terms',
-          parameters: {
-            type: 'object',
-            properties: {
-              terms: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Terms to search for'
-              }
-            },
-            required: ['terms']
-          }
-        }
-      },
-      {
-        type: 'function' as const,
-        function: {
-          name: 'find_ranges',
-          description: 'Find ranges in document that match one or more search terms',
-          parameters: {
-            type: 'object',
-            properties: {
-              name: { type: 'string', description: 'Document name' },
-              format: { type: 'string', enum: ['text', 'html'] },
-              terms: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Terms to search for'
-              },
-              context_lines: {
-                type: 'number',
-                description: 'Number of context lines around matches (optional, default: 0)'
-              }
-            },
-            required: ['name', 'format', 'terms']
-          }
-        }
-      },
-      {
-        type: 'function' as const,
-        function: {
-          name: 'get_current_range',
-          description: 'Get the current working range that was last accessed via get_contentrange or find_ranges',
-          parameters: {
-            type: 'object',
-            properties: {},
-            additionalProperties: false
-          }
-        }
-      },
-      {
-        type: 'function' as const,
-        function: {
-          name: 'find_file',
-          description: 'Find files in the content directory using glob patterns (* for any characters, ? for single character)',
-          parameters: {
-            type: 'object',
-            properties: {
-              pattern: { type: 'string', description: 'File pattern to search for (supports * and ? wildcards)' }
-            },
-            required: ['pattern']
-          }
-        }
-      }
-    ];
+  async chatWithMCPTools(mcpTools: Array<ChatCompletionTool>, systemPrompt: string, userMessage: string): Promise<string> {
 
     let messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },

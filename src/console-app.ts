@@ -1,5 +1,7 @@
 import { Database } from './database.js';
+import { handleImport } from './import-doc.js';
 import { INITIAL_RULES } from './init.js';
+import { mcpTools } from './mcp-client.js';
 import { generateEmbedding, OpenAIClient } from './openai-client.js';
 import * as readline from 'readline';
 
@@ -18,7 +20,7 @@ export class ConsoleApp {
   }
 
   async start(): Promise<void> {
-    console.log('Console mode started. Available commands: !init, !list-rules, !get-rule, !store-rule, exit');
+    console.log('Console mode started. Available commands: !init, !list-rules, !get-rule, !store-rule, !import, exit');
 
     this.promptUser();
   }
@@ -66,19 +68,27 @@ export class ConsoleApp {
         await this.handleStoreInstruction();
         break;
 
+      case '!import':
+        if (parts.length < 2) {
+          console.log('Usage: !import <filename>');
+          return;
+        }
+        await handleImport(parts[1], this.openaiClient);
+        break;
+
       default:
         // Treat as chat message if not starting with !
         if (!command.startsWith('!')) {
           await this.handleChatMessage(command);
         } else {
-          console.log('Unknown command. Available: !init, !list-rules, !get-rule, !store-rule, exit');
+          console.log('Unknown command. Available: !init, !list-rules, !get-rule, !store-rule, !import, exit');
         }
     }
   }
 
   private async handleInit(): Promise<void> {
     console.log('Initializing database with default rules...');
-    
+
     // Clear existing instructions
     console.log('Clearing existing instructions...');
     await this.database.clearInstructions();
@@ -171,7 +181,7 @@ The initial set of instructions can be accessed with following terms
 - edit document: basic editing of an document
 `;
 
-      const response = await this.openaiClient.chatWithMCPTools(systemPrompt, message);
+      const response = await this.openaiClient.chatWithMCPTools(mcpTools, systemPrompt, message);
       console.log('🤖 Shadow:', response);
 
     } catch (error) {

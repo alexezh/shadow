@@ -10,6 +10,132 @@ export interface MCPToolCall {
   arguments: any;
 }
 
+// Define MCP tools configuration for OpenAI function calling
+export const mcpTools = [
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_instructions',
+      description: 'Get stored instructions for given terms',
+      parameters: {
+        type: 'object',
+        properties: {
+          terms: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'List of terms to get instructions for'
+          }
+        },
+        required: ['terms']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_contentrange',
+      description: 'Read range of document content. Omit start_para and end_para to read entire document from start to end',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Document name' },
+          format: { type: 'string', enum: ['text', 'html'] },
+          start_para: { type: 'string', description: 'Starting paragraph ID (optional)' },
+          end_para: { type: 'string', description: 'Ending paragraph ID (optional)' }
+        },
+        required: ['name', 'format']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'store_asset',
+      description: 'Store JSON data with embeddings',
+      parameters: {
+        type: 'object',
+        properties: {
+          terms: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Terms associated with the data'
+          },
+          data: { type: 'object', description: 'JSON data to store' }
+        },
+        required: ['terms', 'data']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'load_asset',
+      description: 'Load stored data by terms',
+      parameters: {
+        type: 'object',
+        properties: {
+          terms: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Terms to search for'
+          }
+        },
+        required: ['terms']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'find_ranges',
+      description: 'Find ranges in document that match one or more search terms',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Document name' },
+          format: { type: 'string', enum: ['text', 'html'] },
+          terms: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Terms to search for'
+          },
+          context_lines: {
+            type: 'number',
+            description: 'Number of context lines around matches (optional, default: 0)'
+          }
+        },
+        required: ['name', 'format', 'terms']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_current_range',
+      description: 'Get the current working range that was last accessed via get_contentrange or find_ranges',
+      parameters: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'find_file',
+      description: 'Find files in the content directory using glob patterns (* for any characters, ? for single character)',
+      parameters: {
+        type: 'object',
+        properties: {
+          pattern: { type: 'string', description: 'File pattern to search for (supports * and ? wildcards)' }
+        },
+        required: ['pattern']
+      }
+    }
+  }
+];
+
 export class MCPLocalClient {
   private database: Database;
   private openaiClient: OpenAI;
@@ -119,11 +245,12 @@ export class MCPLocalClient {
     }
   }
 
-  private async storeAsset(args: { terms: string[]; text: string }): Promise<string> {
+  private async storeAsset(args: { terms: string[]; data: any }): Promise<string> {
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    await this.database.storeAsset(args.terms, args.text, embedding);
+    const jsonText = JSON.stringify(args.data, null, 2);
+    await this.database.storeAsset(args.terms, jsonText, embedding);
 
-    return `Successfully stored text for terms: ${args.terms.join(', ')}`;
+    return `Successfully stored JSON data for terms: ${args.terms.join(', ')}`;
   }
 
   private async loadAsset(args: { terms: string[] }): Promise<string> {
