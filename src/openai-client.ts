@@ -2,6 +2,16 @@ import OpenAI from 'openai';
 import { MCPLocalClient } from './mcp-client.js';
 import { Database } from './database.js';
 
+export async function generateEmbedding(client: OpenAI, terms: string[]): Promise<number[]> {
+  const termsText = terms.join(' ');
+  const response = await client.embeddings.create({
+    model: 'text-embedding-3-small',
+    input: termsText
+  });
+
+  return response.data[0]?.embedding || [];
+}
+
 export class OpenAIClient {
   private client: OpenAI;
   private mcpClient: MCPLocalClient;
@@ -10,7 +20,7 @@ export class OpenAIClient {
     this.client = new OpenAI({
       apiKey: apiKey || process.env.OPENAI_API_KEY
     });
-    this.mcpClient = new MCPLocalClient(database);
+    this.mcpClient = new MCPLocalClient(database, this.client);
   }
 
   async generateInstructions(terms: string[]): Promise<string> {
@@ -36,13 +46,7 @@ export class OpenAIClient {
   }
 
   async generateEmbedding(terms: string[]): Promise<number[]> {
-    const termsText = terms.join(' ');
-    const response = await this.client.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: termsText
-    });
-
-    return response.data[0]?.embedding || [];
+    return generateEmbedding(this.client, terms)
   }
 
   async chatWithMCPTools(systemPrompt: string, userMessage: string): Promise<string> {

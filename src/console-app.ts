@@ -1,6 +1,6 @@
 import { Database } from './database.js';
 import { INITIAL_RULES } from './init.js';
-import { OpenAIClient } from './openai-client.js';
+import { generateEmbedding, OpenAIClient } from './openai-client.js';
 import * as readline from 'readline';
 
 export class ConsoleApp {
@@ -50,20 +50,20 @@ export class ConsoleApp {
         await this.handleInit();
         break;
 
-      case '!list-rules':
+      case '!list-instructions':
         await this.handleListRules();
         break;
 
-      case '!get-rule':
+      case '!get-instruction':
         if (parts.length < 2) {
           console.log('Usage: get-rule <term1> [term2] ...');
           return;
         }
-        await this.handleGetRule(parts.slice(1));
+        await this.handleGetInstructions(parts.slice(1));
         break;
 
-      case '!store-rule':
-        await this.handleStoreRule();
+      case '!store-instruction':
+        await this.handleStoreInstruction();
         break;
 
       default:
@@ -85,7 +85,7 @@ export class ConsoleApp {
     for (const rule of INITIAL_RULES) {
       try {
         const embedding = await this.openaiClient.generateEmbedding(rule.terms);
-        await this.database.storeEmbedding(rule.terms, rule.text, embedding);
+        await this.database.storeInstruction(rule.terms, rule.text, embedding);
         console.log(`✓ Stored rule for [${rule.terms.join(', ')}]`);
         successCount++;
       } catch (error) {
@@ -98,7 +98,7 @@ export class ConsoleApp {
   }
 
   private async handleListRules(): Promise<void> {
-    const allRules = await this.database.getAllRules();
+    const allRules = await this.database.getAllInstructions();
     if (allRules.length === 0) {
       console.log('No rules found.');
       return;
@@ -110,7 +110,7 @@ export class ConsoleApp {
     });
   }
 
-  private async handleGetRule(terms: string[]): Promise<void> {
+  private async handleGetInstructions(terms: string[]): Promise<void> {
     const texts = await this.database.getAllTextsForTerms(terms);
 
     if (texts.length === 0) {
@@ -124,7 +124,7 @@ export class ConsoleApp {
     });
   }
 
-  private async handleStoreRule(): Promise<void> {
+  private async handleStoreInstruction(): Promise<void> {
     return new Promise((resolve) => {
       this.rl.question('Enter terms (space-separated): ', (termsInput) => {
         const terms = termsInput.trim().split(/\s+/);
@@ -132,7 +132,7 @@ export class ConsoleApp {
         this.rl.question('Enter rule text: ', async (text) => {
           try {
             const embedding = await this.openaiClient.generateEmbedding(terms);
-            await this.database.storeEmbedding(terms, text.trim(), embedding);
+            await this.database.storeAsset(terms, text.trim(), embedding);
             console.log(`Rule stored successfully for terms: ${terms.join(', ')}`);
           } catch (error) {
             console.error(`Failed to store rule: ${error}`);

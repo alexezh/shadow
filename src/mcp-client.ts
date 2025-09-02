@@ -1,6 +1,8 @@
 import { Database } from './database.js';
 import * as fs from 'fs/promises';
+import OpenAI from 'openai';
 import * as path from 'path';
+import { generateEmbedding } from './openai-client.js';
 
 export interface MCPToolCall {
   name: string;
@@ -9,63 +11,66 @@ export interface MCPToolCall {
 
 export class MCPLocalClient {
   private database: Database;
+  private openaiClient: OpenAI;
 
-  constructor(database: Database) {
+  constructor(database: Database, openaiClient: OpenAI) {
     this.database = database;
+    this.openaiClient = openaiClient;
   }
 
   async executeTool(toolCall: MCPToolCall): Promise<string> {
     switch (toolCall.name) {
       case 'get_instructions':
         return await this.getInstructions(toolCall.arguments);
-      
+
       case 'get_contentrange':
         return await this.getContentRange(toolCall.arguments);
-      
+
       case 'store_asset':
         return await this.storeAsset(toolCall.arguments);
-      
+
       case 'load_asset':
         return await this.loadAsset(toolCall.arguments);
-      
+
       default:
         throw new Error(`Unknown tool: ${toolCall.name}`);
     }
   }
 
   private async getInstructions(args: { terms: string[] }): Promise<string> {
-    const texts = await this.database.getAllTextsForTerms(args.terms);
-    
+    const embedding = await generateEmbedding(this.openaiClient, args.terms);
+    const texts = await this.database.getInstructions(embedding);
+
     if (texts.length === 0) {
       return `No instructions found for terms: ${args.terms.join(', ')}`;
     }
-    
+
     return texts.join('\n\n');
   }
 
-  private async getContentRange(args: { 
-    name: string; 
-    format: string; 
-    start_para?: string; 
-    end_para?: string; 
+  private async getContentRange(args: {
+    name: string;
+    format: string;
+    start_para?: string;
+    end_para?: string;
   }): Promise<string> {
     const contentDir = path.join(process.cwd(), 'content');
     const extension = args.format === 'html' ? 'html' : 'txt';
     const filePath = path.join(contentDir, `${args.name}.${extension}`);
-    
+
     try {
       const content = await fs.readFile(filePath, 'utf-8');
-      
+
       // If no range specified, return full content
       if (!args.start_para && !args.end_para) {
         return content;
       }
-      
+
       // Extract range based on paragraph IDs
       const lines = content.split('\n');
       let startIndex = 0;
       let endIndex = lines.length - 1;
-      
+
       // Find start paragraph index
       if (args.start_para) {
         const startFound = lines.findIndex(line => line.includes(`{id=${args.start_para}}`));
@@ -73,7 +78,7 @@ export class MCPLocalClient {
           startIndex = startFound;
         }
       }
-      
+
       // Find end paragraph index
       if (args.end_para) {
         const endFound = lines.findIndex(line => line.includes(`{id=${args.end_para}}`));
@@ -81,7 +86,7 @@ export class MCPLocalClient {
           endIndex = endFound;
         }
       }
-      
+
       // Extract the range
       const rangeLines = lines.slice(startIndex, endIndex + 1);
       return rangeLines.join('\n');
@@ -96,14 +101,14 @@ export class MCPLocalClient {
   private async storeAsset(args: { terms: string[]; text: string }): Promise<string> {
     // For now, just use a simple embedding (in real implementation, would call OpenAI)
     const mockEmbedding = new Array(1536).fill(0).map(() => Math.random());
-    await this.database.storeEmbedding(args.terms, args.text, mockEmbedding);
-    
+    await this.database.storeAsset(args.terms, args.text, mockEmbedding);
+
     return `Successfully stored text for terms: ${args.terms.join(', ')}`;
   }
 
   private async loadAsset(args: { terms: string[] }): Promise<string> {
     const texts = await this.database.getAllTextsForTerms(args.terms);
-    
+
     return JSON.stringify({
       terms: args.terms,
       texts: texts,

@@ -167,7 +167,7 @@ export class MCPServer {
   private async handleStoreData(args: { terms: string[], text: string }) {
     try {
       const embedding = await this.openaiClient.generateEmbedding(args.terms);
-      await this.database.storeEmbedding(args.terms, args.text, embedding);
+      await this.database.storeAsset(args.terms, args.text, embedding);
 
       return {
         content: [
