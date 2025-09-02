@@ -1,50 +1,69 @@
-import { MCPServer } from './mcp-server.js';
+//import { MCPServer } from './mcp-server.js';
 import { ConsoleApp } from './console-app.js';
+import { Database } from './database.js';
 
 async function main() {
   const args = process.argv.slice(2);
   const isConsoleMode = args.includes('--console') || args.includes('-c');
 
+  // Create shared database instance
+  const database = new Database();
+  await database.initialize();
+
   if (isConsoleMode) {
-    const consoleApp = new ConsoleApp();
-    
+    // Run both ConsoleApp and MCPServer in parallel
+    const consoleApp = new ConsoleApp(database);
+    //const server = new MCPServer(database);
+
     process.on('SIGINT', async () => {
       console.error('\nShutting down...');
       await consoleApp.stop();
+      //await server.stop();
+      await database.close();
     });
 
     process.on('SIGTERM', async () => {
       console.error('\nShutting down...');
       await consoleApp.stop();
+      //await server.stop();
+      await database.close();
     });
 
     try {
+      // Start MCP server in background
+      // server.start().catch(error => {
+      //   console.error('MCP Server error:', error);
+      // });
+
+      // Start console app (blocks on user input)
       await consoleApp.start();
     } catch (error) {
       console.error('Failed to start console app:', error);
       process.exit(1);
     }
   } else {
-    const server = new MCPServer();
-    
-    process.on('SIGINT', async () => {
-      console.error('Shutting down...');
-      await server.stop();
-      process.exit(0);
-    });
+    // const server = new MCPServer(database);
 
-    process.on('SIGTERM', async () => {
-      console.error('Shutting down...');
-      await server.stop();
-      process.exit(0);
-    });
+    // process.on('SIGINT', async () => {
+    //   console.error('Shutting down...');
+    //   await server.stop();
+    //   await database.close();
+    //   process.exit(0);
+    // });
 
-    try {
-      await server.start();
-    } catch (error) {
-      console.error('Failed to start server:', error);
-      process.exit(1);
-    }
+    // process.on('SIGTERM', async () => {
+    //   console.error('Shutting down...');
+    //   await server.stop();
+    //   await database.close();
+    //   process.exit(0);
+    // });
+
+    // try {
+    //   await server.start();
+    // } catch (error) {
+    //   console.error('Failed to start server:', error);
+    //   process.exit(1);
+    // }
   }
 }
 

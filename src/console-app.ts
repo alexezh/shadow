@@ -8,9 +8,9 @@ export class ConsoleApp {
   private openaiClient: OpenAIClient;
   private rl: readline.Interface;
 
-  constructor() {
-    this.database = new Database();
-    this.openaiClient = new OpenAIClient();
+  constructor(database: Database) {
+    this.database = database;
+    this.openaiClient = new OpenAIClient(database);
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout
@@ -18,8 +18,7 @@ export class ConsoleApp {
   }
 
   async start(): Promise<void> {
-    await this.database.initialize();
-    console.log('Console mode started. Available commands: init, list-rules, get-rule, store-rule, exit');
+    console.log('Console mode started. Available commands: !init, !list-rules, !get-rule, !store-rule, exit');
 
     this.promptUser();
   }
@@ -47,15 +46,15 @@ export class ConsoleApp {
     const cmd = parts[0];
 
     switch (cmd) {
-      case 'init':
+      case '!init':
         await this.handleInit();
         break;
 
-      case 'list-rules':
+      case '!list-rules':
         await this.handleListRules();
         break;
 
-      case 'get-rule':
+      case '!get-rule':
         if (parts.length < 2) {
           console.log('Usage: get-rule <term1> [term2] ...');
           return;
@@ -63,12 +62,17 @@ export class ConsoleApp {
         await this.handleGetRule(parts.slice(1));
         break;
 
-      case 'store-rule':
+      case '!store-rule':
         await this.handleStoreRule();
         break;
 
       default:
-        console.log('Unknown command. Available: init, list-rules, get-rule, store-rule, exit');
+        // Treat as chat message if not starting with !
+        if (!command.startsWith('!')) {
+          await this.handleChatMessage(command);
+        } else {
+          console.log('Unknown command. Available: !init, !list-rules, !get-rule, !store-rule, exit');
+        }
     }
   }
 
@@ -137,6 +141,38 @@ export class ConsoleApp {
         });
       });
     });
+  }
+
+  private async handleChatMessage(message: string): Promise<void> {
+    try {
+      console.log('🤔 Processing your message...');
+
+      const systemPrompt = ` 
+When users ask you to perform an action, you should:
+1. Use get_instructions with relevant terms to find instructions for the task
+2. Follow those instructions step by step until completion
+3. Use available MCP tools to accomplish the task
+
+Available tools:
+- get_instructions: Get stored instructions for terms (you choose the terms based on user request)
+- store_asset: Store text with embeddings  
+- load_asset: Load data by terms
+- get_contentrange: Read document content ranges
+
+User request: ${message}
+
+Start by calling get_instructions with appropriate terms based on what the user is asking for. 
+The initial set of instructions can be accessed with following terms
+- import document: import document into the document library
+- edit document: basic editing of an document
+`;
+
+      const response = await this.openaiClient.chatWithMCPTools(systemPrompt, message);
+      console.log('🤖 Shadow:', response);
+
+    } catch (error) {
+      console.error('❌ Error processing chat message:', error);
+    }
   }
 
   async stop(): Promise<void> {

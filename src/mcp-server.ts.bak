@@ -14,7 +14,7 @@ export class MCPServer {
   private database: Database;
   private openaiClient: OpenAIClient;
 
-  constructor() {
+  constructor(database: Database) {
     this.server = new Server(
       {
         name: 'openai-mcp-service',
@@ -27,8 +27,8 @@ export class MCPServer {
       }
     );
 
-    this.database = new Database();
-    this.openaiClient = new OpenAIClient();
+    this.database = database;
+    this.openaiClient = new OpenAIClient(database);
     this.setupHandlers();
   }
 
@@ -223,12 +223,12 @@ export class MCPServer {
             ]
           };
         }
-        
+
         // Extract range based on paragraph IDs
         const lines = content.split('\n');
         let startIndex = 0;
         let endIndex = lines.length - 1;
-        
+
         // Find start paragraph index
         if (args.start_para) {
           const startFound = lines.findIndex(line => line.includes(`{id=${args.start_para}}`));
@@ -236,7 +236,7 @@ export class MCPServer {
             startIndex = startFound;
           }
         }
-        
+
         // Find end paragraph index
         if (args.end_para) {
           const endFound = lines.findIndex(line => line.includes(`{id=${args.end_para}}`));
@@ -244,11 +244,11 @@ export class MCPServer {
             endIndex = endFound;
           }
         }
-        
+
         // Extract the range
         const rangeLines = lines.slice(startIndex, endIndex + 1);
         const rangeContent = rangeLines.join('\n');
-        
+
         return {
           content: [
             {
@@ -276,7 +276,6 @@ export class MCPServer {
   }
 
   async start(): Promise<void> {
-    await this.database.initialize();
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);

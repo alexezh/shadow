@@ -1,6 +1,6 @@
 export const INITIAL_RULES = [
   {
-    terms: ['load', 'document'],
+    terms: ['import', 'document'],
     text: `
 read document text using get_contentrange method
 split document into sections and subsections if any. 
