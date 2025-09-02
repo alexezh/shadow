@@ -74,7 +74,7 @@ export class OpenAIClient {
         type: 'function' as const,
         function: {
           name: 'get_contentrange',
-          description: 'Read range of document content',
+          description: 'Read range of document content. Omit start_para and end_para to read entire document from start to end',
           parameters: {
             type: 'object',
             properties: {
@@ -121,6 +121,56 @@ export class OpenAIClient {
               }
             },
             required: ['terms']
+          }
+        }
+      },
+      {
+        type: 'function' as const,
+        function: {
+          name: 'find_ranges',
+          description: 'Find ranges in document that match one or more search terms',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Document name' },
+              format: { type: 'string', enum: ['text', 'html'] },
+              terms: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Terms to search for'
+              },
+              context_lines: {
+                type: 'number',
+                description: 'Number of context lines around matches (optional, default: 0)'
+              }
+            },
+            required: ['name', 'format', 'terms']
+          }
+        }
+      },
+      {
+        type: 'function' as const,
+        function: {
+          name: 'get_current_range',
+          description: 'Get the current working range that was last accessed via get_contentrange or find_ranges',
+          parameters: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: 'function' as const,
+        function: {
+          name: 'find_file',
+          description: 'Find files in the content directory using glob patterns (* for any characters, ? for single character)',
+          parameters: {
+            type: 'object',
+            properties: {
+              pattern: { type: 'string', description: 'File pattern to search for (supports * and ? wildcards)' }
+            },
+            required: ['pattern']
           }
         }
       }

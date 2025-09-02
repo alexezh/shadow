@@ -176,6 +176,10 @@ export class Database {
       .slice(0, limit);
   }
 
+  async clearInstructions(): Promise<void> {
+    await this.runAsync('DELETE FROM instructions');
+  }
+
   async close(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.close((err) => {

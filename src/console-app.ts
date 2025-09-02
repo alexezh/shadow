@@ -78,6 +78,10 @@ export class ConsoleApp {
 
   private async handleInit(): Promise<void> {
     console.log('Initializing database with default rules...');
+    
+    // Clear existing instructions
+    console.log('Clearing existing instructions...');
+    await this.database.clearInstructions();
 
     let successCount = 0;
     let errorCount = 0;
