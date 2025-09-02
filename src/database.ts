@@ -18,6 +18,7 @@ export class Database {
     await this.runAsync(`
       CREATE TABLE IF NOT EXISTS assets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT,
         terms TEXT NOT NULL,
         text TEXT NOT NULL,
         embedding BLOB NOT NULL,
@@ -44,13 +45,13 @@ export class Database {
     `);
   }
 
-  async storeAsset(terms: string[], text: string, embedding: number[]): Promise<void> {
+  async storeAsset(terms: string[], text: string, embedding: number[], filename?: string): Promise<void> {
     const termsString = JSON.stringify(terms);
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
 
     await this.runAsync(
-      'INSERT INTO assets (terms, text, embedding) VALUES (?, ?, ?)',
-      [termsString, text, embeddingBlob]
+      'INSERT INTO assets (filename, terms, text, embedding) VALUES (?, ?, ?, ?)',
+      [filename || null, termsString, text, embeddingBlob]
     );
   }
 
@@ -132,9 +133,9 @@ export class Database {
     return Array.from(floatArray);
   }
 
-  async getAssets(queryEmbedding: number[], limit: number = 10): Promise<Array<{ terms: string[], text: string, similarity: number }>> {
+  async getAssets(queryEmbedding: number[], limit: number = 10): Promise<Array<{ terms: string[], text: string, filename: string | null, similarity: number }>> {
     const results = await this.allAsync(
-      'SELECT terms, text, embedding FROM assets ORDER BY created_at DESC'
+      'SELECT filename, terms, text, embedding FROM assets ORDER BY created_at DESC'
     );
 
     const similarities = results.map(row => {
@@ -144,6 +145,7 @@ export class Database {
       return {
         terms: JSON.parse(row.terms) as string[],
         text: row.text,
+        filename: row.filename,
         similarity
       };
     });

@@ -55,12 +55,15 @@ export const mcpTools = [
       parameters: {
         type: 'object',
         properties: {
+          filename: { type: 'string', description: 'name of the document asset is coming from' },
           terms: {
             type: 'array',
             items: { type: 'string' },
             description: 'Terms associated with the data'
           },
-          data: { type: 'object', description: 'JSON data to store' }
+          start_para: { type: 'string' },
+          end_para: { type: 'string' },
+          content: { type: 'string', description: '' }
         },
         required: ['terms', 'data']
       }
@@ -245,12 +248,12 @@ export class MCPLocalClient {
     }
   }
 
-  private async storeAsset(args: { terms: string[]; data: any }): Promise<string> {
+  private async storeAsset(args: { filename?: string; terms: string[]; data: any }): Promise<string> {
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    const jsonText = JSON.stringify(args.data, null, 2);
-    await this.database.storeAsset(args.terms, jsonText, embedding);
+    const jsonText = JSON.stringify(args, null, 2);
+    await this.database.storeAsset(args.terms, jsonText, embedding, args.filename);
 
-    return `Successfully stored JSON data for terms: ${args.terms.join(', ')}`;
+    return `Successfully stored JSON data for terms: ${args.terms.join(', ')}${args.filename ? ` from file: ${args.filename}` : ''}`;
   }
 
   private async loadAsset(args: { terms: string[] }): Promise<string> {
