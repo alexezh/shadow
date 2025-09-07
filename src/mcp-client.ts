@@ -51,7 +51,7 @@ export const mcpTools = [
     type: 'function' as const,
     function: {
       name: 'store_asset',
-      description: 'Store JSON data with embeddings',
+      description: 'Store document data with embeddings',
       parameters: {
         type: 'object',
         properties: {
@@ -63,7 +63,7 @@ export const mcpTools = [
           },
           start_para: { type: 'string' },
           end_para: { type: 'string' },
-          content: { type: 'string', description: '' }
+          content: { type: 'string', description: 'data to store' }
         },
         required: ['terms', 'data']
       }
@@ -136,6 +136,29 @@ export const mcpTools = [
         required: ['pattern']
       }
     }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'store_asset_chunk',
+      description: 'Store a chunk of large document data (use when content is too large for single call)',
+      parameters: {
+        type: 'object',
+        properties: {
+          chunkId: { type: 'string', description: 'Unique identifier for this chunked content' },
+          chunkIndex: { type: 'number', description: 'Index of this chunk (0-based)' },
+          totalChunks: { type: 'number', description: 'Total number of chunks' },
+          content: { type: 'string', description: 'This chunk of the content' },
+          filename: { type: 'string', description: 'Source filename (include in first chunk only)' },
+          terms: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Terms associated with the data (include in first chunk only)'
+          }
+        },
+        required: ['chunkId', 'chunkIndex', 'totalChunks', 'content']
+      }
+    }
   }
 ];
 
@@ -150,6 +173,14 @@ export class MCPLocalClient {
     start_line?: number;
     end_line?: number;
   } | null = null;
+  
+  // Buffer for chunked content
+  private contentBuffer: Map<string, {
+    chunks: Array<{ chunkIndex: number; content: string; totalChunks: number }>;
+    filename?: string;
+    terms: string[];
+    isComplete: boolean;
+  }> = new Map();
 
   constructor(database: Database, openaiClient: OpenAI) {
     this.database = database;
@@ -178,6 +209,9 @@ export class MCPLocalClient {
 
       case 'find_file':
         return await this.findFile(toolCall.arguments);
+
+      case 'store_asset_chunk':
+        return await this.storeAssetChunk(toolCall.arguments);
 
       default:
         throw new Error(`Unknown tool: ${toolCall.name}`);
@@ -248,12 +282,105 @@ export class MCPLocalClient {
     }
   }
 
-  private async storeAsset(args: { filename?: string; terms: string[]; data: any }): Promise<string> {
+  private async storeAsset(args: { filename?: string; terms: string[]; content: any }): Promise<string> {
+    // Write to file immediately if terms include 'blueprint' or 'semantic' to avoid MCP size limits
+    if (args.filename && args.terms.some(term => term === 'blueprint' || term === 'semantic')) {
+      await this.writeSpecialFiles(args);
+    }
+
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    const jsonText = JSON.stringify(args, null, 2);
+    
+    // Store a truncated version in database if content is very large
+    let dbContent = args.content;
+    let contentInfo = '';
+    
+    if (typeof args.content === 'string' && args.content.length > 50000) {
+      // For very large content, store a summary in DB and keep full content in file
+      dbContent = {
+        ...args,
+        content: args.content.substring(0, 1000) + '... [TRUNCATED - See file for full content]',
+        originalLength: args.content.length,
+        truncated: true
+      };
+      contentInfo = ` (large content: ${args.content.length} chars, truncated in DB)`;
+    } else {
+      dbContent = args;
+    }
+    
+    const jsonText = JSON.stringify(dbContent, null, 2);
     await this.database.storeAsset(args.terms, jsonText, embedding, args.filename);
 
-    return `Successfully stored JSON data for terms: ${args.terms.join(', ')}${args.filename ? ` from file: ${args.filename}` : ''}`;
+    return `Successfully stored data for terms: ${args.terms.join(', ')}${args.filename ? ` from file: ${args.filename}` : ''}${contentInfo}`;
+  }
+
+  private async writeSpecialFiles(args: { filename?: string; terms: string[]; content: any }): Promise<void> {
+    if (!args.filename) return;
+    
+    const contentDir = path.join(process.cwd(), 'content');
+    const baseName = args.filename.replace(/\.[^.]+$/, ''); // Remove extension
+
+    try {
+      // Ensure content directory exists
+      await fs.mkdir(contentDir, { recursive: true });
+
+      if (args.terms.includes('semantic')) {
+        // Write semantic data as markdown
+        const semanticFile = path.join(contentDir, `${baseName}.semantic.md`);
+        let semanticContent: string;
+        
+        if (typeof args.content === 'string') {
+          semanticContent = args.content;
+        } else if (args.content && typeof args.content === 'object') {
+          // Pretty print JSON with proper formatting
+          semanticContent = JSON.stringify(args.content, null, 2);
+        } else {
+          semanticContent = String(args.content || '');
+        }
+        
+        console.log(`🔍 Debug: semantic content length before write: ${semanticContent.length}`);
+        await fs.writeFile(semanticFile, semanticContent, { encoding: 'utf-8', flag: 'w' });
+        
+        // Verify the file was written correctly
+        const writtenContent = await fs.readFile(semanticFile, 'utf-8');
+        console.log(`📝 Wrote semantic data to: ${semanticFile} (wrote: ${semanticContent.length}, read back: ${writtenContent.length})`);
+        
+        if (writtenContent.length !== semanticContent.length) {
+          console.error(`⚠️  File truncation detected! Expected ${semanticContent.length}, got ${writtenContent.length}`);
+        }
+      }
+
+      if (args.terms.includes('blueprint')) {
+        // Write blueprint data as HTML
+        const blueprintFile = path.join(contentDir, `${baseName}.blueprint.html`);
+        let blueprintContent: string;
+        
+        if (typeof args.content === 'string') {
+          blueprintContent = args.content;
+        } else if (args.content && typeof args.content === 'object') {
+          // For blueprint, if it's an object, try to extract HTML content
+          if (args.content.html || args.content.content) {
+            blueprintContent = args.content.html || args.content.content;
+          } else {
+            blueprintContent = JSON.stringify(args.content, null, 2);
+          }
+        } else {
+          blueprintContent = String(args.content || '');
+        }
+        
+        console.log(`🔍 Debug: blueprint content length before write: ${blueprintContent.length}`);
+        await fs.writeFile(blueprintFile, blueprintContent, { encoding: 'utf-8', flag: 'w' });
+        
+        // Verify the file was written correctly
+        const writtenContent = await fs.readFile(blueprintFile, 'utf-8');
+        console.log(`📝 Wrote blueprint data to: ${blueprintFile} (wrote: ${blueprintContent.length}, read back: ${writtenContent.length})`);
+        
+        if (writtenContent.length !== blueprintContent.length) {
+          console.error(`⚠️  File truncation detected! Expected ${blueprintContent.length}, got ${writtenContent.length}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error writing special files:', error);
+    }
   }
 
   private async loadAsset(args: { terms: string[] }): Promise<string> {

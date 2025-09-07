@@ -23,8 +23,8 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
 -read document text using get_contentrange method. Use 'html' as format. Assume that user specified file name in a prompt.
 -complute semantical structure of the document
    * Example. If document is a resume which contains person name, address and other info, output
-     such as document type - resume, person: tonnie, address, content and other semantical blocks 
-   * store semantical structure using store_asset api with "semantic" tag
+     such as document type - resume, person: tonnie, address: xyz, content and other semantical blocks 
+   * store semantical structure as markdown using store_asset api with "semantic" tag
 -make html where content replaces with {{semantic}} while keeping structure and formatting
    * Example, if html contains <p>Fred</p><p>1st ave</p> where 1st ave is an address, output <p>{{person:name}}</p><p>{{person.address}}</p>
    * if there are multiple entities such as person, use 1,2,3 to disambiguate
