@@ -9,20 +9,26 @@
     "console": "node dist/index.js --console",
     "dev": "ts-node src/index.ts",
     "dev:console": "ts-node src/index.ts --console",
-    "mdid": "ts-node src/mdid.ts"
+    "mdid": "ts-node src/mdid.ts",
+    "htmlid": "ts-node src/htmlid.ts"
   },
-  "keywords": ["mcp", "openai", "embeddings"],
+  "keywords": [
+    "mcp",
+    "openai",
+    "embeddings"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0",
     "openai": "^4.0.0",
     "sqlite3": "^5.1.0",
-    "openai-mcp": "^1.0.0"
+    "htmlparser2": "^9.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0",
-    "ts-node": "^10.9.0"
+    "ts-node": "^10.9.0",
+    "@types/htmlparser2": "^3.10.0"
   }
 }

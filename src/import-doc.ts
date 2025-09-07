@@ -1,7 +1,20 @@
-import { mcpTools } from "./mcp-client";
-import { OpenAIClient } from "./openai-client";
+import { mcpTools } from "./mcp-client.js";
+import { OpenAIClient } from "./openai-client.js";
 
-export async function handleImport(filename: string, openaiClient: OpenAIClient): Promise<void> {
+/*
+  get document text
+  extract default formatting
+  default paragraph - 80%
+  default table
+  get format??? keep of remake??
+  i know if a user changed after rewrite; so we can change the rule
+  need json file for simplicity
+
+  how to handle small variations of layout. === treat the same 
+  6 columns vs 7 columns - question is what 
+*/
+
+export async function importDoc(filename: string, openaiClient: OpenAIClient): Promise<void> {
   try {
     console.log(`🔄 Importing document: ${filename}`);
 

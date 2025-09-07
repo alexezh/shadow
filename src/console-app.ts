@@ -1,5 +1,6 @@
 import { Database } from './database.js';
-import { handleImport } from './import-doc.js';
+import { importBlueprint } from './import-blueprint.js';
+import { importDoc } from './import-doc.js';
 import { INITIAL_RULES } from './init.js';
 import { mcpTools } from './mcp-client.js';
 import { generateEmbedding, OpenAIClient } from './openai-client.js';
@@ -68,12 +69,20 @@ export class ConsoleApp {
         await this.handleStoreInstruction();
         break;
 
-      case '!import':
+      case '!import-doc':
         if (parts.length < 2) {
           console.log('Usage: !import <filename>');
           return;
         }
-        await handleImport(parts[1], this.openaiClient);
+        await importDoc(parts[1], this.openaiClient);
+        break;
+
+      case '!import-blueprint':
+        if (parts.length < 2) {
+          console.log('Usage: !import <filename>');
+          return;
+        }
+        await importBlueprint(parts[1], this.openaiClient);
         break;
 
       default:
