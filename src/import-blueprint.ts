@@ -25,11 +25,12 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
    * Example. If document is a resume which contains person name, address and other info, output
      such as document type - resume, person: tonnie, address: xyz, content and other semantical blocks 
    * store semantical structure as markdown using store_asset api with "semantic" tag
--make html where content replaces with {{semantic}} while keeping structure and formatting
-   * Example, if html contains <p>Fred</p><p>1st ave</p> where 1st ave is an address, output <p>{{person:name}}</p><p>{{person.address}}</p>
-   * if there are multiple entities such as person, use 1,2,3 to disambiguate
-   * keep current CSS styles, do not add new one
-   * store result html using store_asset api with "blueprint" tag
+-make a map of html ids to semantic
+  * output your data in chunks of max 1500 tokens
+  * store each chunk store_asset(tag="blueprint", chunkId=N).
+  * if there are multiple entities such as person, use 1,2,3 to disambiguate
+  * Example, if html contains <p id="3442">Fred</p><p id="57">1st ave</p> where 1st ave is an address, output 3442: person.name; 57: person.address
+  * if semantic element spans multiple html elements, use idStart-idEnd: semantic format. Such as 3442-7733: person.address
 
 The user wants to import: ${filename}`;
 

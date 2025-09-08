@@ -72,47 +72,79 @@ export class OpenAIClient {
         temperature: 0.7
       });
 
+      let assistantMessage = {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [] as any[]
+      };
 
+      // Collect all streaming chunks
       for await (const chunk of response) {
-        if (chunk.choices[0]?.delta?.content) {
-          const choice = response.choices[0];
-          if (!choice?.message) break;
+        const delta = chunk.choices[0]?.delta;
 
-          messages.push(choice.message);
+        if (delta?.content) {
+          assistantMessage.content += delta.content;
+        }
 
-          // If no tool calls, we're done
-          if (!choice.message.tool_calls || choice.message.tool_calls.length === 0) {
-            return choice.message.content || '';
-          }
+        if (delta?.tool_calls) {
+          // Handle streaming tool calls
+          for (const toolCall of delta.tool_calls) {
+            if (toolCall.index !== undefined) {
+              // Initialize tool call if it doesn't exist
+              if (!assistantMessage.tool_calls[toolCall.index]) {
+                assistantMessage.tool_calls[toolCall.index] = {
+                  id: toolCall.id || '',
+                  type: 'function' as const,
+                  function: {
+                    name: toolCall.function?.name || '',
+                    arguments: ''
+                  }
+                };
+              }
 
-          // Execute tool calls
-          for (const toolCall of choice.message.tool_calls) {
-            if (toolCall.type === 'function') {
-              try {
-                const functionArgs = JSON.parse(toolCall.function.arguments);
-                const result = await this.mcpClient.executeTool({
-                  name: toolCall.function.name,
-                  arguments: functionArgs
-                });
-
-                messages.push({
-                  role: 'tool',
-                  tool_call_id: toolCall.id,
-                  content: result
-                });
-              } catch (error) {
-                messages.push({
-                  role: 'tool',
-                  tool_call_id: toolCall.id,
-                  content: `Error executing ${toolCall.function.name}: ${error}`
-                });
+              // Accumulate the function arguments
+              if (toolCall.function?.arguments) {
+                assistantMessage.tool_calls[toolCall.index].function.arguments += toolCall.function.arguments;
               }
             }
           }
-
-          iteration++;
         }
       }
+
+      // Add the complete assistant message
+      messages.push(assistantMessage);
+
+      // If no tool calls, we're done
+      if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
+        return assistantMessage.content || '';
+      }
+
+      // Execute tool calls
+      for (const toolCall of assistantMessage.tool_calls) {
+        if (toolCall.type === 'function') {
+          try {
+            const functionArgs = JSON.parse(toolCall.function.arguments);
+            const result = await this.mcpClient.executeTool({
+              name: toolCall.function.name,
+              arguments: functionArgs
+            });
+
+            messages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: result
+            });
+          } catch (error) {
+            messages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: `Error executing ${toolCall.function.name}: ${error}`
+            });
+          }
+        }
+      }
+
+      iteration++;
     }
 
     return 'Max iterations reached without final response';

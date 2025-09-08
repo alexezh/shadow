@@ -51,7 +51,7 @@ export const mcpTools = [
     type: 'function' as const,
     function: {
       name: 'store_asset',
-      description: 'Store document data with embeddings. For large content, use chunking parameters.',
+      description: 'Store document data with embeddings. For large content, use chunking parameters.All chunks of the same document MUST share the same chunkId, and include chunkIndex and totalChunks.',
       parameters: {
         type: 'object',
         properties: {
@@ -70,7 +70,7 @@ export const mcpTools = [
           chunkIndex: { type: 'integer', minimum: 0, description: 'Index of this chunk (0-based)' },
           totalChunks: { type: 'integer', minimum: 1, description: 'Total number of chunks in this asset' }
         },
-        required: ['terms', 'content', 'chunkIndex']
+        required: ['terms', 'content', 'chunkId', 'chunkIndex', 'totalChunks']
       }
     }
   },
