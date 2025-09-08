@@ -51,7 +51,7 @@ export const mcpTools = [
     type: 'function' as const,
     function: {
       name: 'store_asset',
-      description: 'Store document data with embeddings',
+      description: 'Store document data with embeddings. For large content, use chunking parameters.',
       parameters: {
         type: 'object',
         properties: {
@@ -63,9 +63,14 @@ export const mcpTools = [
           },
           start_para: { type: 'string' },
           end_para: { type: 'string' },
-          content: { type: 'string', description: 'data to store' }
+          content: { type: 'string', description: 'data to store' },
+
+          // Chunking parameters
+          chunkId: { type: 'string', description: 'Unique ID to group related chunks (required if chunked)' },
+          chunkIndex: { type: 'integer', minimum: 0, description: 'Index of this chunk (0-based)' },
+          totalChunks: { type: 'integer', minimum: 1, description: 'Total number of chunks in this asset' }
         },
-        required: ['terms', 'data']
+        required: ['terms', 'content', 'chunkIndex']
       }
     }
   },
@@ -136,29 +141,6 @@ export const mcpTools = [
         required: ['pattern']
       }
     }
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'store_asset_chunk',
-      description: 'Store a chunk of large document data (use when content is too large for single call)',
-      parameters: {
-        type: 'object',
-        properties: {
-          chunkId: { type: 'string', description: 'Unique identifier for this chunked content' },
-          chunkIndex: { type: 'number', description: 'Index of this chunk (0-based)' },
-          totalChunks: { type: 'number', description: 'Total number of chunks' },
-          content: { type: 'string', description: 'This chunk of the content' },
-          filename: { type: 'string', description: 'Source filename (include in first chunk only)' },
-          terms: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Terms associated with the data (include in first chunk only)'
-          }
-        },
-        required: ['chunkId', 'chunkIndex', 'totalChunks', 'content']
-      }
-    }
   }
 ];
 
@@ -173,7 +155,7 @@ export class MCPLocalClient {
     start_line?: number;
     end_line?: number;
   } | null = null;
-  
+
   // Buffer for chunked content
   private contentBuffer: Map<string, {
     chunks: Array<{ chunkIndex: number; content: string; totalChunks: number }>;
@@ -209,9 +191,6 @@ export class MCPLocalClient {
 
       case 'find_file':
         return await this.findFile(toolCall.arguments);
-
-      case 'store_asset_chunk':
-        return await this.storeAssetChunk(toolCall.arguments);
 
       default:
         throw new Error(`Unknown tool: ${toolCall.name}`);
@@ -282,18 +261,34 @@ export class MCPLocalClient {
     }
   }
 
-  private async storeAsset(args: { filename?: string; terms: string[]; content: any }): Promise<string> {
+  private async storeAsset(args: {
+    filename?: string;
+    terms: string[];
+    content: any;
+    chunkId?: string;
+    chunkIndex?: number;
+    totalChunks?: number;
+  }): Promise<string> {
+
+    // Handle chunked content
+    if (args.chunkId !== undefined && args.chunkIndex !== undefined && args.totalChunks !== undefined) {
+      if (!this.handleChunkedContent(args)) {
+        return `Chunk ${args.chunkIndex! + 1}/${args.totalChunks} received for ${args.chunkId}. Waiting for remaining chunks.`;
+      }
+    }
+
+    // Handle single content (original behavior)
     // Write to file immediately if terms include 'blueprint' or 'semantic' to avoid MCP size limits
     if (args.filename && args.terms.some(term => term === 'blueprint' || term === 'semantic')) {
       await this.writeSpecialFiles(args);
     }
 
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    
+
     // Store a truncated version in database if content is very large
     let dbContent = args.content;
     let contentInfo = '';
-    
+
     if (typeof args.content === 'string' && args.content.length > 50000) {
       // For very large content, store a summary in DB and keep full content in file
       dbContent = {
@@ -306,16 +301,84 @@ export class MCPLocalClient {
     } else {
       dbContent = args;
     }
-    
+
     const jsonText = JSON.stringify(dbContent, null, 2);
     await this.database.storeAsset(args.terms, jsonText, embedding, args.filename);
 
-    return `Successfully stored data for terms: ${args.terms.join(', ')}${args.filename ? ` from file: ${args.filename}` : ''}${contentInfo}`;
+    return `Success`;
+  }
+
+  private async handleChunkedContent(args: {
+    filename?: string;
+    terms: string[];
+    content: any;
+    chunkId?: string;
+    chunkIndex?: number;
+    totalChunks?: number;
+  }): Promise<boolean> {
+
+    // Get or create buffer entry
+    let bufferEntry = this.contentBuffer.get(args.chunkId!);
+    if (!bufferEntry) {
+      bufferEntry = {
+        chunks: [],
+        filename: args.filename,
+        terms: args.terms,
+        isComplete: false
+      };
+      this.contentBuffer.set(args.chunkId!, bufferEntry);
+    }
+
+    // Add this chunk
+    bufferEntry.chunks.push({
+      chunkIndex: args.chunkIndex!,
+      content: typeof args.content === 'string' ? args.content : JSON.stringify(args.content),
+      totalChunks: args.totalChunks!
+    });
+
+    console.log(`📦 Received chunk ${args.chunkIndex! + 1}/${args.totalChunks} for ${args.chunkId} (${args.content.length} chars)`);
+
+    // Check if we have all chunks
+    if (bufferEntry.chunks.length !== args.totalChunks) {
+      return false;
+    }
+
+    // Sort chunks by index and combine
+    bufferEntry.chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+    const completeContent = bufferEntry.chunks.map(chunk => chunk.content).join('');
+
+    console.log(`✅ All chunks received for ${args.chunkId}. Total content: ${completeContent.length} chars`);
+
+    // Process the complete content
+    // const completeArgs = {
+    //   filename: bufferEntry.filename,
+    //   terms: bufferEntry.terms,
+    //   content: completeContent
+    // };
+
+    // Write to files if needed
+    //if (bufferEntry.filename && bufferEntry.terms.some(term => term === 'blueprint' || term === 'semantic')) {
+    //  await this.writeSpecialFiles(completeArgs);
+    //}
+
+    // Store in database
+    //const embedding = await generateEmbedding(this.openaiClient, bufferEntry.terms);
+    //const jsonText = JSON.stringify(completeArgs, null, 2);
+    //await this.database.storeAsset(bufferEntry.terms, jsonText, embedding, bufferEntry.filename);
+    args.content = completeContent;
+
+    // Clean up buffer
+    this.contentBuffer.delete(args.chunkId!);
+
+    return true;
+
+    //return `Chunk ${chunkIndex + 1}/${totalChunks} received for ${chunkId}. Waiting for remaining chunks.`;
+
   }
 
   private async writeSpecialFiles(args: { filename?: string; terms: string[]; content: any }): Promise<void> {
     if (!args.filename) return;
-    
+
     const contentDir = path.join(process.cwd(), 'content');
     const baseName = args.filename.replace(/\.[^.]+$/, ''); // Remove extension
 
@@ -327,7 +390,7 @@ export class MCPLocalClient {
         // Write semantic data as markdown
         const semanticFile = path.join(contentDir, `${baseName}.semantic.md`);
         let semanticContent: string;
-        
+
         if (typeof args.content === 'string') {
           semanticContent = args.content;
         } else if (args.content && typeof args.content === 'object') {
@@ -336,14 +399,14 @@ export class MCPLocalClient {
         } else {
           semanticContent = String(args.content || '');
         }
-        
+
         console.log(`🔍 Debug: semantic content length before write: ${semanticContent.length}`);
         await fs.writeFile(semanticFile, semanticContent, { encoding: 'utf-8', flag: 'w' });
-        
+
         // Verify the file was written correctly
         const writtenContent = await fs.readFile(semanticFile, 'utf-8');
         console.log(`📝 Wrote semantic data to: ${semanticFile} (wrote: ${semanticContent.length}, read back: ${writtenContent.length})`);
-        
+
         if (writtenContent.length !== semanticContent.length) {
           console.error(`⚠️  File truncation detected! Expected ${semanticContent.length}, got ${writtenContent.length}`);
         }
@@ -353,7 +416,7 @@ export class MCPLocalClient {
         // Write blueprint data as HTML
         const blueprintFile = path.join(contentDir, `${baseName}.blueprint.html`);
         let blueprintContent: string;
-        
+
         if (typeof args.content === 'string') {
           blueprintContent = args.content;
         } else if (args.content && typeof args.content === 'object') {
@@ -366,14 +429,14 @@ export class MCPLocalClient {
         } else {
           blueprintContent = String(args.content || '');
         }
-        
+
         console.log(`🔍 Debug: blueprint content length before write: ${blueprintContent.length}`);
         await fs.writeFile(blueprintFile, blueprintContent, { encoding: 'utf-8', flag: 'w' });
-        
+
         // Verify the file was written correctly
         const writtenContent = await fs.readFile(blueprintFile, 'utf-8');
         console.log(`📝 Wrote blueprint data to: ${blueprintFile} (wrote: ${blueprintContent.length}, read back: ${writtenContent.length})`);
-        
+
         if (writtenContent.length !== blueprintContent.length) {
           console.error(`⚠️  File truncation detected! Expected ${blueprintContent.length}, got ${writtenContent.length}`);
         }

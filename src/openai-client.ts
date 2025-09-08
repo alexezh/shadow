@@ -66,47 +66,53 @@ export class OpenAIClient {
         model: 'gpt-4o',
         messages,
         tools: mcpTools,
+        stream: true,
         tool_choice: 'auto',
         max_tokens: 1500,
         temperature: 0.7
       });
 
-      const choice = response.choices[0];
-      if (!choice?.message) break;
 
-      messages.push(choice.message);
+      for await (const chunk of response) {
+        if (chunk.choices[0]?.delta?.content) {
+          const choice = response.choices[0];
+          if (!choice?.message) break;
 
-      // If no tool calls, we're done
-      if (!choice.message.tool_calls || choice.message.tool_calls.length === 0) {
-        return choice.message.content || '';
-      }
+          messages.push(choice.message);
 
-      // Execute tool calls
-      for (const toolCall of choice.message.tool_calls) {
-        if (toolCall.type === 'function') {
-          try {
-            const functionArgs = JSON.parse(toolCall.function.arguments);
-            const result = await this.mcpClient.executeTool({
-              name: toolCall.function.name,
-              arguments: functionArgs
-            });
-
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: result
-            });
-          } catch (error) {
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: `Error executing ${toolCall.function.name}: ${error}`
-            });
+          // If no tool calls, we're done
+          if (!choice.message.tool_calls || choice.message.tool_calls.length === 0) {
+            return choice.message.content || '';
           }
+
+          // Execute tool calls
+          for (const toolCall of choice.message.tool_calls) {
+            if (toolCall.type === 'function') {
+              try {
+                const functionArgs = JSON.parse(toolCall.function.arguments);
+                const result = await this.mcpClient.executeTool({
+                  name: toolCall.function.name,
+                  arguments: functionArgs
+                });
+
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: result
+                });
+              } catch (error) {
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: `Error executing ${toolCall.function.name}: ${error}`
+                });
+              }
+            }
+          }
+
+          iteration++;
         }
       }
-
-      iteration++;
     }
 
     return 'Max iterations reached without final response';
