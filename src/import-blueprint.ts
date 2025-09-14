@@ -1,6 +1,8 @@
 import { mcpTools } from "./mcp-client.js";
 import { OpenAIClient } from "./openai-client.js";
 import * as cheerio from 'cheerio';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /*
   get document text
@@ -25,10 +27,10 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
 -compute semantical structure of the document
    * Example. If document is a resume which contains person name, address and other info, output
      such as document type - resume, person: tonnie, address: xyz, content and other semantical blocks 
-   * store semantical structure as markdown using store_asset api with "semantic" tag
+   * store semantical structure as markdown using store_asset(kind="semantic")
 -make a map of html ids to semantic
   * output your data in chunks of max 1500 tokens
-  * store each chunk store_asset(tag="blueprint", chunkId=N).
+  * store each chunk store_asset(kind="blueprint", chunkId=N).
   * if there are multiple entities such as person, use 1,2,3 to disambiguate
   * Example, if html contains <p id="3442">Fred</p><p id="57">1st ave</p> where 1st ave is an address, output 3442: person.name; 57: person.address
   * if semantic element spans multiple html elements, use idStart-idEnd: semantic format. Such as 3442-7733: person.address
@@ -51,7 +53,45 @@ export interface SemanticMapping {
   semantic: string;
 }
 
-export function replaceHtmlWithSemantics(html: string, mappings: SemanticMapping[]): string {
+export function processBlueprint(filename: string | undefined, semanticMap: string): string {
+  if (!filename) {
+    console.warn('⚠️  No filename provided for blueprint processing');
+    return semanticMap;
+  }
+
+  try {
+    // Load the HTML file
+    const contentDir = path.join(process.cwd(), 'content');
+    const htmlFilePath = path.join(contentDir, filename);
+    
+    if (!fs.existsSync(htmlFilePath)) {
+      console.warn(`⚠️  HTML file not found: ${htmlFilePath}`);
+      return semanticMap;
+    }
+
+    const htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
+    
+    // Parse the semantic mapping
+    const mappings = parseSemanticMappings(semanticMap);
+    
+    if (mappings.length === 0) {
+      console.warn('⚠️  No valid semantic mappings found');
+      return htmlContent;
+    }
+
+    // Apply semantic replacements to HTML
+    const processedHtml = replaceHtmlWithSemantics(htmlContent, mappings);
+    
+    console.log(`✅ Blueprint processed: ${mappings.length} mappings applied to ${filename}`);
+    return processedHtml;
+    
+  } catch (error) {
+    console.error(`❌ Error processing blueprint for ${filename}:`, error);
+    return semanticMap; // Return original content on error
+  }
+}
+
+function replaceHtmlWithSemantics(html: string, mappings: SemanticMapping[]): string {
   const $ = cheerio.load(html);
 
   // Sort mappings by range size (larger ranges first) to avoid conflicts
@@ -59,22 +99,22 @@ export function replaceHtmlWithSemantics(html: string, mappings: SemanticMapping
     if (!a.endId && !b.endId) return 0;
     if (!a.endId) return 1;
     if (!b.endId) return -1;
-    
+
     // For ranges, process longer ranges first
     const aStart = $(`#${a.startId}`);
     const aEnd = $(`#${a.endId}`);
     const bStart = $(`#${b.startId}`);
     const bEnd = $(`#${b.endId}`);
-    
+
     const aRange = aEnd.index() - aStart.index();
     const bRange = bEnd.index() - bStart.index();
-    
+
     return bRange - aRange;
   });
 
   for (const mapping of sortedMappings) {
     const startElement = $(`#${mapping.startId}`);
-    
+
     if (startElement.length === 0) {
       console.warn(`⚠️  Element with id '${mapping.startId}' not found`);
       continue;
@@ -87,18 +127,18 @@ export function replaceHtmlWithSemantics(html: string, mappings: SemanticMapping
     } else {
       // Range replacement
       const endElement = $(`#${mapping.endId}`);
-      
+
       if (endElement.length === 0) {
         console.warn(`⚠️  End element with id '${mapping.endId}' not found`);
         continue;
       }
 
       // Get all elements between start and end (inclusive)
-      const elementsInRange: cheerio.Cheerio<cheerio.Element>[] = [];
+      const elementsInRange: cheerio.Cheerio<any>[] = [];
       let current = startElement;
-      
+
       elementsInRange.push(current);
-      
+
       // Find all elements between start and end
       while (current.length > 0 && !current.is(`#${mapping.endId}`)) {
         current = current.next();
@@ -113,7 +153,7 @@ export function replaceHtmlWithSemantics(html: string, mappings: SemanticMapping
         for (let i = 1; i < elementsInRange.length; i++) {
           elementsInRange[i].remove();
         }
-        
+
         // Replace the first element's content with the semantic placeholder
         startElement.html(`{{${mapping.semantic}}}`);
         console.log(`🔄 Replaced range #${mapping.startId} to #${mapping.endId} with {{${mapping.semantic}}}`);
@@ -131,10 +171,10 @@ export function parseSemanticMappings(mappingText: string): SemanticMapping[] {
 
   for (const line of lines) {
     // Parse formats like:
-    // "3442: person.name"
-    // "3442-7733: person.address" 
-    const match = line.match(/^(\d+)(?:-(\d+))?\s*:\s*(.+)$/);
-    
+    // "abc123: person.name"
+    // "abc123-xyz789: person.address" 
+    const match = line.match(/^([a-zA-Z0-9]+)(?:-([a-zA-Z0-9]+))?\s*:\s*(.+)$/);
+
     if (match) {
       const [, startId, endId, semantic] = match;
       mappings.push({

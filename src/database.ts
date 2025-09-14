@@ -15,24 +15,43 @@ export class Database {
   }
 
   async initialize(): Promise<void> {
+    // Create data table to store text content
     await this.runAsync(`
-      CREATE TABLE IF NOT EXISTS assets (
+      CREATE TABLE IF NOT EXISTS data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        filename TEXT,
-        terms TEXT NOT NULL,
         text TEXT NOT NULL,
-        embedding BLOB NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
+    // Recreate assets table with data_id reference
     await this.runAsync(`
-      CREATE TABLE IF NOT EXISTS instructions (
+      DROP TABLE IF EXISTS assets
+    `);
+    await this.runAsync(`
+      CREATE TABLE assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT,
+        terms TEXT NOT NULL,
+        data_id INTEGER NOT NULL,
+        embedding BLOB NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (data_id) REFERENCES data (id)
+      )
+    `);
+
+    // Recreate instructions table with data_id reference
+    await this.runAsync(`
+      DROP TABLE IF EXISTS instructions
+    `);
+    await this.runAsync(`
+      CREATE TABLE instructions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         terms TEXT NOT NULL,
-        text TEXT NOT NULL,
+        data_id INTEGER NOT NULL,
         embedding BLOB NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (data_id) REFERENCES data (id)
       )
     `);
 
@@ -49,9 +68,17 @@ export class Database {
     const termsString = JSON.stringify(terms);
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
 
+    // First, insert text into data table
+    const dataResult = await this.runAsync(
+      'INSERT INTO data (text) VALUES (?)',
+      [text]
+    );
+    const dataId = dataResult.lastID;
+
+    // Then insert asset with reference to data
     await this.runAsync(
-      'INSERT INTO assets (filename, terms, text, embedding) VALUES (?, ?, ?, ?)',
-      [filename || null, termsString, text, embeddingBlob]
+      'INSERT INTO assets (filename, terms, data_id, embedding) VALUES (?, ?, ?, ?)',
+      [filename || null, termsString, dataId, embeddingBlob]
     );
   }
 
@@ -59,9 +86,17 @@ export class Database {
     const termsString = JSON.stringify(terms);
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
 
+    // First, insert text into data table
+    const dataResult = await this.runAsync(
+      'INSERT INTO data (text) VALUES (?)',
+      [text]
+    );
+    const dataId = dataResult.lastID;
+
+    // Then insert instruction with reference to data
     await this.runAsync(
-      'INSERT INTO instructions (terms, text, embedding) VALUES (?, ?, ?)',
-      [termsString, text, embeddingBlob]
+      'INSERT INTO instructions (terms, data_id, embedding) VALUES (?, ?, ?)',
+      [termsString, dataId, embeddingBlob]
     );
   }
 
@@ -71,7 +106,7 @@ export class Database {
     // For now, we'll do a simple exact match on terms
     // In a production system, you'd want to compute cosine similarity on embeddings
     const results = await this.allAsync(
-      'SELECT text, embedding FROM embeddings WHERE terms = ? ORDER BY created_at DESC LIMIT ?',
+      'SELECT d.text, a.embedding FROM assets a JOIN data d ON a.data_id = d.id WHERE a.terms = ? ORDER BY a.created_at DESC LIMIT ?',
       [termsString, limit]
     );
 
@@ -85,7 +120,7 @@ export class Database {
     const termsString = JSON.stringify(terms);
 
     const results = await this.allAsync(
-      'SELECT text FROM embeddings WHERE terms = ? ORDER BY created_at DESC',
+      'SELECT d.text FROM assets a JOIN data d ON a.data_id = d.id WHERE a.terms = ? ORDER BY a.created_at DESC',
       [termsString]
     );
 
@@ -94,7 +129,7 @@ export class Database {
 
   async getAllInstructions(): Promise<Array<{ terms: string, text: string }>> {
     const results = await this.allAsync(
-      'SELECT terms, text FROM instructions ORDER BY created_at DESC'
+      'SELECT i.terms, d.text FROM instructions i JOIN data d ON i.data_id = d.id ORDER BY i.created_at DESC'
     );
 
     return results.map(row => ({
@@ -135,7 +170,7 @@ export class Database {
 
   async getAssets(queryEmbedding: number[], limit: number = 10): Promise<Array<{ terms: string[], text: string, filename: string | null, similarity: number }>> {
     const results = await this.allAsync(
-      'SELECT filename, terms, text, embedding FROM assets ORDER BY created_at DESC'
+      'SELECT a.filename, a.terms, d.text, a.embedding FROM assets a JOIN data d ON a.data_id = d.id ORDER BY a.created_at DESC'
     );
 
     const similarities = results.map(row => {
@@ -158,7 +193,7 @@ export class Database {
 
   async getInstructions(queryEmbedding: number[], limit: number = 10): Promise<Array<{ terms: string[], text: string, similarity: number }>> {
     const results = await this.allAsync(
-      'SELECT terms, text, embedding FROM instructions ORDER BY created_at DESC'
+      'SELECT i.terms, d.text, i.embedding FROM instructions i JOIN data d ON i.data_id = d.id ORDER BY i.created_at DESC'
     );
 
     const similarities = results.map(row => {
@@ -179,7 +214,18 @@ export class Database {
   }
 
   async clearInstructions(): Promise<void> {
+    // Get data_ids that will be orphaned
+    const orphanedData = await this.allAsync(
+      'SELECT data_id FROM instructions'
+    );
+    
+    // Delete instructions first
     await this.runAsync('DELETE FROM instructions');
+    
+    // Clean up orphaned data entries
+    for (const row of orphanedData) {
+      await this.runAsync('DELETE FROM data WHERE id = ?', [row.data_id]);
+    }
   }
 
   async close(): Promise<void> {

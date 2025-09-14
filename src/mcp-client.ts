@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import * as path from 'path';
 import { generateEmbedding } from './openai-client.js';
 import { findRanges as findRangesStandalone } from './findRange.js';
+import { processBlueprint } from './import-blueprint.js';
 
 export interface MCPToolCall {
   name: string;
@@ -55,6 +56,7 @@ export const mcpTools = [
       parameters: {
         type: 'object',
         properties: {
+          kind: { type: "string", description: "kind of asset stored" },
           filename: { type: 'string', description: 'name of the document asset is coming from' },
           terms: {
             type: 'array',
@@ -143,6 +145,16 @@ export const mcpTools = [
     }
   }
 ];
+
+export type StoreAssetsArgs = {
+  kind: string;
+  filename?: string;
+  terms: string[];
+  content: any;
+  chunkId?: string;
+  chunkIndex?: number;
+  totalChunks?: number;
+}
 
 export class MCPLocalClient {
   private database: Database;
@@ -261,64 +273,18 @@ export class MCPLocalClient {
     }
   }
 
-  private async storeAsset(args: {
-    filename?: string;
-    terms: string[];
-    content: any;
-    chunkId?: string;
-    chunkIndex?: number;
-    totalChunks?: number;
-  }): Promise<string> {
+  private async storeAsset(args: StoreAssetsArgs): Promise<string> {
 
-    // Handle chunked content
-    if (args.chunkId !== undefined && args.chunkIndex !== undefined && args.totalChunks !== undefined) {
-      if (!this.handleChunkedContent(args)) {
-        return `Chunk ${args.chunkIndex! + 1}/${args.totalChunks} received for ${args.chunkId}. Waiting for remaining chunks.`;
-      }
+    // Normalize non-chunked content to single chunk format
+    if (args.chunkId === undefined || args.chunkIndex === undefined || args.totalChunks === undefined) {
+      args.chunkId = `single_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      args.chunkIndex = 0;
+      args.totalChunks = 1;
     }
 
-    // Handle single content (original behavior)
-    // Write to file immediately if terms include 'blueprint' or 'semantic' to avoid MCP size limits
-    if (args.filename && args.terms.some(term => term === 'blueprint' || term === 'semantic')) {
-      await this.writeSpecialFiles(args);
-    }
-
-    const embedding = await generateEmbedding(this.openaiClient, args.terms);
-
-    // Store a truncated version in database if content is very large
-    let dbContent = args.content;
-    let contentInfo = '';
-
-    if (typeof args.content === 'string' && args.content.length > 50000) {
-      // For very large content, store a summary in DB and keep full content in file
-      dbContent = {
-        ...args,
-        content: args.content.substring(0, 1000) + '... [TRUNCATED - See file for full content]',
-        originalLength: args.content.length,
-        truncated: true
-      };
-      contentInfo = ` (large content: ${args.content.length} chars, truncated in DB)`;
-    } else {
-      dbContent = args;
-    }
-
-    const jsonText = JSON.stringify(dbContent, null, 2);
-    await this.database.storeAsset(args.terms, jsonText, embedding, args.filename);
-
-    return `Success`;
-  }
-
-  private async handleChunkedContent(args: {
-    filename?: string;
-    terms: string[];
-    content: any;
-    chunkId?: string;
-    chunkIndex?: number;
-    totalChunks?: number;
-  }): Promise<boolean> {
-
+    // Handle all content as chunks (unified logic)
     // Get or create buffer entry
-    let bufferEntry = this.contentBuffer.get(args.chunkId!);
+    let bufferEntry = this.contentBuffer.get(args.chunkId);
     if (!bufferEntry) {
       bufferEntry = {
         chunks: [],
@@ -326,21 +292,21 @@ export class MCPLocalClient {
         terms: args.terms,
         isComplete: false
       };
-      this.contentBuffer.set(args.chunkId!, bufferEntry);
+      this.contentBuffer.set(args.chunkId, bufferEntry);
     }
 
     // Add this chunk
     bufferEntry.chunks.push({
-      chunkIndex: args.chunkIndex!,
+      chunkIndex: args.chunkIndex,
       content: typeof args.content === 'string' ? args.content : JSON.stringify(args.content),
-      totalChunks: args.totalChunks!
+      totalChunks: args.totalChunks
     });
 
-    console.log(`📦 Received chunk ${args.chunkIndex! + 1}/${args.totalChunks} for ${args.chunkId} (${args.content.length} chars)`);
+    console.log(`📦 Received chunk ${args.chunkIndex + 1}/${args.totalChunks} for ${args.chunkId} (${args.content.length} chars)`);
 
     // Check if we have all chunks
     if (bufferEntry.chunks.length !== args.totalChunks) {
-      return false;
+      return `Chunk ${args.chunkIndex + 1}/${args.totalChunks} received for ${args.chunkId}. Waiting for remaining chunks.`;
     }
 
     // Sort chunks by index and combine
@@ -349,34 +315,34 @@ export class MCPLocalClient {
 
     console.log(`✅ All chunks received for ${args.chunkId}. Total content: ${completeContent.length} chars`);
 
-    // Process the complete content
-    // const completeArgs = {
-    //   filename: bufferEntry.filename,
-    //   terms: bufferEntry.terms,
-    //   content: completeContent
-    // };
-
-    // Write to files if needed
-    //if (bufferEntry.filename && bufferEntry.terms.some(term => term === 'blueprint' || term === 'semantic')) {
-    //  await this.writeSpecialFiles(completeArgs);
-    //}
-
-    // Store in database
-    //const embedding = await generateEmbedding(this.openaiClient, bufferEntry.terms);
-    //const jsonText = JSON.stringify(completeArgs, null, 2);
-    //await this.database.storeAsset(bufferEntry.terms, jsonText, embedding, bufferEntry.filename);
-    args.content = completeContent;
+    // Update args with complete content for further processing
+    const content = completeContent;
 
     // Clean up buffer
-    this.contentBuffer.delete(args.chunkId!);
+    this.contentBuffer.delete(args.chunkId);
 
-    return true;
-
-    //return `Chunk ${chunkIndex + 1}/${totalChunks} received for ${chunkId}. Waiting for remaining chunks.`;
-
+    await this.processContent(args, content)
+    const chunkInfo = args.totalChunks > 1 ? ` (${args.totalChunks} chunks)` : '';
+    return `Successfully stored ${args.kind} data for terms: ${args.terms.join(', ')}${args.filename ? ` from file: ${args.filename}` : ''}${chunkInfo}`;
   }
 
-  private async writeSpecialFiles(args: { filename?: string; terms: string[]; content: any }): Promise<void> {
+  private async processContent(args: StoreAssetsArgs, content: string): Promise<void> {
+    // Optionally write to file for special kinds (blueprint/semantic)
+    if (args.filename && (args.kind === 'blueprint' || args.kind === 'semantic')) {
+      await this.writeSpecialFiles(args);
+    }
+
+    if (args.kind === "blueprint") {
+      content = processBlueprint(args.filename, content);
+    }
+    // Always store full content in database
+    const embedding = await generateEmbedding(this.openaiClient, args.terms);
+    const jsonText = JSON.stringify(args, null, 2);
+    await this.database.storeAsset(args.terms, content, embedding, args.filename);
+  }
+
+
+  private async writeSpecialFiles(args: { kind?: string; filename?: string; terms: string[]; content: any }): Promise<void> {
     if (!args.filename) return;
 
     const contentDir = path.join(process.cwd(), 'content');
@@ -386,7 +352,7 @@ export class MCPLocalClient {
       // Ensure content directory exists
       await fs.mkdir(contentDir, { recursive: true });
 
-      if (args.terms.includes('semantic')) {
+      if (args.kind === 'semantic') {
         // Write semantic data as markdown
         const semanticFile = path.join(contentDir, `${baseName}.semantic.md`);
         let semanticContent: string;
@@ -412,7 +378,7 @@ export class MCPLocalClient {
         }
       }
 
-      if (args.terms.includes('blueprint')) {
+      if (args.kind === 'blueprint') {
         // Write blueprint data as HTML
         const blueprintFile = path.join(contentDir, `${baseName}.blueprint.html`);
         let blueprintContent: string;
