@@ -210,6 +210,7 @@ export class MCPLocalClient {
   }
 
   private async getInstructions(args: { terms: string[] }): Promise<string> {
+    console.log("getInstructions: " + JSON.stringify(args))
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
     const texts = await this.database.getInstructions(embedding);
 
@@ -328,12 +329,17 @@ export class MCPLocalClient {
 
   private async processContent(args: StoreAssetsArgs, content: string): Promise<void> {
     // Optionally write to file for special kinds (blueprint/semantic)
-    if (args.filename && (args.kind === 'blueprint' || args.kind === 'semantic')) {
-      await this.writeSpecialFiles(args);
+    if (args.filename) {
+      if (args.kind === 'blueprint') {
+        await this.writeSpecialFiles({ kind: "mapping", filename: args.filename }, content);
+      } else if (args.kind === 'semantic') {
+        await this.writeSpecialFiles(args, content);
+      }
     }
 
     if (args.kind === "blueprint") {
       content = processBlueprint(args.filename, content);
+      await this.writeSpecialFiles({ kind: "blueprint", filename: args.filename }, content);
     }
     // Always store full content in database
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
@@ -341,7 +347,7 @@ export class MCPLocalClient {
   }
 
 
-  private async writeSpecialFiles(args: { kind?: string; filename?: string; terms: string[]; content: any }): Promise<void> {
+  private async writeSpecialFiles(args: { kind?: string; filename?: string; }, content: string): Promise<void> {
     if (!args.filename) return;
 
     const contentDir = path.join(process.cwd(), 'content');
@@ -351,62 +357,38 @@ export class MCPLocalClient {
       // Ensure content directory exists
       await fs.mkdir(contentDir, { recursive: true });
 
+      let fileExtension: string;
+      let processedContent: string;
+
       if (args.kind === 'semantic') {
-        // Write semantic data as markdown
-        const semanticFile = path.join(contentDir, `${baseName}.semantic.md`);
-        let semanticContent: string;
-
-        if (typeof args.content === 'string') {
-          semanticContent = args.content;
-        } else if (args.content && typeof args.content === 'object') {
-          // Pretty print JSON with proper formatting
-          semanticContent = JSON.stringify(args.content, null, 2);
-        } else {
-          semanticContent = String(args.content || '');
-        }
-
-        console.log(`🔍 Debug: semantic content length before write: ${semanticContent.length}`);
-        await fs.writeFile(semanticFile, semanticContent, { encoding: 'utf-8', flag: 'w' });
-
-        // Verify the file was written correctly
-        const writtenContent = await fs.readFile(semanticFile, 'utf-8');
-        console.log(`📝 Wrote semantic data to: ${semanticFile} (wrote: ${semanticContent.length}, read back: ${writtenContent.length})`);
-
-        if (writtenContent.length !== semanticContent.length) {
-          console.error(`⚠️  File truncation detected! Expected ${semanticContent.length}, got ${writtenContent.length}`);
-        }
+        fileExtension = '.semantic.md';
+      } else if (args.kind === 'mapping') {
+        fileExtension = '.blueprint.json';
+      } else if (args.kind === 'blueprint') {
+        fileExtension = '.blueprint.html';
+      } else {
+        return; // Unknown kind, skip
       }
-      else if (args.kind === 'blueprint') {
-        // Write blueprint data as HTML
-        const blueprintFile = path.join(contentDir, `${baseName}.blueprint.html`);
-        let blueprintContent: string;
 
-        if (typeof args.content === 'string') {
-          blueprintContent = args.content;
-        } else if (args.content && typeof args.content === 'object') {
-          // For blueprint, if it's an object, try to extract HTML content
-          if (args.content.html || args.content.content) {
-            blueprintContent = args.content.html || args.content.content;
-          } else {
-            blueprintContent = JSON.stringify(args.content, null, 2);
-          }
-        } else {
-          blueprintContent = String(args.content || '');
-        }
+      const filePath = path.join(contentDir, `${baseName}${fileExtension}`);
 
-        console.log(`🔍 Debug: blueprint content length before write: ${blueprintContent.length}`);
-        await fs.writeFile(blueprintFile, blueprintContent, { encoding: 'utf-8', flag: 'w' });
+      console.log(`🔍 Debug: ${args.kind} content length before write: ${content.length}`);
+      await this.writeAndVerifyFile(filePath, content, args.kind);
 
-        // Verify the file was written correctly
-        const writtenContent = await fs.readFile(blueprintFile, 'utf-8');
-        console.log(`📝 Wrote blueprint data to: ${blueprintFile} (wrote: ${blueprintContent.length}, read back: ${writtenContent.length})`);
-
-        if (writtenContent.length !== blueprintContent.length) {
-          console.error(`⚠️  File truncation detected! Expected ${blueprintContent.length}, got ${writtenContent.length}`);
-        }
-      }
     } catch (error) {
       console.error('❌ Error writing special files:', error);
+    }
+  }
+
+  private async writeAndVerifyFile(filePath: string, content: string, kind: string): Promise<void> {
+    await fs.writeFile(filePath, content, { encoding: 'utf-8', flag: 'w' });
+
+    // Verify the file was written correctly
+    const writtenContent = await fs.readFile(filePath, 'utf-8');
+    console.log(`📝 Wrote ${kind} data to: ${filePath} (wrote: ${content.length}, read back: ${writtenContent.length})`);
+
+    if (writtenContent.length !== content.length) {
+      console.error(`⚠️  File truncation detected! Expected ${content.length}, got ${writtenContent.length}`);
     }
   }
 

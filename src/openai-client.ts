@@ -24,27 +24,27 @@ export class OpenAIClient {
     this.mcpClient = new MCPLocalClient(database, this.client);
   }
 
-  async generateInstructions(terms: string[]): Promise<string> {
-    const prompt = `Generate detailed instructions for the following terms: ${terms.join(', ')}`;
+  // async generateInstructions(terms: string[]): Promise<string> {
+  //   const prompt = `Generate detailed instructions for the following terms: ${terms.join(', ')}`;
 
-    const response = await this.client.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are Shadow, a word processing software agent responsible for working with documents.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: 1000,
-      temperature: 0.7
-    });
+  //   const response = await this.client.chat.completions.create({
+  //     model: 'gpt-4o',
+  //     messages: [
+  //       {
+  //         role: 'system',
+  //         content: 'You are Shadow, a word processing software agent responsible for working with documents.'
+  //       },
+  //       {
+  //         role: 'user',
+  //         content: prompt
+  //       }
+  //     ],
+  //     max_tokens: 1000,
+  //     temperature: 0.7
+  //   });
 
-    return response.choices[0]?.message?.content || '';
-  }
+  //   return response.choices[0]?.message?.content || '';
+  // }
 
   async generateEmbedding(terms: string[]): Promise<number[]> {
     return generateEmbedding(this.client, terms)
