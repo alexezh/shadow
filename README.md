@@ -9,3 +9,4 @@ Formatting is not only visual but also conveys meaning. By linking formatting to
 Shadow identifies and extracts structural and semantic details from existing documents, then leverages that knowledge to guide editing, ensuring both semantic clarity and stylistic consistency. 
 
 For instance, if a user consistently creates tables with a blue header, Shadow will recognize this as a stylistic pattern and automatically apply the same design when the user inserts a new table. Similarly, when a user drafts a document that is semantically similar to one already in the library, Shadow can reuse the corresponding layout to maintain coherence and efficiency.
+

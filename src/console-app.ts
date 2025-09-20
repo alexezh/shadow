@@ -2,7 +2,8 @@ import { getChatPrompt } from './chatprompt.js';
 import { Database } from './database.js';
 import { importBlueprint } from './import-blueprint.js';
 import { importDoc } from './import-doc.js';
-import { INITIAL_RULES } from './init.js';
+import { INITIAL_RULES, initInstructions } from './init.js';
+import { makeSample } from './makeSample.js';
 import { mcpTools } from './mcp-client.js';
 import { generateEmbedding, OpenAIClient } from './openai-client.js';
 import * as readline from 'readline';
@@ -66,9 +67,9 @@ export class ConsoleApp {
         await this.handleGetInstructions(parts.slice(1));
         break;
 
-      case '!store-instruction':
-        await this.handleStoreInstruction();
-        break;
+      // case '!store-instruction':
+      //   await this.handleStoreInstruction();
+      //   break;
 
       case '!import-doc':
         if (parts.length < 2) {
@@ -90,6 +91,10 @@ export class ConsoleApp {
         await importBlueprint("tonniecv.html", this.openaiClient);
         break;
 
+      case '!make-sample':
+        await makeSample(this.openaiClient, command);
+        break;
+
       default:
         // Treat as chat message if not starting with !
         if (!command.startsWith('!')) {
@@ -107,20 +112,7 @@ export class ConsoleApp {
     console.log('Clearing existing instructions...');
     await this.database.clearInstructions();
 
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const rule of INITIAL_RULES) {
-      try {
-        const embedding = await this.openaiClient.generateEmbedding(rule.terms);
-        await this.database.storeInstruction(rule.terms, rule.text, embedding);
-        console.log(`✓ Stored rule for [${rule.terms.join(', ')}]`);
-        successCount++;
-      } catch (error) {
-        console.error(`✗ Failed to store rule for [${rule.terms.join(', ')}]: ${error}`);
-        errorCount++;
-      }
-    }
+    const [successCount, errorCount] = await initInstructions(this.openaiClient, this.database);
 
     console.log(`\nInitialization complete: ${successCount} rules stored, ${errorCount} errors`);
   }
@@ -152,30 +144,30 @@ export class ConsoleApp {
     });
   }
 
-  private async handleStoreInstruction(): Promise<void> {
-    return new Promise((resolve) => {
-      this.rl.question('Enter terms (space-separated): ', (termsInput) => {
-        const terms = termsInput.trim().split(/\s+/);
+  // private async handleStoreInstruction(): Promise<void> {
+  //   return new Promise((resolve) => {
+  //     this.rl.question('Enter terms (space-separated): ', (termsInput) => {
+  //       const terms = termsInput.trim().split(/\s+/);
 
-        this.rl.question('Enter rule text: ', async (text) => {
-          try {
-            const embedding = await this.openaiClient.generateEmbedding(terms);
-            await this.database.storeAsset(terms, text.trim(), embedding);
-            console.log(`Rule stored successfully for terms: ${terms.join(', ')}`);
-          } catch (error) {
-            console.error(`Failed to store rule: ${error}`);
-          }
-          resolve();
-        });
-      });
-    });
-  }
+  //       this.rl.question('Enter rule text: ', async (text) => {
+  //         try {
+  //           const embedding = await this.openaiClient.generateEmbedding(terms);
+  //           await this.database.storeAsset(terms, text.trim(), embedding);
+  //           console.log(`Rule stored successfully for terms: ${terms.join(', ')}`);
+  //         } catch (error) {
+  //           console.error(`Failed to store rule: ${error}`);
+  //         }
+  //         resolve();
+  //       });
+  //     });
+  //   });
+  // }
 
   private async handleChatMessage(message: string): Promise<void> {
     try {
       console.log('🤔 Processing your message...');
 
-      const response = await this.openaiClient.chatWithMCPTools(mcpTools, getChatPrompt(message), message);
+      const response = await this.openaiClient.chatWithMCPTools(mcpTools, getChatPrompt(), message);
       console.log('🤖 Shadow:', response);
 
     } catch (error) {

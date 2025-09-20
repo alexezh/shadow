@@ -171,9 +171,10 @@ export function parseSemanticMappings(mappingText: string): SemanticMapping[] {
 
   for (const line of lines) {
     // Parse formats like:
-    // "abc123: person.name"
-    // "abc123-xyz789: person.address" 
-    const match = line.match(/^([a-zA-Z0-9]+)(?:-([a-zA-Z0-9]+))?\s*:\s*(.+)$/);
+    // "z9f4k2m1: person.name"
+    // "z9f4k2m1-abc123xy: person.address"
+    // "- j6i28x04: person.name" (with leading dash)
+    const match = line.match(/^-?\s*([a-z0-9]+)(?:-([a-z0-9]+))?\s*:\s*(.+)$/);
 
     if (match) {
       const [, startId, endId, semantic] = match;

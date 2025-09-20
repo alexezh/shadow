@@ -3,11 +3,11 @@ import { MCPLocalClient } from './mcp-client.js';
 import { Database } from './database.js';
 import { ChatCompletionTool } from 'openai/resources/index.js';
 
-export async function generateEmbedding(client: OpenAI, terms: string[]): Promise<number[]> {
-  const termsText = terms.join(' ');
+export async function generateEmbedding(client: OpenAI, terms: string | string[]): Promise<number[]> {
+  let text = (Array.isArray(terms)) ? terms.join(' ') : terms;
   const response = await client.embeddings.create({
     model: 'text-embedding-3-small',
-    input: termsText
+    input: terms
   });
 
   return response.data[0]?.embedding || [];
@@ -46,7 +46,7 @@ export class OpenAIClient {
   //   return response.choices[0]?.message?.content || '';
   // }
 
-  async generateEmbedding(terms: string[]): Promise<number[]> {
+  async generateEmbedding(terms: string | string[]): Promise<number[]> {
     return generateEmbedding(this.client, terms)
   }
 
@@ -63,12 +63,13 @@ export class OpenAIClient {
 
     while (iteration < maxIterations) {
       const response = await this.client.chat.completions.create({
-        model: 'gpt-4o',
+        model: 'gpt-4.1',
         messages,
         tools: mcpTools,
         stream: true,
         tool_choice: 'auto',
         max_tokens: 1500,
+        //max_completion_tokens: 1500,
         temperature: 0.7
       });
 

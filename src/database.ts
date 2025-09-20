@@ -9,17 +9,17 @@ export class Database {
 
   constructor(dbPath: string = './embeddings.db') {
     this.db = new sqlite3.Database(dbPath);
-    
+
     // Properly promisify the run method to return the Statement object with lastID
     this.runAsync = (sql: string, params?: any[]): Promise<sqlite3.RunResult> => {
       return new Promise((resolve, reject) => {
-        this.db.run(sql, params || [], function(this: sqlite3.RunResult, err: Error | null) {
+        this.db.run(sql, params || [], function (this: sqlite3.RunResult, err: Error | null) {
           if (err) reject(err);
           else resolve(this);
         });
       });
     };
-    
+
     this.getAsync = promisify(this.db.get.bind(this.db));
     this.allAsync = promisify(this.db.all.bind(this.db));
   }
@@ -68,7 +68,7 @@ export class Database {
     await this.runAsync(`
       CREATE INDEX IF NOT EXISTS idx_assets_terms ON assets(terms)
     `);
-    
+
     await this.runAsync(`
       CREATE INDEX IF NOT EXISTS idx_instructions_terms ON instructions(terms)
     `);
@@ -83,13 +83,13 @@ export class Database {
       'INSERT INTO data (text) VALUES (?)',
       [text]
     );
-    
+
     if (!dataResult) {
       throw new Error('Failed to insert data: no result returned');
     }
-    
+
     const dataId = dataResult.lastID;
-    
+
     if (dataId === undefined || dataId === null) {
       throw new Error('Failed to insert data: no lastID returned');
     }
@@ -101,25 +101,29 @@ export class Database {
     );
   }
 
-  async storeInstruction(terms: string[], text: string, embedding: number[]): Promise<void> {
-    const termsString = JSON.stringify(terms);
-    const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
-
+  async storeInstruction(text: string): Promise<number> {
     // First, insert text into data table
     const dataResult = await this.runAsync(
       'INSERT INTO data (text) VALUES (?)',
       [text]
     );
-    
+
     if (!dataResult) {
       throw new Error('Failed to insert data: no result returned');
     }
-    
+
     const dataId = dataResult.lastID;
-    
+
     if (dataId === undefined || dataId === null) {
       throw new Error('Failed to insert data: no lastID returned');
     }
+
+    return dataId;
+  }
+
+  async storeInstructionEmbedding(terms: string, dataId: number, embedding: number[]): Promise<void> {
+    const termsString = JSON.stringify(terms);
+    const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
 
     // Then insert instruction with reference to data
     await this.runAsync(
@@ -246,10 +250,10 @@ export class Database {
     const orphanedData = await this.allAsync(
       'SELECT data_id FROM instructions'
     );
-    
+
     // Delete instructions first
     await this.runAsync('DELETE FROM instructions');
-    
+
     // Clean up orphaned data entries
     for (const row of orphanedData) {
       await this.runAsync('DELETE FROM data WHERE id = ?', [row.data_id]);
