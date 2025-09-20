@@ -85,6 +85,10 @@ export class ConsoleApp {
         await importBlueprint(parts[1], this.openaiClient);
         break;
 
+      case '!ib':
+        await importBlueprint("tonniecv.html", this.openaiClient);
+        break;
+
       default:
         // Treat as chat message if not starting with !
         if (!command.startsWith('!')) {

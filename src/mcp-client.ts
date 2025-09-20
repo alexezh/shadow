@@ -337,7 +337,6 @@ export class MCPLocalClient {
     }
     // Always store full content in database
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    const jsonText = JSON.stringify(args, null, 2);
     await this.database.storeAsset(args.terms, content, embedding, args.filename);
   }
 
@@ -377,8 +376,7 @@ export class MCPLocalClient {
           console.error(`⚠️  File truncation detected! Expected ${semanticContent.length}, got ${writtenContent.length}`);
         }
       }
-
-      if (args.kind === 'blueprint') {
+      else if (args.kind === 'blueprint') {
         // Write blueprint data as HTML
         const blueprintFile = path.join(contentDir, `${baseName}.blueprint.html`);
         let blueprintContent: string;

@@ -9,7 +9,17 @@ export class Database {
 
   constructor(dbPath: string = './embeddings.db') {
     this.db = new sqlite3.Database(dbPath);
-    this.runAsync = promisify(this.db.run.bind(this.db));
+    
+    // Properly promisify the run method to return the Statement object with lastID
+    this.runAsync = (sql: string, params?: any[]): Promise<sqlite3.RunResult> => {
+      return new Promise((resolve, reject) => {
+        this.db.run(sql, params || [], function(this: sqlite3.RunResult, err: Error | null) {
+          if (err) reject(err);
+          else resolve(this);
+        });
+      });
+    };
+    
     this.getAsync = promisify(this.db.get.bind(this.db));
     this.allAsync = promisify(this.db.all.bind(this.db));
   }
@@ -73,7 +83,16 @@ export class Database {
       'INSERT INTO data (text) VALUES (?)',
       [text]
     );
+    
+    if (!dataResult) {
+      throw new Error('Failed to insert data: no result returned');
+    }
+    
     const dataId = dataResult.lastID;
+    
+    if (dataId === undefined || dataId === null) {
+      throw new Error('Failed to insert data: no lastID returned');
+    }
 
     // Then insert asset with reference to data
     await this.runAsync(
@@ -91,7 +110,16 @@ export class Database {
       'INSERT INTO data (text) VALUES (?)',
       [text]
     );
+    
+    if (!dataResult) {
+      throw new Error('Failed to insert data: no result returned');
+    }
+    
     const dataId = dataResult.lastID;
+    
+    if (dataId === undefined || dataId === null) {
+      throw new Error('Failed to insert data: no lastID returned');
+    }
 
     // Then insert instruction with reference to data
     await this.runAsync(
