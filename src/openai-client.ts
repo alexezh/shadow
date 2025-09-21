@@ -58,7 +58,7 @@ export class OpenAIClient {
     ];
 
     // Loop to handle multiple function calls
-    let maxIterations = 5;
+    let maxIterations = 100;
     let iteration = 0;
 
     while (iteration < maxIterations) {

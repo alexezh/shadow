@@ -30,19 +30,17 @@ export class Database {
       CREATE TABLE IF NOT EXISTS data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         text TEXT NOT NULL,
+        sourceDoc TEXT,
+        kind TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Recreate assets table with data_id reference
     await this.runAsync(`
-      DROP TABLE IF EXISTS assets
-    `);
-    await this.runAsync(`
-      CREATE TABLE assets (
+      CREATE TABLE IF NOT EXISTS assets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         filename TEXT,
-        sourceDoc TEXT,
         terms TEXT NOT NULL,
         data_id INTEGER NOT NULL,
         embedding BLOB NOT NULL,
@@ -53,10 +51,7 @@ export class Database {
 
     // Recreate instructions table with data_id reference
     await this.runAsync(`
-      DROP TABLE IF EXISTS instructions
-    `);
-    await this.runAsync(`
-      CREATE TABLE instructions (
+      CREATE TABLE IF NOT EXISTS instructions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         terms TEXT NOT NULL,
         data_id INTEGER NOT NULL,
@@ -75,14 +70,14 @@ export class Database {
     `);
   }
 
-  async storeAsset(terms: string[], text: string, embedding: number[], filename?: string, sourceDoc?: string): Promise<void> {
+  async storeAsset(terms: string[], text: string, embedding: number[], filename?: string, sourceDoc?: string, kind?: string): Promise<void> {
     const termsString = JSON.stringify(terms);
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
 
     // First, insert text into data table
     const dataResult = await this.runAsync(
-      'INSERT INTO data (text) VALUES (?)',
-      [text]
+      'INSERT INTO data (text, sourceDoc, kind) VALUES (?, ?, ?)',
+      [text, sourceDoc || null, kind || null]
     );
 
     if (!dataResult) {
@@ -97,16 +92,16 @@ export class Database {
 
     // Then insert asset with reference to data
     await this.runAsync(
-      'INSERT INTO assets (filename, sourceDoc, terms, data_id, embedding) VALUES (?, ?, ?, ?, ?)',
-      [filename || null, sourceDoc || null, termsString, dataId, embeddingBlob]
+      'INSERT INTO assets (filename, terms, data_id, embedding) VALUES (?, ?, ?, ?)',
+      [filename || null, termsString, dataId, embeddingBlob]
     );
   }
 
-  async storeInstruction(text: string): Promise<number> {
+  async storeInstruction(text: string, sourceDoc?: string, kind?: string): Promise<number> {
     // First, insert text into data table
     const dataResult = await this.runAsync(
-      'INSERT INTO data (text) VALUES (?)',
-      [text]
+      'INSERT INTO data (text, sourceDoc, kind) VALUES (?, ?, ?)',
+      [text, sourceDoc || null, kind || 'instruction']
     );
 
     if (!dataResult) {
@@ -127,10 +122,13 @@ export class Database {
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
 
     // Then insert instruction with reference to data
-    await this.runAsync(
+    const result = await this.runAsync(
       'INSERT INTO instructions (terms, data_id, embedding) VALUES (?, ?, ?)',
       [termsString, dataId, embeddingBlob]
     );
+    if (result.lastID === undefined || result.lastID === null) {
+      throw new Error('Failed to insert data: no lastID returned');
+    }
   }
 
   async findSimilarTexts(terms: string[], limit: number = 10): Promise<Array<{ text: string, similarity: number }>> {
@@ -201,10 +199,20 @@ export class Database {
     return Array.from(floatArray);
   }
 
-  async getAssets(queryEmbedding: number[], limit: number = 10): Promise<Array<{ terms: string[], text: string, filename: string | null, sourceDoc: string | null, similarity: number }>> {
-    const results = await this.allAsync(
-      'SELECT a.filename, a.sourceDoc, a.terms, d.text, a.embedding FROM assets a JOIN data d ON a.data_id = d.id ORDER BY a.created_at DESC'
-    );
+  async getAssets(queryEmbedding: number[], limit: number = 2, kind?: string):
+    Promise<Array<{ terms: string[], text: string, filename: string | null, sourceDoc: string | null, kind: string | null, similarity: number }>> {
+    
+    let sql = 'SELECT a.filename, a.terms, d.text, d.sourceDoc, d.kind, a.embedding FROM assets a JOIN data d ON a.data_id = d.id';
+    let params: any[] = [];
+    
+    if (kind) {
+      sql += ' WHERE d.kind = ?';
+      params.push(kind);
+    }
+    
+    sql += ' ORDER BY a.created_at DESC';
+    
+    const results = await this.allAsync(sql, params);
 
     const similarities = results.map(row => {
       const storedEmbedding = this.embeddingFromBlob(row.embedding);
@@ -215,6 +223,7 @@ export class Database {
         text: row.text,
         filename: row.filename,
         sourceDoc: row.sourceDoc,
+        kind: row.kind,
         similarity
       };
     });
@@ -225,7 +234,7 @@ export class Database {
       .slice(0, limit);
   }
 
-  async getInstructions(queryEmbedding: number[], limit: number = 10): Promise<Array<{ terms: string[], text: string, similarity: number }>> {
+  async getInstructions(queryEmbedding: number[], limit: number = 3): Promise<Array<{ terms: string[], text: string, similarity: number }>> {
     const results = await this.allAsync(
       'SELECT i.terms, d.text, i.embedding FROM instructions i JOIN data d ON i.data_id = d.id ORDER BY i.created_at DESC'
     );

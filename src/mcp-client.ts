@@ -84,6 +84,7 @@ export const mcpTools = [
       parameters: {
         type: 'object',
         properties: {
+          kind: { type: "string", description: "kind of asset stored" },
           terms: {
             type: 'array',
             items: { type: 'string' },
@@ -212,10 +213,12 @@ export class MCPLocalClient {
   private async getInstructions(args: { terms: string[] }): Promise<string> {
     console.log("getInstructions: " + JSON.stringify(args))
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    const texts = await this.database.getInstructions(embedding);
+    const texts = await this.database.getInstructions(embedding, 1);
 
     if (texts.length === 0) {
       return `No instructions found for terms: ${args.terms.join(', ')}`;
+    } else {
+      console.log(`getInstructions: [terms: ${args.terms}] [out: ${texts[0].terms}]`)
     }
 
     return "\n[CONTEXT]\n" + texts.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
@@ -303,7 +306,7 @@ export class MCPLocalClient {
       totalChunks: args.totalChunks
     });
 
-    console.log(`📦 Received chunk ${args.chunkIndex + 1}/${args.totalChunks} for ${args.chunkId} (${args.content.length} chars)`);
+    console.log(`📦 Received chunk [${args.kind}] [${args.chunkIndex + 1}/${args.totalChunks}] for ${args.chunkId} (${args.content.length} chars)`);
 
     // Check if we have all chunks
     if (bufferEntry.chunks.length !== args.totalChunks) {
@@ -331,8 +334,10 @@ export class MCPLocalClient {
     // Optionally write to file for special kinds (blueprint/semantic)
     if (args.filename) {
       if (args.kind === 'blueprint') {
-        await this.writeSpecialFiles({ kind: "mapping", filename: args.filename }, content);
+        //await this.writeSpecialFiles({ kind: "mapping", filename: args.filename }, content);
       } else if (args.kind === 'semantic') {
+        await this.writeSpecialFiles(args, content);
+      } else if (args.kind === 'html') {
         await this.writeSpecialFiles(args, content);
       }
     }
@@ -341,9 +346,12 @@ export class MCPLocalClient {
       //content = processBlueprint(args.filename, content);
       await this.writeSpecialFiles({ kind: "blueprint", filename: args.filename }, content);
     }
+
+    let kind = args.kind ?? "text";
+
     // Always store full content in database
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    await this.database.storeAsset(args.terms, content, embedding, args.filename, args.filename);
+    await this.database.storeAsset(args.terms, content, embedding, args.filename, args.filename, kind);
   }
 
 
@@ -366,6 +374,8 @@ export class MCPLocalClient {
         fileExtension = '.blueprint.json';
       } else if (args.kind === 'blueprint') {
         fileExtension = '.blueprint.md';
+      } else if (args.kind === 'html') {
+        fileExtension = '.output.html';
       } else {
         return; // Unknown kind, skip
       }
@@ -392,12 +402,17 @@ export class MCPLocalClient {
     }
   }
 
-  private async loadAsset(args: { terms: string[] }): Promise<string> {
+  private async loadAsset(args: { kind?: string; terms: string[] }): Promise<string> {
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    const texts = await this.database.getAssets(embedding);
+    const texts = await this.database.getAssets(embedding, 1, args.kind ?? "text");
+
+    if (texts.length > 0) {
+      console.log(`loadAsset: [kind: ${args.kind}] [terms: ${JSON.stringify(args.terms)} [outfile: ${texts[0].filename}] [outterms: ${JSON.stringify(texts[0].terms)}]`)
+    }
 
     return JSON.stringify({
       terms: args.terms,
+      kind: args.kind,
       texts: texts,
       count: texts.length
     }, null, 2);

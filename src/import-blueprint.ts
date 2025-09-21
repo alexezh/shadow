@@ -35,8 +35,7 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
   * store each chunk store_asset(kind="blueprint", chunkId=N).
   * include both formatting and layout information; such as title: orginized in table with top row containing xyz
   * example. if text is section header and formatted as 24Pt font, output section.header - font: 24Pt, textcolor: blue.
-  * when storing assets, add terms describing type of documents this blueprint can be used for.
-  * example. if text is a story add terms "casual", "storytelling".`;
+  * when storing blueprint, add terms describing type of documents this blueprint can be used for. Include short description of layout as one of terms.`;
 
     const foo = `-make a map of html ids to semantic
   * format is "id1: semantic\nid2:semantic\n"

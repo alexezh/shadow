@@ -13,12 +13,15 @@ use find_ranges to locate range given some text as references. If a user asks "f
 variations to search for. 
 `
   },
+  // todo: load summaries of X last documents
   {
     terms: ['create document'],
     text: `
 **to create a document:**
-create a text version of requested document, store using store_asset(kind = "text") API. 
-lookup blueprint . 
+create a text version of requested document, store the text version using store_asset(kind: "text") API. 
+lookup blueprint using load_asset(kind: "blueprint") API providing set of terms describing kind of document to create.
+- such as if a user asked to make cool looking, specify "cool" as one of terms.
+create an HTML version of the document using formatting described in the blueprint. store HTML version using store_asset(kind: "html") API 
 `
   },
   {
