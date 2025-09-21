@@ -20,7 +20,8 @@ Available tools:
 
 Start by calling get_instructions with appropriate terms based on what the user is asking for. 
 The initial set of instructions can be accessed with following terms
-- edit document: basic editing of an document
+- edit document: when a user asks to perform editing of an existing document
+- create document: when a user asks to create a new document
 `;
 
   return systemPrompt

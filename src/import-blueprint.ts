@@ -29,8 +29,16 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
         document type - resume, person: tonnie, address: xyz, content and other semantical blocks 
    * include start and stop paragraph id in markdown at the end of semantic block name using {startId:<id>, endId:<id>} syntax
    * store semantical structure as markdown using store_asset(kind="semantic")
+   
+-compute layout and formatting of the document as markdown focusing how different semantic elements are formatted
+  * output your data in chunks of max 1500 tokens
+  * store each chunk store_asset(kind="blueprint", chunkId=N).
+  * include both formatting and layout information; such as title: orginized in table with top row containing xyz
+  * example. if text is section header and formatted as 24Pt font, output section.header - font: 24Pt, textcolor: blue.
+  * when storing assets, add terms describing type of documents this blueprint can be used for.
+  * example. if text is a story add terms "casual", "storytelling".`;
 
--make a map of html ids to semantic
+    const foo = `-make a map of html ids to semantic
   * format is "id1: semantic\nid2:semantic\n"
   * output your data in chunks of max 1500 tokens
   * store each chunk store_asset(kind="blueprint", chunkId=N).

@@ -338,12 +338,12 @@ export class MCPLocalClient {
     }
 
     if (args.kind === "blueprint") {
-      content = processBlueprint(args.filename, content);
+      //content = processBlueprint(args.filename, content);
       await this.writeSpecialFiles({ kind: "blueprint", filename: args.filename }, content);
     }
     // Always store full content in database
     const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    await this.database.storeAsset(args.terms, content, embedding, args.filename);
+    await this.database.storeAsset(args.terms, content, embedding, args.filename, args.filename);
   }
 
 
@@ -365,7 +365,7 @@ export class MCPLocalClient {
       } else if (args.kind === 'mapping') {
         fileExtension = '.blueprint.json';
       } else if (args.kind === 'blueprint') {
-        fileExtension = '.blueprint.html';
+        fileExtension = '.blueprint.md';
       } else {
         return; // Unknown kind, skip
       }

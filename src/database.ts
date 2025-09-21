@@ -42,6 +42,7 @@ export class Database {
       CREATE TABLE assets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         filename TEXT,
+        sourceDoc TEXT,
         terms TEXT NOT NULL,
         data_id INTEGER NOT NULL,
         embedding BLOB NOT NULL,
@@ -74,7 +75,7 @@ export class Database {
     `);
   }
 
-  async storeAsset(terms: string[], text: string, embedding: number[], filename?: string): Promise<void> {
+  async storeAsset(terms: string[], text: string, embedding: number[], filename?: string, sourceDoc?: string): Promise<void> {
     const termsString = JSON.stringify(terms);
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
 
@@ -96,8 +97,8 @@ export class Database {
 
     // Then insert asset with reference to data
     await this.runAsync(
-      'INSERT INTO assets (filename, terms, data_id, embedding) VALUES (?, ?, ?, ?)',
-      [filename || null, termsString, dataId, embeddingBlob]
+      'INSERT INTO assets (filename, sourceDoc, terms, data_id, embedding) VALUES (?, ?, ?, ?, ?)',
+      [filename || null, sourceDoc || null, termsString, dataId, embeddingBlob]
     );
   }
 
@@ -200,9 +201,9 @@ export class Database {
     return Array.from(floatArray);
   }
 
-  async getAssets(queryEmbedding: number[], limit: number = 10): Promise<Array<{ terms: string[], text: string, filename: string | null, similarity: number }>> {
+  async getAssets(queryEmbedding: number[], limit: number = 10): Promise<Array<{ terms: string[], text: string, filename: string | null, sourceDoc: string | null, similarity: number }>> {
     const results = await this.allAsync(
-      'SELECT a.filename, a.terms, d.text, a.embedding FROM assets a JOIN data d ON a.data_id = d.id ORDER BY a.created_at DESC'
+      'SELECT a.filename, a.sourceDoc, a.terms, d.text, a.embedding FROM assets a JOIN data d ON a.data_id = d.id ORDER BY a.created_at DESC'
     );
 
     const similarities = results.map(row => {
@@ -213,6 +214,7 @@ export class Database {
         terms: JSON.parse(row.terms) as string[],
         text: row.text,
         filename: row.filename,
+        sourceDoc: row.sourceDoc,
         similarity
       };
     });
