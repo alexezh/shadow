@@ -7,19 +7,28 @@ import { makeSample } from './makeSample.js';
 import { mcpTools } from './mcp-client.js';
 import { generateEmbedding, OpenAIClient } from './openai-client.js';
 import * as readline from 'readline';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 export class ConsoleApp {
   private database: Database;
   private openaiClient: OpenAIClient;
   private rl: readline.Interface;
+  private historyFile: string;
 
   constructor(database: Database) {
     this.database = database;
     this.openaiClient = new OpenAIClient(database);
+    this.historyFile = path.join(os.homedir(), '.shadow_history');
+    
     this.rl = readline.createInterface({
       input: process.stdin,
-      output: process.stdout
+      output: process.stdout,
+      completer: this.completer.bind(this)
     });
+    
+    this.loadHistory();
   }
 
   async start(): Promise<void> {
@@ -28,9 +37,78 @@ export class ConsoleApp {
     this.promptUser();
   }
 
+  private loadHistory(): void {
+    try {
+      if (fs.existsSync(this.historyFile)) {
+        const history = fs.readFileSync(this.historyFile, 'utf-8')
+          .split('\n')
+          .filter(line => line.trim().length > 0);
+        
+        // Load last 1000 commands to avoid memory issues
+        const recentHistory = history.slice(-1000);
+        
+        for (const line of recentHistory) {
+          (this.rl as any).history.unshift(line);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load command history:', error);
+    }
+  }
+
+  private saveHistory(command: string): void {
+    try {
+      fs.appendFileSync(this.historyFile, command + '\n', 'utf-8');
+    } catch (error) {
+      console.warn('Failed to save command to history:', error);
+    }
+  }
+
+  private completer(line: string): [string[], string] {
+    const completions = [
+      '!init',
+      '!list-instructions', 
+      '!get-instruction',
+      '!import-doc',
+      '!import-blueprint',
+      '!ib',
+      '!make-sample',
+      'exit'
+    ];
+
+    // Check if we're completing a filename after certain commands
+    const words = line.split(' ');
+    if (words.length > 1 && (words[0] === '!import-doc' || words[0] === '!import-blueprint')) {
+      const partialFilename = words[words.length - 1];
+      const contentDir = path.join(process.cwd(), 'content');
+      
+      try {
+        if (fs.existsSync(contentDir)) {
+          const files = fs.readdirSync(contentDir)
+            .filter(file => file.startsWith(partialFilename))
+            .map(file => words.slice(0, -1).join(' ') + ' ' + file);
+          
+          return [files, line];
+        }
+      } catch (error) {
+        // Ignore errors and fall back to command completion
+      }
+    }
+
+    // Command completion
+    const hits = completions.filter(completion => completion.startsWith(line));
+    return [hits.length ? hits : completions, line];
+  }
+
   private promptUser(): void {
     this.rl.question('> ', async (input) => {
       const trimmed = input.trim();
+      
+      // Save non-empty commands to history
+      if (trimmed.length > 0) {
+        this.saveHistory(trimmed);
+      }
+      
       if (trimmed === 'exit') {
         await this.stop();
         return;
