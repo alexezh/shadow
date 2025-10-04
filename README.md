@@ -1,4 +1,4 @@
-Shadow is an experimental framework for an AI-first editor designed around formatting and semantic extraction.
+Shadow is an experimental framework for an AI-first editor designed around formatting and semantic extraction. It is inspired by work I've done in [foolpy](https://github.com/alexezh/foolpy) focusing on off-the-shelf models. 
 
 # Formatting as Semantic
 
