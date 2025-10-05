@@ -58,5 +58,24 @@ runtime code goes through keyword, generates embedding for each and stores value
 
 The interesting question is how to find the best match given multiple keywords. The simplest is to find the best match for each keyword, and then lookup the best across all. However this approach does not account for history.
 
-A better approach would be to use some model which can maintain set of weights over embeddings and adjust weights based on actions. Since we only have few pieces of data from the user, Bayesian model seems like a good choice as a starting point. Later it can be combined with a NN model which takes a list of embeddings across all users and generates embedding representing the sum. 
+A better approach would be to use some model which can maintain set of weights over embeddings and adjust weights based on actions. Since we only have few pieces of data from the user, Bayesian model seems like a good choice as a starting point. Later it can be combined with a NN model which takes a list of embeddings across all users and generates embedding representing the sum.
 
+With any model, the question we are trying to solve is - find the best match given list of keywords. 
+
+```text
+// sum embeddings with weight
+combined_emb = sum(Wi * embedding(keyword(i))),
+// find best match
+max(cosine(x, combined_emb)
+```
+
+or event better
+
+```text
+// select all embeddings which close to keyword
+extended_keywords = select(cosine(x, embedding(keyword(i)) > 0.8)
+// sum embeddings with weight
+combined_emb = sum(Wi * embedding(extended_keywords(i))), 
+// find best match
+max(cosine(Mi, combined_emb)
+```
