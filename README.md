@@ -30,7 +30,7 @@ The assumption is that a user will probably use the same formatting for the same
 ## Embeddings
 Through the system, we are going to rely on LLM to provide keywords for storing and retrieving data. such as API for storing context defined as
 
-```json
+```text
   {
     type: 'function' as const,
     function: {
@@ -52,7 +52,7 @@ Through the system, we are going to rely on LLM to provide keywords for storing 
         required: ['terms', 'value']
       }
     }
-  },
+  }
 ```
 runtime code goes through keyword, generates embedding for each and stores value using embedding as a key. 
 
