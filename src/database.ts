@@ -68,6 +68,16 @@ export class Database {
     await this.runAsync(`
       CREATE INDEX IF NOT EXISTS idx_instructions_terms ON instructions(terms)
     `);
+
+    // Create history table
+    await this.runAsync(`
+      CREATE TABLE IF NOT EXISTS history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prompt TEXT NOT NULL,
+        work_summary TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
   }
 
   async storeAsset(terms: string[], text: string, embedding: number[], filename?: string, sourceDoc?: string, kind?: string): Promise<void> {
@@ -269,6 +279,27 @@ export class Database {
     for (const row of orphanedData) {
       await this.runAsync('DELETE FROM data WHERE id = ?', [row.data_id]);
     }
+  }
+
+  async storeHistory(prompt: string, workSummary: string): Promise<void> {
+    await this.runAsync(
+      'INSERT INTO history (prompt, work_summary) VALUES (?, ?)',
+      [prompt, workSummary]
+    );
+  }
+
+  async getHistory(limit: number = 10): Promise<Array<{ id: number, prompt: string, workSummary: string, createdAt: string }>> {
+    const results = await this.allAsync(
+      'SELECT id, prompt, work_summary, created_at FROM history ORDER BY created_at DESC LIMIT ?',
+      [limit]
+    );
+
+    return results.map(row => ({
+      id: row.id,
+      prompt: row.prompt,
+      workSummary: row.work_summary,
+      createdAt: row.created_at
+    }));
   }
 
   async close(): Promise<void> {

@@ -144,6 +144,34 @@ export const mcpTools = [
         required: ['pattern']
       }
     }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'store_history',
+      description: 'Store work history with current prompt and summary of work performed',
+      parameters: {
+        type: 'object',
+        properties: {
+          summary: { type: 'string', description: 'Summary of work performed in this session' }
+        },
+        required: ['summary']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'load_history',
+      description: 'Load recent work history entries',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', description: 'Number of history entries to retrieve (default: 10, max: 50)', minimum: 1, maximum: 50 }
+        },
+        additionalProperties: false
+      }
+    }
   }
 ];
 
@@ -160,6 +188,7 @@ export type StoreAssetsArgs = {
 export class MCPLocalClient {
   private database: Database;
   private openaiClient: OpenAI;
+  private currentPrompt: string = '';
   private currentRange: {
     name: string;
     format: string;
@@ -204,6 +233,12 @@ export class MCPLocalClient {
 
       case 'find_file':
         return await this.findFile(toolCall.arguments);
+
+      case 'store_history':
+        return await this.storeHistory(toolCall.arguments);
+
+      case 'load_history':
+        return await this.loadHistory(toolCall.arguments);
 
       default:
         throw new Error(`Unknown tool: ${toolCall.name}`);
@@ -453,6 +488,10 @@ export class MCPLocalClient {
     }, null, 2);
   }
 
+  setCurrentPrompt(prompt: string): void {
+    this.currentPrompt = prompt;
+  }
+
   private setCurrentRange(name: string, format: string, start_para?: string, end_para?: string, start_line?: number, end_line?: number): void {
     this.currentRange = {
       name,
@@ -498,6 +537,52 @@ export class MCPLocalClient {
         }, null, 2);
       }
       throw error;
+    }
+  }
+
+  private async storeHistory(args: { summary: string }): Promise<string> {
+    try {
+      await this.database.storeHistory(this.currentPrompt, args.summary);
+      
+      console.log(`📝 Stored history entry: prompt="${this.currentPrompt.substring(0, 50)}..." summary="${args.summary.substring(0, 50)}..."`);
+      
+      return JSON.stringify({
+        success: true,
+        message: 'History entry stored successfully',
+        prompt: this.currentPrompt,
+        summary: args.summary,
+        timestamp: new Date().toISOString()
+      }, null, 2);
+    } catch (error: any) {
+      console.error('❌ Error storing history:', error);
+      return JSON.stringify({
+        success: false,
+        error: error.message
+      }, null, 2);
+    }
+  }
+
+  private async loadHistory(args: { limit?: number }): Promise<string> {
+    try {
+      const limit = Math.min(args.limit || 10, 50); // Default 10, max 50
+      const historyEntries = await this.database.getHistory(limit);
+      
+      console.log(`📖 Retrieved ${historyEntries.length} history entries`);
+      
+      return JSON.stringify({
+        success: true,
+        count: historyEntries.length,
+        limit: limit,
+        entries: historyEntries
+      }, null, 2);
+    } catch (error: any) {
+      console.error('❌ Error loading history:', error);
+      return JSON.stringify({
+        success: false,
+        error: error.message,
+        count: 0,
+        entries: []
+      }, null, 2);
     }
   }
 }

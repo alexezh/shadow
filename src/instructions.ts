@@ -18,6 +18,7 @@ variations to search for.
     terms: ['create document'],
     text: `
 **to create a document:**
+load recent history using load_history API. check if user is repeating the request. 
 create a text version of requested document, store the text version using store_asset(kind: "text") API. 
 lookup blueprint using load_asset(kind: "blueprint") API providing set of terms describing kind of document to create.
 - such as if a user asked to make cool looking, specify "cool" as one of terms.

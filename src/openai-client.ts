@@ -51,6 +51,9 @@ export class OpenAIClient {
   }
 
   async chatWithMCPTools(mcpTools: Array<ChatCompletionTool>, systemPrompt: string, userMessage: string): Promise<string> {
+    
+    // Set the current prompt in the MCP client for history tracking
+    this.mcpClient.setCurrentPrompt(userMessage);
 
     let messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },

@@ -22,6 +22,8 @@ Start by calling get_instructions with appropriate terms based on what the user 
 The initial set of instructions can be accessed with following terms
 - edit document: when a user asks to perform editing of an existing document
 - create document: when a user asks to create a new document
+
+After prompt is complete, generate summary of work done and invoke store_history API with summary
 `;
 
   return systemPrompt
