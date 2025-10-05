@@ -22,7 +22,8 @@ Available tools:
 
 Start by calling get_instructions with appropriate terms based on what the user is asking for. 
 
-After prompt is complete, generate summary of work done and invoke store_history API with the summary
+After prompt is complete, generate summary of work done and invoke store_history API with the summary. 
+Provide only necessary information in prompt output
 `;
 
   return systemPrompt

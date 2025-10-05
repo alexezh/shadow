@@ -37,10 +37,11 @@ make document name and store it using set_context(["document_name]) API call.
 **to use blueprint:**
 blueprint is a description (guidelines) for formatting the document. It describes what formatting such as colors
 to apply to different parts of the document
-To load blueprint, call get_asset(kind="blueprint")
+To load blueprint, call get_asset(kind="blueprint") API providing set of terms describing kind of formatting to use.
+ - such as if a user asked to make cool looking, specify "cool" as one of terms.
 If a user asked to update formatting for for document
 - change blueprint following instructions
-- store blueprint using store_asset(kind="blueprint") API
+- store blueprint using store_asset(kind="blueprint") API providing set of terms describing blueprint
 - create an HTML version of the document using formatting described in the blueprint. 
 - store HTML version using store_asset(kind: "html") API 
 `
@@ -157,7 +158,7 @@ export async function getInstructions(database: Database,
   // Take top 2 unique instructions
   const bestMatches = Array.from(uniqueTexts.values()).slice(0, 2);
 
-  console.log(`getInstructions: [terms: ${args.terms}] [found: ${bestMatches.length}] [best match: ${bestMatches[0].matchedTerm} (${bestMatches[0].similarity.toFixed(3)})]`)
+  console.log(`getInstructions: [terms: ${args.terms}] [found: ${bestMatches.length}] [terms: ${bestMatches.map(x => x.matchedTerm)}]`)
 
   return "\n[CONTEXT]\n" + bestMatches.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
 }
