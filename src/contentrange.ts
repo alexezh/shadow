@@ -1,6 +1,39 @@
 import path from "path";
 import * as fs from 'fs/promises';
 
+async function resolveFilePath(contentDir: string, name: string): Promise<string | null> {
+  // If name already has .html extension, use it as is
+  if (name.endsWith('.html')) {
+    const filePath = path.join(contentDir, name);
+    try {
+      await fs.access(filePath);
+      return filePath;
+    } catch {
+      return null;
+    }
+  }
+
+  // Try different extensions in order
+  const extensionsToTry = [
+    '', // Try as-is first
+    '.html',
+    '.output.html'
+  ];
+
+  for (const ext of extensionsToTry) {
+    const filePath = path.join(contentDir, `${name}${ext}`);
+    try {
+      await fs.access(filePath);
+      return filePath;
+    } catch {
+      // File doesn't exist, try next extension
+      continue;
+    }
+  }
+
+  return null;
+}
+
 export async function getContentRange(args: {
   name: string;
   format: string;
@@ -8,7 +41,11 @@ export async function getContentRange(args: {
   end_para?: string;
 }): Promise<string> {
   const contentDir = path.join(process.cwd(), 'content');
-  const filePath = path.join(contentDir, `${args.name}`);
+  const filePath = await resolveFilePath(contentDir, args.name);
+
+  if (!filePath) {
+    return `Document '${args.name}' not found in content directory (tried: ${args.name}, ${args.name}.html, ${args.name}.output.html)`;
+  }
 
   try {
     const content = await fs.readFile(filePath, 'utf-8');
@@ -47,9 +84,6 @@ export async function getContentRange(args: {
 
     return rangeLines.join('\n');
   } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      return `Document '${args.name}' not found in content directory`;
-    }
     throw error;
   }
 }

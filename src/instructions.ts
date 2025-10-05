@@ -123,15 +123,42 @@ export async function getInstructions(database: Database,
   openaiClient: OpenAI,
   args: { terms: string[] }): Promise<string> {
   console.log("getInstructions: " + JSON.stringify(args))
-  const embedding = await generateEmbedding(openaiClient, args.terms);
-  const texts = await database.getInstructions(embedding, 1);
 
-  if (texts.length === 0) {
-    return `No instructions found for terms: ${args.terms.join(', ')}`;
-  } else {
-    console.log(`getInstructions: [terms: ${args.terms}] [out: ${texts[0].terms}]`)
+  // Look up instructions for each term individually
+  const allMatches: Array<{ text: string, similarity: number, matchedTerm: string }> = [];
+
+  for (const term of args.terms) {
+    const embedding = await generateEmbedding(openaiClient, [term]);
+    const matches = await database.getInstructions(embedding, 3); // Get top 3 for each term
+
+    for (const match of matches) {
+      allMatches.push({
+        text: match.text,
+        similarity: match.similarity,
+        matchedTerm: term
+      });
+    }
   }
 
-  return "\n[CONTEXT]\n" + texts.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
+  if (allMatches.length === 0) {
+    return `No instructions found for terms: ${args.terms.join(', ')}`;
+  }
+
+  // Sort by similarity and deduplicate by text content
+  const sortedMatches = allMatches.sort((a, b) => b.similarity - a.similarity);
+  const uniqueTexts = new Map<string, { text: string, similarity: number, matchedTerm: string }>();
+
+  for (const match of sortedMatches) {
+    if (!uniqueTexts.has(match.text)) {
+      uniqueTexts.set(match.text, match);
+    }
+  }
+
+  // Take top 2 unique instructions
+  const bestMatches = Array.from(uniqueTexts.values()).slice(0, 2);
+
+  console.log(`getInstructions: [terms: ${args.terms}] [found: ${bestMatches.length}] [best match: ${bestMatches[0].matchedTerm} (${bestMatches[0].similarity.toFixed(3)})]`)
+
+  return "\n[CONTEXT]\n" + bestMatches.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
 }
 

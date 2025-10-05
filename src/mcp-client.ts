@@ -7,7 +7,7 @@ import { findRanges as findRangesStandalone } from './findRange.js';
 import { getInstructions } from './instructions.js';
 import { getContext, setContext } from './context.js';
 import { getContentRange } from './contentrange.js';
-import { loadAsset, storeAsset } from './asset.js';
+import { ContentBuffer, loadAsset, storeAsset } from './asset.js';
 
 export interface MCPToolCall {
   name: string;
@@ -212,12 +212,7 @@ export class MCPLocalClient {
   private currentPrompt: string = '';
 
   // Buffer for chunked content
-  private contentBuffer: Map<string, {
-    chunks: Array<{ chunkIndex: number; content: string; totalChunks: number }>;
-    filename?: string;
-    terms: string[];
-    isComplete: boolean;
-  }> = new Map();
+  private contentBuffer: ContentBuffer = new Map();
 
   constructor(database: Database, openaiClient: OpenAI) {
     this.database = database;
