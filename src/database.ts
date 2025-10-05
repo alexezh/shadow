@@ -49,15 +49,13 @@ export class Database {
       )
     `);
 
-    // Recreate instructions table with data_id reference
+    // Recreate instructions table with text field instead of data_id
     await this.runAsync(`
       CREATE TABLE IF NOT EXISTS instructions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        terms TEXT NOT NULL,
-        data_id INTEGER NOT NULL,
-        embedding BLOB NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (data_id) REFERENCES data (id)
+        keywords TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -66,7 +64,22 @@ export class Database {
     `);
 
     await this.runAsync(`
-      CREATE INDEX IF NOT EXISTS idx_instructions_terms ON instructions(terms)
+      CREATE INDEX IF NOT EXISTS idx_instructions_keywords ON instructions(keywords)
+    `);
+
+    // Create instruction_emb table for storing instruction embeddings
+    await this.runAsync(`
+      CREATE TABLE IF NOT EXISTS instruction_emb (
+        emb_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        instruction_id INTEGER NOT NULL,
+        embedding BLOB NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (instruction_id) REFERENCES instructions (id)
+      )
+    `);
+
+    await this.runAsync(`
+      CREATE INDEX IF NOT EXISTS idx_instruction_emb_instruction_id ON instruction_emb(instruction_id)
     `);
 
     // Create history table
@@ -107,6 +120,35 @@ export class Database {
     await this.runAsync(`
       CREATE INDEX IF NOT EXISTS idx_context_terms_name ON context_terms(context_name)
     `);
+
+    // Create asset_emb table for storing asset embeddings
+    await this.runAsync(`
+      CREATE TABLE IF NOT EXISTS asset_emb (
+        emb_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id INTEGER NOT NULL,
+        embedding BLOB NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asset_id) REFERENCES assets (id)
+      )
+    `);
+
+    await this.runAsync(`
+      CREATE INDEX IF NOT EXISTS idx_asset_emb_asset_id ON asset_emb(asset_id)
+    `);
+
+    // Create keyword_emb table for storing keyword embeddings
+    await this.runAsync(`
+      CREATE TABLE IF NOT EXISTS keyword_emb (
+        emb_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        keyword TEXT NOT NULL,
+        embedding BLOB NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await this.runAsync(`
+      CREATE INDEX IF NOT EXISTS idx_keyword_emb_keyword ON keyword_emb(keyword)
+    `);
   }
 
   async storeAsset(terms: string[], text: string, embedding: number[], filename?: string, sourceDoc?: string, kind?: string): Promise<void> {
@@ -136,37 +178,33 @@ export class Database {
     );
   }
 
-  async storeInstruction(text: string, sourceDoc?: string, kind?: string): Promise<number> {
-    // First, insert text into data table
-    const dataResult = await this.runAsync(
-      'INSERT INTO data (text, sourceDoc, kind) VALUES (?, ?, ?)',
-      [text, sourceDoc || null, kind || 'instruction']
+  async storeInstruction(keywords: string[], text: string): Promise<number> {
+    const keywordsString = JSON.stringify(keywords);
+
+    // Insert instruction directly with text
+    const result = await this.runAsync(
+      'INSERT INTO instructions (keywords, text) VALUES (?, ?)',
+      [keywordsString, text]
     );
 
-    if (!dataResult) {
-      throw new Error('Failed to insert data: no result returned');
+    if (!result || result.lastID === undefined || result.lastID === null) {
+      throw new Error('Failed to insert instruction: no lastID returned');
     }
 
-    const dataId = dataResult.lastID;
-
-    if (dataId === undefined || dataId === null) {
-      throw new Error('Failed to insert data: no lastID returned');
-    }
-
-    return dataId;
+    return result.lastID;
   }
 
-  async storeInstructionEmbedding(terms: string, dataId: number, embedding: number[]): Promise<void> {
-    const termsString = JSON.stringify(terms);
+  async storeInstructionEmbedding(instructionId: number, embedding: number[]): Promise<void> {
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
 
-    // Then insert instruction with reference to data
+    // Insert embedding into instruction_emb table
     const result = await this.runAsync(
-      'INSERT INTO instructions (terms, data_id, embedding) VALUES (?, ?, ?)',
-      [termsString, dataId, embeddingBlob]
+      'INSERT INTO instruction_emb (instruction_id, embedding) VALUES (?, ?)',
+      [instructionId, embeddingBlob]
     );
+
     if (result.lastID === undefined || result.lastID === null) {
-      throw new Error('Failed to insert data: no lastID returned');
+      throw new Error('Failed to insert instruction embedding: no lastID returned');
     }
   }
 
@@ -197,13 +235,13 @@ export class Database {
     return results.map(row => row.text);
   }
 
-  async getAllInstructions(): Promise<Array<{ terms: string, text: string }>> {
+  async getAllInstructions(): Promise<Array<{ keywords: string, text: string }>> {
     const results = await this.allAsync(
-      'SELECT i.terms, d.text FROM instructions i JOIN data d ON i.data_id = d.id ORDER BY i.created_at DESC'
+      'SELECT keywords, text FROM instructions ORDER BY created_at DESC'
     );
 
     return results.map(row => ({
-      terms: row.terms,
+      keywords: row.keywords,
       text: row.text
     }));
   }
@@ -275,7 +313,7 @@ export class Database {
 
   async getInstructions(queryEmbedding: number[], limit: number = 3): Promise<Array<{ terms: string[], text: string, similarity: number }>> {
     const results = await this.allAsync(
-      'SELECT i.terms, d.text, i.embedding FROM instructions i JOIN data d ON i.data_id = d.id ORDER BY i.created_at DESC'
+      'SELECT i.id, i.keywords, i.text, ie.embedding FROM instructions i JOIN instruction_emb ie ON i.id = ie.instruction_id ORDER BY i.created_at DESC'
     );
 
     const similarities = results.map(row => {
@@ -283,7 +321,7 @@ export class Database {
       const similarity = this.cosineSimilarity(queryEmbedding, storedEmbedding);
 
       return {
-        terms: JSON.parse(row.terms) as string[],
+        terms: JSON.parse(row.keywords) as string[],
         text: row.text,
         similarity
       };
@@ -296,18 +334,11 @@ export class Database {
   }
 
   async clearInstructions(): Promise<void> {
-    // Get data_ids that will be orphaned
-    const orphanedData = await this.allAsync(
-      'SELECT data_id FROM instructions'
-    );
+    // Delete instruction embeddings first (foreign key constraint)
+    await this.runAsync('DELETE FROM instruction_emb');
 
-    // Delete instructions first
+    // Delete instructions
     await this.runAsync('DELETE FROM instructions');
-
-    // Clean up orphaned data entries
-    for (const row of orphanedData) {
-      await this.runAsync('DELETE FROM data WHERE id = ?', [row.data_id]);
-    }
   }
 
   async storeHistory(prompt: string, workSummary: string): Promise<void> {

@@ -65,18 +65,19 @@ export async function initInstructions(openaiClient: OpenAIClient, database: Dat
       // Generate additional terms using OpenAI
       const additionalTerms = await generateAdditionalTerms(openaiClient, rule.terms, rule.text);
 
-      const dataId = await database.storeInstruction(rule.text);
-      for (const t of rule.terms) {
-        const embedding = await openaiClient.generateEmbedding(t);
-        await database.storeInstructionEmbedding(t, dataId, embedding);
+      // Combine original and additional terms as keywords
+      const allKeywords = [...rule.terms, ...additionalTerms];
+
+      // Store instruction with keywords and text
+      const instructionId = await database.storeInstruction(allKeywords, rule.text);
+
+      // Store embeddings for each keyword
+      for (const keyword of allKeywords) {
+        const embedding = await openaiClient.generateEmbedding(keyword);
+        await database.storeInstructionEmbedding(instructionId, embedding);
       }
 
-      for (const t of additionalTerms) {
-        const embedding = await openaiClient.generateEmbedding(t);
-        await database.storeInstructionEmbedding(t, dataId, embedding);
-      }
-
-      console.log(`✓ Stored rule for [${rule.terms.join(', ')}]`);
+      console.log(`✓ Stored rule for [${rule.terms.join(', ')}] with ${allKeywords.length} keywords`);
       successCount++;
     } catch (error) {
       console.error(`✗ Failed to store rule for [${rule.terms.join(', ')}]: ${error}`);
