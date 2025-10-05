@@ -1,16 +1,20 @@
+import OpenAI from "openai";
 import { youAreShadow } from "./chatprompt.js";
 import { Database } from "./database.js";
-import { OpenAIClient } from "./openai-client.js";
+import { generateEmbedding, OpenAIClient } from "./openai-client.js";
 
 export const INITIAL_RULES = [
   {
     terms: ['edit document'],
     text: `
 **to edit a document:**
+If user has not specified the name, use get_context API to retrieve the document name
+If a user specified the name, store it using set_context(["document_name]) API call.
 editing is done by ranges identified by paragraph ids. paragraph ids specified as {id=xyz} at the end of paragraph
-use get_current_range to retrive the current editing range (usually last used)
+use get_context tool with terms like ["last_range"] or ["last_file_name"] to retrieve the current editing context
 use find_ranges to locate range given some text as references. If a user asks "find xyz", invoke find_range with list of 
-variations to search for. 
+variations to search for.
+
 `
   },
   // todo: load summaries of X last documents
@@ -18,7 +22,8 @@ variations to search for.
     terms: ['create document'],
     text: `
 **to create a document:**
-load recent history using load_history API. check if user is repeating the request. 
+load recent history using load_history API. check if user is repeating the request.
+make document name and store it using set_context(["document_name]) API call.
 create a text version of requested document, store the text version using store_asset(kind: "text") API. 
 lookup blueprint using load_asset(kind: "blueprint") API providing set of terms describing kind of document to create.
 - such as if a user asked to make cool looking, specify "cool" as one of terms.
@@ -104,3 +109,20 @@ Return only the task-oriented terms as a comma-separated list, no explanations.`
     return []; // Return empty array on error, continue with original terms only
   }
 }
+
+export async function getInstructions(database: Database,
+  openaiClient: OpenAI,
+  args: { terms: string[] }): Promise<string> {
+  console.log("getInstructions: " + JSON.stringify(args))
+  const embedding = await generateEmbedding(openaiClient, args.terms);
+  const texts = await database.getInstructions(embedding, 1);
+
+  if (texts.length === 0) {
+    return `No instructions found for terms: ${args.terms.join(', ')}`;
+  } else {
+    console.log(`getInstructions: [terms: ${args.terms}] [out: ${texts[0].terms}]`)
+  }
+
+  return "\n[CONTEXT]\n" + texts.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
+}
+

@@ -14,17 +14,26 @@ When users ask you to perform an action, you should:
 
 Available tools:
 - get_instructions: Get stored instructions for terms (you choose the terms based on user request)
-- store_asset: Store text with embeddings  
-- load_asset: Load data by terms
+- store_asset: Store data using set of terms as a key
+- load_asset: Load data using set of terms as a key
 - get_contentrange: Read document content ranges
+- load_history: read previous operations
+- store_history: store user action in history
 
 Start by calling get_instructions with appropriate terms based on what the user is asking for. 
-The initial set of instructions can be accessed with following terms
-- edit document: when a user asks to perform editing of an existing document
-- create document: when a user asks to create a new document
 
-After prompt is complete, generate summary of work done and invoke store_history API with summary
+After prompt is complete, generate summary of work done and invoke store_history API with the summary
 `;
 
   return systemPrompt
 }
+
+//
+// The initial set of instructions can be accessed with following terms
+// - edit document: when a user asks to perform editing of an existing document
+// - create document: when a user asks to create a new document
+
+// where do I store environment such as
+// last file name
+// last range
+// last 

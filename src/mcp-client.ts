@@ -5,6 +5,8 @@ import * as path from 'path';
 import { generateEmbedding } from './openai-client.js';
 import { findRanges as findRangesStandalone } from './findRange.js';
 import { processBlueprint } from './import-blueprint.js';
+import { getInstructions } from './instructions.js';
+import { getContext, setContext } from './context.js';
 
 export interface MCPToolCall {
   name: string;
@@ -122,12 +124,40 @@ export const mcpTools = [
   {
     type: 'function' as const,
     function: {
-      name: 'get_current_range',
-      description: 'Get the current working range that was last accessed via get_contentrange or find_ranges',
+      name: 'get_context',
+      description: 'Get context information based on terms like last_file_name, last_range, current_document, etc.',
       parameters: {
         type: 'object',
-        properties: {},
-        additionalProperties: false
+        properties: {
+          terms: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Terms to get context for (e.g., ["last_file_name"], ["last_range"], ["current_document"])'
+          }
+        },
+        required: ['terms']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'set_context',
+      description: 'Set context value based on terms. The terms will be used to look up the context name, then store the value.',
+      parameters: {
+        type: 'object',
+        properties: {
+          terms: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Terms to identify which context to set (e.g., ["document_name"], ["current_file"])'
+          },
+          value: {
+            type: 'string',
+            description: 'The value to store in the context'
+          }
+        },
+        required: ['terms', 'value']
       }
     }
   },
@@ -189,14 +219,6 @@ export class MCPLocalClient {
   private database: Database;
   private openaiClient: OpenAI;
   private currentPrompt: string = '';
-  private currentRange: {
-    name: string;
-    format: string;
-    start_para?: string;
-    end_para?: string;
-    start_line?: number;
-    end_line?: number;
-  } | null = null;
 
   // Buffer for chunked content
   private contentBuffer: Map<string, {
@@ -214,7 +236,7 @@ export class MCPLocalClient {
   async executeTool(toolCall: MCPToolCall): Promise<string> {
     switch (toolCall.name) {
       case 'get_instructions':
-        return await this.getInstructions(toolCall.arguments);
+        return await getInstructions(this.database, this.openaiClient, toolCall.arguments);
 
       case 'get_contentrange':
         return await this.getContentRange(toolCall.arguments);
@@ -228,8 +250,11 @@ export class MCPLocalClient {
       case 'find_ranges':
         return await this.findRanges(toolCall.arguments);
 
-      case 'get_current_range':
-        return await this.getCurrentRange(toolCall.arguments);
+      case 'get_context':
+        return await getContext(this.database, this.openaiClient, toolCall.arguments);
+
+      case 'set_context':
+        return await setContext(this.database, this.openaiClient, toolCall.arguments);
 
       case 'find_file':
         return await this.findFile(toolCall.arguments);
@@ -240,23 +265,12 @@ export class MCPLocalClient {
       case 'load_history':
         return await this.loadHistory(toolCall.arguments);
 
+      // case 'get_variable':
+      //   return await this.loadHistory(toolCall.arguments);
+
       default:
         throw new Error(`Unknown tool: ${toolCall.name}`);
     }
-  }
-
-  private async getInstructions(args: { terms: string[] }): Promise<string> {
-    console.log("getInstructions: " + JSON.stringify(args))
-    const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    const texts = await this.database.getInstructions(embedding, 1);
-
-    if (texts.length === 0) {
-      return `No instructions found for terms: ${args.terms.join(', ')}`;
-    } else {
-      console.log(`getInstructions: [terms: ${args.terms}] [out: ${texts[0].terms}]`)
-    }
-
-    return "\n[CONTEXT]\n" + texts.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
   }
 
   private async getContentRange(args: {
@@ -301,7 +315,7 @@ export class MCPLocalClient {
       const rangeLines = lines.slice(startIndex, endIndex + 1);
 
       // Set current range for future reference
-      this.setCurrentRange(args.name, args.format, args.start_para, args.end_para, startIndex, endIndex);
+      //this.setCurrentRange(args.name, args.format, args.start_para, args.end_para, startIndex, endIndex);
 
       return rangeLines.join('\n');
     } catch (error: any) {
@@ -474,34 +488,20 @@ export class MCPLocalClient {
     }
   }
 
-  private async getCurrentRange(args: {}): Promise<string> {
-    if (!this.currentRange) {
-      return JSON.stringify({
-        current_range: null,
-        message: "No current range set. Use get_contentrange or find_ranges to set a working range."
-      }, null, 2);
-    }
-
-    return JSON.stringify({
-      current_range: this.currentRange,
-      message: "Current range retrieved successfully"
-    }, null, 2);
-  }
-
   setCurrentPrompt(prompt: string): void {
     this.currentPrompt = prompt;
   }
 
-  private setCurrentRange(name: string, format: string, start_para?: string, end_para?: string, start_line?: number, end_line?: number): void {
-    this.currentRange = {
-      name,
-      format,
-      start_para,
-      end_para,
-      start_line,
-      end_line
-    };
-  }
+  // private setCurrentRange(name: string, format: string, start_para?: string, end_para?: string, start_line?: number, end_line?: number): void {
+  //   this.currentRange = {
+  //     name,
+  //     format,
+  //     start_para,
+  //     end_para,
+  //     start_line,
+  //     end_line
+  //   };
+  // }
 
   private async findFile(args: { pattern: string }): Promise<string> {
     const contentDir = path.join(process.cwd(), 'content');
@@ -543,9 +543,9 @@ export class MCPLocalClient {
   private async storeHistory(args: { summary: string }): Promise<string> {
     try {
       await this.database.storeHistory(this.currentPrompt, args.summary);
-      
+
       console.log(`📝 Stored history entry: prompt="${this.currentPrompt.substring(0, 50)}..." summary="${args.summary.substring(0, 50)}..."`);
-      
+
       return JSON.stringify({
         success: true,
         message: 'History entry stored successfully',
@@ -566,9 +566,9 @@ export class MCPLocalClient {
     try {
       const limit = Math.min(args.limit || 10, 50); // Default 10, max 50
       const historyEntries = await this.database.getHistory(limit);
-      
+
       console.log(`📖 Retrieved ${historyEntries.length} history entries`);
-      
+
       return JSON.stringify({
         success: true,
         count: historyEntries.length,

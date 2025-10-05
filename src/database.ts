@@ -78,6 +78,35 @@ export class Database {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Create context table
+    await this.runAsync(`
+      CREATE TABLE IF NOT EXISTS context (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        value TEXT NOT NULL,
+        modified_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await this.runAsync(`
+      CREATE INDEX IF NOT EXISTS idx_context_name ON context(name)
+    `);
+
+    // Create context_terms table for mapping embeddings to context names
+    await this.runAsync(`
+      CREATE TABLE IF NOT EXISTS context_terms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        term TEXT NOT NULL,
+        context_name TEXT NOT NULL,
+        embedding BLOB NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await this.runAsync(`
+      CREATE INDEX IF NOT EXISTS idx_context_terms_name ON context_terms(context_name)
+    `);
   }
 
   async storeAsset(terms: string[], text: string, embedding: number[], filename?: string, sourceDoc?: string, kind?: string): Promise<void> {
@@ -300,6 +329,57 @@ export class Database {
       workSummary: row.work_summary,
       createdAt: row.created_at
     }));
+  }
+
+  async storeContext(name: string, value: string): Promise<void> {
+    await this.runAsync(
+      'INSERT INTO context (name, value, modified_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+      [name, value]
+    );
+  }
+
+  async storeContextTerm(term: string, contextName: string, embedding: number[]): Promise<void> {
+    const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
+    await this.runAsync(
+      'INSERT INTO context_terms (term, context_name, embedding) VALUES (?, ?, ?)',
+      [term, contextName, embeddingBlob]
+    );
+  }
+
+  async loadContext(name: string, limit: number = 1): Promise<Array<{ id: number, name: string, value: string, modifiedAt: string }>> {
+    const results = await this.allAsync(
+      'SELECT id, name, value, modified_at FROM context WHERE name = ? ORDER BY modified_at DESC LIMIT ?',
+      [name, limit]
+    );
+
+    return results.map(row => ({
+      id: row.id,
+      name: row.name,
+      value: row.value,
+      modifiedAt: row.modified_at
+    }));
+  }
+
+  async findContextByEmbedding(queryEmbedding: number[], limit: number = 1): Promise<Array<{ contextName: string, term: string, similarity: number }>> {
+    const results = await this.allAsync(
+      'SELECT term, context_name, embedding FROM context_terms ORDER BY created_at DESC'
+    );
+
+    const similarities = results.map(row => {
+      const storedEmbedding = this.embeddingFromBlob(row.embedding);
+      const similarity = this.cosineSimilarity(queryEmbedding, storedEmbedding);
+
+      return {
+        term: row.term,
+        contextName: row.context_name,
+        similarity
+      };
+    });
+
+    // Sort by similarity (highest first) and limit results
+    return similarities
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit);
   }
 
   async close(): Promise<void> {

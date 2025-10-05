@@ -10,6 +10,7 @@ import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { initContextMap } from './context.js';
 
 export class ConsoleApp {
   private database: Database;
@@ -21,13 +22,13 @@ export class ConsoleApp {
     this.database = database;
     this.openaiClient = new OpenAIClient(database);
     this.historyFile = path.join(os.homedir(), '.shadow_history');
-    
+
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
       completer: this.completer.bind(this)
     });
-    
+
     this.loadHistory();
   }
 
@@ -43,10 +44,10 @@ export class ConsoleApp {
         const history = fs.readFileSync(this.historyFile, 'utf-8')
           .split('\n')
           .filter(line => line.trim().length > 0);
-        
+
         // Load last 1000 commands to avoid memory issues
         const recentHistory = history.slice(-1000);
-        
+
         for (const line of recentHistory) {
           (this.rl as any).history.unshift(line);
         }
@@ -67,7 +68,7 @@ export class ConsoleApp {
   private completer(line: string): [string[], string] {
     const completions = [
       '!init',
-      '!list-instructions', 
+      '!list-instructions',
       '!get-instruction',
       '!import-doc',
       '!import-blueprint',
@@ -81,13 +82,13 @@ export class ConsoleApp {
     if (words.length > 1 && (words[0] === '!import-doc' || words[0] === '!import-blueprint')) {
       const partialFilename = words[words.length - 1];
       const contentDir = path.join(process.cwd(), 'content');
-      
+
       try {
         if (fs.existsSync(contentDir)) {
           const files = fs.readdirSync(contentDir)
             .filter(file => file.startsWith(partialFilename))
             .map(file => words.slice(0, -1).join(' ') + ' ' + file);
-          
+
           return [files, line];
         }
       } catch (error) {
@@ -103,12 +104,12 @@ export class ConsoleApp {
   private promptUser(): void {
     this.rl.question('> ', async (input) => {
       const trimmed = input.trim();
-      
+
       // Save non-empty commands to history
       if (trimmed.length > 0) {
         this.saveHistory(trimmed);
       }
-      
+
       if (trimmed === 'exit') {
         await this.stop();
         return;
@@ -191,8 +192,9 @@ export class ConsoleApp {
     await this.database.clearInstructions();
 
     const [successCount, errorCount] = await initInstructions(this.openaiClient, this.database);
-
     console.log(`\nInitialization complete: ${successCount} rules stored, ${errorCount} errors`);
+
+    await initContextMap(this.openaiClient, this.database);
   }
 
   private async handleListRules(): Promise<void> {
