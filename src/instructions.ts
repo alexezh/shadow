@@ -10,6 +10,7 @@ export const INITIAL_RULES = [
 **to edit a document:**
 If user has not specified the name, use get_context API to retrieve the document name
 If a user specified the name, store it using set_context(["document_name]) API call.
+If a user asked to update formatting, get additional instructions by calling get_instructions("use blueprint") API
 editing is done by ranges identified by paragraph ids. paragraph ids specified as {id=xyz} at the end of paragraph
 use get_context tool with terms like ["last_range"] or ["last_file_name"] to retrieve the current editing context
 use find_ranges to locate range given some text as references. If a user asks "find xyz", invoke find_range with list of 
@@ -37,7 +38,7 @@ make document name and store it using set_context(["document_name]) API call.
 **to use blueprint:**
 blueprint is a description (guidelines) for formatting the document. It describes what formatting such as colors
 to apply to different parts of the document
-To load blueprint, call get_asset(kind="blueprint") API providing set of terms describing kind of formatting to use.
+To load blueprint, call get_asset(kind="blueprint") API providing set of keywords describing kind of formatting to use.
  - such as if a user asked to make cool looking, specify "cool" as one of terms.
 If a user asked to update formatting for for document
 - change blueprint following instructions
@@ -126,7 +127,7 @@ export async function getInstructions(database: Database,
   console.log("getInstructions: " + JSON.stringify(args))
 
   // Look up instructions for each term individually
-  const allMatches: Array<{ text: string, similarity: number, matchedTerm: string }> = [];
+  const allMatches: Array<{ text: string, similarity: number, terms: string[] }> = [];
 
   for (const term of args.terms) {
     const embedding = await generateEmbedding(openaiClient, [term]);
@@ -136,7 +137,7 @@ export async function getInstructions(database: Database,
       allMatches.push({
         text: match.text,
         similarity: match.similarity,
-        matchedTerm: term
+        terms: match.terms
       });
     }
   }
@@ -147,7 +148,7 @@ export async function getInstructions(database: Database,
 
   // Sort by similarity and deduplicate by text content
   const sortedMatches = allMatches.sort((a, b) => b.similarity - a.similarity);
-  const uniqueTexts = new Map<string, { text: string, similarity: number, matchedTerm: string }>();
+  const uniqueTexts = new Map<string, { text: string, similarity: number, terms: string[] }>();
 
   for (const match of sortedMatches) {
     if (!uniqueTexts.has(match.text)) {
@@ -158,7 +159,7 @@ export async function getInstructions(database: Database,
   // Take top 2 unique instructions
   const bestMatches = Array.from(uniqueTexts.values()).slice(0, 2);
 
-  console.log(`getInstructions: [terms: ${args.terms}] [found: ${bestMatches.length}] [terms: ${bestMatches.map(x => x.matchedTerm)}]`)
+  console.log(`getInstructions: [terms: ${args.terms}] [found: ${bestMatches.length}] [terms: ${bestMatches.map(x => x.text.substring(0, 100))}]`)
 
   return "\n[CONTEXT]\n" + bestMatches.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
 }

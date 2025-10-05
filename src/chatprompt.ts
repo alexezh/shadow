@@ -34,7 +34,7 @@ Provide only necessary information in prompt output
 // - edit document: when a user asks to perform editing of an existing document
 // - create document: when a user asks to create a new document
 
-// where do I store environment such as
-// last file name
-// last range
-// last 
+/**
+ * let's say user likes red for story and blue for work. I have loadAsset (story, writing)
+ * then user changes formattin 
+ */

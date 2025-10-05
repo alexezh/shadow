@@ -83,7 +83,7 @@ export const mcpTools = [
     type: 'function' as const,
     function: {
       name: 'load_asset',
-      description: 'Load stored data by terms',
+      description: 'Load stored asset by context terms (keyword + optional semantic match).',
       parameters: {
         type: 'object',
         properties: {
@@ -91,7 +91,7 @@ export const mcpTools = [
           terms: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Terms to search for'
+            description: 'Context words/phrases to match (no filenames).'
           }
         },
         required: ['terms']
