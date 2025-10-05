@@ -3,14 +3,52 @@ import { MCPLocalClient } from './mcp-client.js';
 import { Database } from './database.js';
 import { ChatCompletionTool } from 'openai/resources/index.js';
 
-export async function generateEmbedding(client: OpenAI, terms: string | string[]): Promise<number[]> {
-  let text = (Array.isArray(terms)) ? terms.join(' ') : terms;
-  const response = await client.embeddings.create({
-    model: 'text-embedding-3-small',
-    input: terms
-  });
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelayMs: number = 1000
+): Promise<T> {
+  let lastError: any;
 
-  return response.data[0]?.embedding || [];
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+
+      // Check if it's a rate limit error
+      if (error?.status === 429 || error?.code === 'rate_limit_exceeded') {
+        if (attempt < maxRetries) {
+          // Extract wait time from error message if available
+          const waitTimeMatch = error?.message?.match(/Please try again in (\d+)ms/);
+          const waitTime = waitTimeMatch
+            ? parseInt(waitTimeMatch[1])
+            : initialDelayMs * Math.pow(2, attempt);
+
+          console.log(`⏳ Rate limit hit, retrying in ${waitTime}ms (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+      } else {
+        // For non-rate-limit errors, throw immediately
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+export async function generateEmbedding(client: OpenAI, terms: string | string[]): Promise<number[]> {
+  return retryWithBackoff(async () => {
+    let text = (Array.isArray(terms)) ? terms.join(' ') : terms;
+    const response = await client.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: terms
+    });
+
+    return response.data[0]?.embedding || [];
+  });
 }
 
 export class OpenAIClient {
@@ -65,15 +103,17 @@ export class OpenAIClient {
     let iteration = 0;
 
     while (iteration < maxIterations) {
-      const response = await this.client.chat.completions.create({
-        model: 'gpt-4.1',
-        messages,
-        tools: mcpTools,
-        stream: true,
-        tool_choice: 'auto',
-        max_tokens: 1500,
-        //max_completion_tokens: 1500,
-        temperature: 0.7
+      const response = await retryWithBackoff(async () => {
+        return this.client.chat.completions.create({
+          model: 'gpt-4.1',
+          messages,
+          tools: mcpTools,
+          stream: true,
+          tool_choice: 'auto',
+          max_tokens: 1500,
+          //max_completion_tokens: 1500,
+          temperature: 0.7
+        });
       });
 
       let assistantMessage = {

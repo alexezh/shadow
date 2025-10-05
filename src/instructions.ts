@@ -5,7 +5,7 @@ import { generateEmbedding, OpenAIClient } from "./openai-client.js";
 
 export const INITIAL_RULES = [
   {
-    terms: ['edit document'],
+    terms: ['edit document', 'format document'],
     text: `
 **to edit a document:**
 If user has not specified the name, use get_context API to retrieve the document name
@@ -24,16 +24,25 @@ variations to search for.
 **to create a document:**
 load recent history using load_history API. check if user is repeating the request.
 make document name and store it using set_context(["document_name]) API call.
-create a text version of requested document, store the text version using store_asset(kind: "text") API. 
-lookup blueprint using load_asset(kind: "blueprint") API providing set of terms describing kind of document to create.
-- such as if a user asked to make cool looking, specify "cool" as one of terms.
-create an HTML version of the document using formatting described in the blueprint. store HTML version using store_asset(kind: "html") API 
+- create a text version of requested document, store the text version using store_asset(kind: "text") API. 
+- lookup blueprint using load_asset(kind: "blueprint") API providing set of terms describing kind of document to create.
+ - such as if a user asked to make cool looking, specify "cool" as one of terms.
+- create an HTML version of the document using formatting described in the blueprint. 
+- store HTML version using store_asset(kind: "html") API 
 `
   },
   {
     terms: ['use blueprint'],
     text: `
-blueprint is an HTML template of the document . 
+**to use blueprint:**
+blueprint is a description (guidelines) for formatting the document. It describes what formatting such as colors
+to apply to different parts of the document
+To load blueprint, call get_asset(kind="blueprint")
+If a user asked to update formatting for for document
+- change blueprint following instructions
+- store blueprint using store_asset(kind="blueprint") API
+- create an HTML version of the document using formatting described in the blueprint. 
+- store HTML version using store_asset(kind: "html") API 
 `
   },
   {

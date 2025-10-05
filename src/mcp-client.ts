@@ -4,9 +4,10 @@ import OpenAI from 'openai';
 import * as path from 'path';
 import { generateEmbedding } from './openai-client.js';
 import { findRanges as findRangesStandalone } from './findRange.js';
-import { processBlueprint } from './import-blueprint.js';
 import { getInstructions } from './instructions.js';
 import { getContext, setContext } from './context.js';
+import { getContentRange } from './contentrange.js';
+import { loadAsset, storeAsset } from './asset.js';
 
 export interface MCPToolCall {
   name: string;
@@ -205,16 +206,6 @@ export const mcpTools = [
   }
 ];
 
-export type StoreAssetsArgs = {
-  kind: string;
-  filename?: string;
-  terms: string[];
-  content: any;
-  chunkId?: string;
-  chunkIndex?: number;
-  totalChunks?: number;
-}
-
 export class MCPLocalClient {
   private database: Database;
   private openaiClient: OpenAI;
@@ -239,13 +230,13 @@ export class MCPLocalClient {
         return await getInstructions(this.database, this.openaiClient, toolCall.arguments);
 
       case 'get_contentrange':
-        return await this.getContentRange(toolCall.arguments);
+        return await getContentRange(toolCall.arguments);
 
       case 'store_asset':
-        return await this.storeAsset(toolCall.arguments);
+        return await storeAsset(this.database, this.openaiClient, this.contentBuffer, toolCall.arguments);
 
       case 'load_asset':
-        return await this.loadAsset(toolCall.arguments);
+        return await loadAsset(this.database, this.openaiClient, toolCall.arguments);
 
       case 'find_ranges':
         return await this.findRanges(toolCall.arguments);
@@ -273,199 +264,6 @@ export class MCPLocalClient {
     }
   }
 
-  private async getContentRange(args: {
-    name: string;
-    format: string;
-    start_para?: string;
-    end_para?: string;
-  }): Promise<string> {
-    const contentDir = path.join(process.cwd(), 'content');
-    const filePath = path.join(contentDir, `${args.name}`);
-
-    try {
-      const content = await fs.readFile(filePath, 'utf-8');
-
-      // If no range specified, return full content
-      if (!args.start_para && !args.end_para) {
-        return content;
-      }
-
-      // Extract range based on paragraph IDs
-      const lines = content.split('\n');
-      let startIndex = 0;
-      let endIndex = lines.length - 1;
-
-      // Find start paragraph index
-      if (args.start_para) {
-        const startFound = lines.findIndex(line => line.includes(`{id=${args.start_para}}`));
-        if (startFound !== -1) {
-          startIndex = startFound;
-        }
-      }
-
-      // Find end paragraph index
-      if (args.end_para) {
-        const endFound = lines.findIndex(line => line.includes(`{id=${args.end_para}}`));
-        if (endFound !== -1) {
-          endIndex = endFound;
-        }
-      }
-
-      // Extract the range
-      const rangeLines = lines.slice(startIndex, endIndex + 1);
-
-      // Set current range for future reference
-      //this.setCurrentRange(args.name, args.format, args.start_para, args.end_para, startIndex, endIndex);
-
-      return rangeLines.join('\n');
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        return `Document '${args.name}' not found in content directory`;
-      }
-      throw error;
-    }
-  }
-
-  private async storeAsset(args: StoreAssetsArgs): Promise<string> {
-
-    // Normalize non-chunked content to single chunk format
-    if (args.chunkId === undefined || args.chunkIndex === undefined || args.totalChunks === undefined) {
-      args.chunkId = `single_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      args.chunkIndex = 0;
-      args.totalChunks = 1;
-    }
-
-    // Handle all content as chunks (unified logic)
-    // Get or create buffer entry
-    let bufferEntry = this.contentBuffer.get(args.chunkId);
-    if (!bufferEntry) {
-      bufferEntry = {
-        chunks: [],
-        filename: args.filename,
-        terms: args.terms,
-        isComplete: false
-      };
-      this.contentBuffer.set(args.chunkId, bufferEntry);
-    }
-
-    // Add this chunk
-    bufferEntry.chunks.push({
-      chunkIndex: args.chunkIndex,
-      content: typeof args.content === 'string' ? args.content : JSON.stringify(args.content),
-      totalChunks: args.totalChunks
-    });
-
-    console.log(`📦 Received chunk [${args.kind}] [${args.chunkIndex + 1}/${args.totalChunks}] for ${args.chunkId} (${args.content.length} chars)`);
-
-    // Check if we have all chunks
-    if (bufferEntry.chunks.length !== args.totalChunks) {
-      return `Chunk ${args.chunkIndex + 1}/${args.totalChunks} received for ${args.chunkId}. Waiting for remaining chunks.`;
-    }
-
-    // Sort chunks by index and combine
-    bufferEntry.chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
-    const completeContent = bufferEntry.chunks.map(chunk => chunk.content).join('');
-
-    console.log(`✅ All chunks received for ${args.chunkId}. Total content: ${completeContent.length} chars`);
-
-    // Update args with complete content for further processing
-    const content = completeContent;
-
-    // Clean up buffer
-    this.contentBuffer.delete(args.chunkId);
-
-    await this.processContent(args, content)
-    const chunkInfo = args.totalChunks > 1 ? ` (${args.totalChunks} chunks)` : '';
-    return `Successfully stored ${args.kind} data for terms: ${args.terms.join(', ')}${args.filename ? ` from file: ${args.filename}` : ''}${chunkInfo}`;
-  }
-
-  private async processContent(args: StoreAssetsArgs, content: string): Promise<void> {
-    // Optionally write to file for special kinds (blueprint/semantic)
-    if (args.filename) {
-      if (args.kind === 'blueprint') {
-        //await this.writeSpecialFiles({ kind: "mapping", filename: args.filename }, content);
-      } else if (args.kind === 'semantic') {
-        await this.writeSpecialFiles(args, content);
-      } else if (args.kind === 'html') {
-        await this.writeSpecialFiles(args, content);
-      }
-    }
-
-    if (args.kind === "blueprint") {
-      //content = processBlueprint(args.filename, content);
-      await this.writeSpecialFiles({ kind: "blueprint", filename: args.filename }, content);
-    }
-
-    let kind = args.kind ?? "text";
-
-    // Always store full content in database
-    const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    await this.database.storeAsset(args.terms, content, embedding, args.filename, args.filename, kind);
-  }
-
-
-  private async writeSpecialFiles(args: { kind?: string; filename?: string; }, content: string): Promise<void> {
-    if (!args.filename) return;
-
-    const contentDir = path.join(process.cwd(), 'content');
-    const baseName = args.filename.replace(/\.[^.]+$/, ''); // Remove extension
-
-    try {
-      // Ensure content directory exists
-      await fs.mkdir(contentDir, { recursive: true });
-
-      let fileExtension: string;
-      let processedContent: string;
-
-      if (args.kind === 'semantic') {
-        fileExtension = '.semantic.md';
-      } else if (args.kind === 'mapping') {
-        fileExtension = '.blueprint.json';
-      } else if (args.kind === 'blueprint') {
-        fileExtension = '.blueprint.md';
-      } else if (args.kind === 'html') {
-        fileExtension = '.output.html';
-      } else {
-        return; // Unknown kind, skip
-      }
-
-      const filePath = path.join(contentDir, `${baseName}${fileExtension}`);
-
-      console.log(`🔍 Debug: ${args.kind} content length before write: ${content.length}`);
-      await this.writeAndVerifyFile(filePath, content, args.kind);
-
-    } catch (error) {
-      console.error('❌ Error writing special files:', error);
-    }
-  }
-
-  private async writeAndVerifyFile(filePath: string, content: string, kind: string): Promise<void> {
-    await fs.writeFile(filePath, content, { encoding: 'utf-8', flag: 'w' });
-
-    // Verify the file was written correctly
-    const writtenContent = await fs.readFile(filePath, 'utf-8');
-    console.log(`📝 Wrote ${kind} data to: ${filePath} (wrote: ${content.length}, read back: ${writtenContent.length})`);
-
-    if (writtenContent.length !== content.length) {
-      console.error(`⚠️  File truncation detected! Expected ${content.length}, got ${writtenContent.length}`);
-    }
-  }
-
-  private async loadAsset(args: { kind?: string; terms: string[] }): Promise<string> {
-    const embedding = await generateEmbedding(this.openaiClient, args.terms);
-    const texts = await this.database.getAssets(embedding, 1, args.kind ?? "text");
-
-    if (texts.length > 0) {
-      console.log(`loadAsset: [kind: ${args.kind}] [terms: ${JSON.stringify(args.terms)} [outfile: ${texts[0].filename}] [outterms: ${JSON.stringify(texts[0].terms)}]`)
-    }
-
-    return JSON.stringify({
-      terms: args.terms,
-      kind: args.kind,
-      texts: texts,
-      count: texts.length
-    }, null, 2);
-  }
 
   private async findRanges(args: {
     name: string;
