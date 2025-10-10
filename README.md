@@ -60,7 +60,10 @@ The interesting question is how to find the best match given multiple keywords. 
 
 A better approach would be to use some model which can maintain set of weights over embeddings and adjust weights based on actions. Since we only have few pieces of data from the user, Bayesian model seems like a good choice as a starting point. Later it can be combined with a NN model which takes a list of embeddings across all users and generates embedding representing the sum.
 
-With any model, the question we are trying to solve is - find the best match given list of keywords. 
+With any model, the question we are trying to solve is - find the best blueprint match given list of keywords and history. Which is pretty standard task for NN, the challenge here is that we use embeddings (rather than exact data, which means that we do not control them) and that we have very little data. Ideally we want to adjust weights after a single entry.
+
+
+draft
 
 ```text
 // sum embeddings with weight
@@ -79,3 +82,15 @@ combined_emb = sum(Wi * embedding(extended_keywords(i))),
 // find best match
 max(cosine(Mi, combined_emb)
 ```
+
+The harder part is to finding w(i). With embeddings, we do not actually have values we can perform equality compare; which makes it hard to work with. The first thing we need to do is to find a subset of embeddings which can approximate our set. The fastest way is to use PCA which makes minimal Frobenius-error rank-K subspace. 
+
+
+
+```text
+draft:
+- take D documents and generate keywords, summaries and keywords for summaries
+- get KD and KS basis for documents and summaries
+- 
+
+
