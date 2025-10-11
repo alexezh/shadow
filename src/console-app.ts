@@ -206,7 +206,7 @@ export class ConsoleApp {
 
     console.log('Available rules:');
     allRules.forEach((rule, index) => {
-      console.log(`${index + 1}. Terms: ${rule.terms} (${rule.text.substring(0, 50)}...)`);
+      console.log(`${index + 1}. Terms: ${rule.keywords} (${rule.text.substring(0, 50)}...)`);
     });
   }
 

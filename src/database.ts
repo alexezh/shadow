@@ -36,19 +36,6 @@ export class Database {
       )
     `);
 
-    // Recreate assets table with data_id reference
-    await this.runAsync(`
-      CREATE TABLE IF NOT EXISTS assets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        filename TEXT,
-        terms TEXT NOT NULL,
-        data_id INTEGER NOT NULL,
-        embedding BLOB NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (data_id) REFERENCES data (id)
-      )
-    `);
-
     // Recreate instructions table with text field instead of data_id
     await this.runAsync(`
       CREATE TABLE IF NOT EXISTS instructions (
@@ -108,9 +95,9 @@ export class Database {
 
     // Create context_terms table for mapping embeddings to context names
     await this.runAsync(`
-      CREATE TABLE IF NOT EXISTS context_terms (
+      CREATE TABLE IF NOT EXISTS context_emb (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        term TEXT NOT NULL,
+        keyword TEXT NOT NULL,
         context_name TEXT NOT NULL,
         embedding BLOB NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -118,7 +105,18 @@ export class Database {
     `);
 
     await this.runAsync(`
-      CREATE INDEX IF NOT EXISTS idx_context_terms_name ON context_terms(context_name)
+      CREATE INDEX IF NOT EXISTS idx_context_emb_name ON context_emb(context_name)
+    `);
+
+    // Recreate assets table with data_id reference
+    await this.runAsync(`
+      CREATE TABLE IF NOT EXISTS assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT,
+        keywords TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
     `);
 
     // Create asset_emb table for storing asset embeddings
@@ -278,17 +276,17 @@ export class Database {
 
   async getAssets(queryEmbedding: number[], limit: number = 2, kind?: string):
     Promise<Array<{ terms: string[], text: string, filename: string | null, sourceDoc: string | null, kind: string | null, similarity: number }>> {
-    
+
     let sql = 'SELECT a.filename, a.terms, d.text, d.sourceDoc, d.kind, a.embedding FROM assets a JOIN data d ON a.data_id = d.id';
     let params: any[] = [];
-    
+
     if (kind) {
       sql += ' WHERE d.kind = ?';
       params.push(kind);
     }
-    
+
     sql += ' ORDER BY a.created_at DESC';
-    
+
     const results = await this.allAsync(sql, params);
 
     const similarities = results.map(row => {
@@ -369,10 +367,10 @@ export class Database {
     );
   }
 
-  async storeContextTerm(term: string, contextName: string, embedding: number[]): Promise<void> {
+  async storeContextTerm(keyword: string, contextName: string, embedding: number[]): Promise<void> {
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
     await this.runAsync(
-      'INSERT INTO context_terms (term, context_name, embedding) VALUES (?, ?, ?)',
+      'INSERT INTO context_emb (keyword, context_name, embedding) VALUES (?, ?, ?)',
       [term, contextName, embeddingBlob]
     );
   }
@@ -393,7 +391,7 @@ export class Database {
 
   async findContextByEmbedding(queryEmbedding: number[], limit: number = 1): Promise<Array<{ contextName: string, term: string, similarity: number }>> {
     const results = await this.allAsync(
-      'SELECT term, context_name, embedding FROM context_terms ORDER BY created_at DESC'
+      'SELECT keyword, context_name, embedding FROM context_emb ORDER BY created_at DESC'
     );
 
     const similarities = results.map(row => {

@@ -24,7 +24,7 @@ export const mcpTools = [
       parameters: {
         type: 'object',
         properties: {
-          terms: {
+          keywords: {
             type: 'array',
             items: { type: 'string' },
             description: 'List of terms to get instructions for'
