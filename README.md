@@ -58,39 +58,10 @@ runtime code goes through keyword, generates embedding for each and stores value
 
 The interesting question is how to find the best match given multiple keywords. The simplest is to find the best match for each keyword, and then lookup the best across all. However this approach does not account for history.
 
-A better approach would be to use some model which can maintain set of weights over embeddings and adjust weights based on actions. Since we only have few pieces of data from the user, Bayesian model seems like a good choice as a starting point. Later it can be combined with a NN model which takes a list of embeddings across all users and generates embedding representing the sum.
+We want a simple way to map uncertain facts to the most likely outcome.
 
-With any model, the question we are trying to solve is - find the best blueprint match given list of keywords and history. Which is pretty standard task for NN, the challenge here is that we use embeddings (rather than exact data, which means that we do not control them) and that we have very little data. Ideally we want to adjust weights after a single entry.
+* Let **S** be a set of facts **F₁…Fₖ**, where each fact is a keyword with an associated probability.
+* Our prior knowledge is a list of **rules** (statements) of the form **Sᵢ ⇒ Yᵢ**, where **Y** is the predicted outcome.
+* **Goal:** given a new set of facts **S**, compute the most probable **Y**.
 
-
-draft
-
-```text
-// sum embeddings with weight
-combined_emb = sum(Wi * embedding(keyword(i))),
-// find best match
-max(cosine(x, combined_emb)
-```
-
-or event better
-
-```text
-// select all embeddings which close to keyword
-extended_keywords = select(cosine(x, embedding(keyword(i)) > 0.8)
-// sum embeddings with weight
-combined_emb = sum(Wi * embedding(extended_keywords(i))), 
-// find best match
-max(cosine(Mi, combined_emb)
-```
-
-The harder part is to finding w(i). With embeddings, we do not actually have values we can perform equality compare; which makes it hard to work with. The first thing we need to do is to find a subset of embeddings which can approximate our set. The fastest way is to use PCA which makes minimal Frobenius-error rank-K subspace. 
-
-
-
-```text
-draft:
-- take D documents and generate keywords, summaries and keywords for summaries
-- get KD and KS basis for documents and summaries
-- 
-
-
+See [rulemodel.md](rulemodel.md) for the full fact model and implementation details.

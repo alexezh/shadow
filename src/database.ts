@@ -413,6 +413,37 @@ export class Database {
       .slice(0, limit);
   }
 
+  async storeKeywordEmbedding(keyword: string, embedding: number[]): Promise<void> {
+    const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
+
+    // Insert keyword embedding into keyword_emb table
+    await this.runAsync(
+      'INSERT INTO keyword_emb (keyword, embedding) VALUES (?, ?)',
+      [keyword, embeddingBlob]
+    );
+  }
+
+  async findKeywordsByEmbedding(queryEmbedding: number[], limit: number = 10): Promise<Array<{ keyword: string, similarity: number }>> {
+    const results = await this.allAsync(
+      'SELECT keyword, embedding FROM keyword_emb ORDER BY created_at DESC'
+    );
+
+    const similarities = results.map(row => {
+      const storedEmbedding = this.embeddingFromBlob(row.embedding);
+      const similarity = this.cosineSimilarity(queryEmbedding, storedEmbedding);
+
+      return {
+        keyword: row.keyword,
+        similarity
+      };
+    });
+
+    // Sort by similarity (highest first) and limit results
+    return similarities
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit);
+  }
+
   async close(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.close((err) => {
