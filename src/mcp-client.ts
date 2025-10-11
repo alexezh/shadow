@@ -150,8 +150,8 @@ export const mcpTools = [
         properties: {
           terms: {
             type: 'array',
-            items: { type: 'string' },
-            description: 'Terms to identify which context to set (e.g., ["document_name"], ["current_file"])'
+            keywords: { type: 'string' },
+            description: 'Keywords to identify which context to set (e.g., ["document_name"], ["current_file"])'
           },
           value: {
             type: 'string',
