@@ -11,16 +11,23 @@ export type StoreAssetsArgs = {
   content: any;
   chunkId?: string;
   chunkIndex?: number;
-  totalChunks?: number;
+  eos?: boolean;
 }
 
 // Buffer for chunked content
 export type ContentBuffer = Map<string, {
-  chunks: Array<{ chunkIndex: number; content: string; totalChunks: number }>;
+  chunks: Array<{ chunkIndex: number; content: string; eos: boolean }>;
   filename?: string;
   terms: string[];
   isComplete: boolean;
 }>;
+
+export type StoreAssetResult = {
+  ok: boolean,
+  acceptedChunkIndex: number,
+  nextExpectedChunkIndex: number,
+  maxChunkBytes: 8000
+}
 
 export async function storeAsset(
   database: Database,
@@ -29,10 +36,10 @@ export async function storeAsset(
   args: StoreAssetsArgs): Promise<string> {
 
   // Normalize non-chunked content to single chunk format
-  if (args.chunkId === undefined || args.chunkIndex === undefined || args.totalChunks === undefined) {
+  if (args.chunkId === undefined || args.chunkIndex === undefined || args.eos === undefined) {
     args.chunkId = `single_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     args.chunkIndex = 0;
-    args.totalChunks = 1;
+    args.eos = true;
   }
 
   // Handle all content as chunks (unified logic)
@@ -52,14 +59,14 @@ export async function storeAsset(
   bufferEntry.chunks.push({
     chunkIndex: args.chunkIndex,
     content: typeof args.content === 'string' ? args.content : JSON.stringify(args.content),
-    totalChunks: args.totalChunks
+    eos: args.eos
   });
 
-  console.log(`📦 Received chunk [${args.kind}] [${args.chunkIndex + 1}/${args.totalChunks}] for ${args.chunkId} (${args.content.length} chars)`);
+  console.log(`📦 Received chunk [${args.kind}] [${args.chunkIndex + 1}] for ${args.chunkId} (${args.content.length} chars)`);
 
   // Check if we have all chunks
-  if (bufferEntry.chunks.length !== args.totalChunks) {
-    return `Chunk ${args.chunkIndex + 1}/${args.totalChunks} received for ${args.chunkId}. Waiting for remaining chunks.`;
+  if (!args.eos) {
+    return `Chunk ${args.chunkIndex + 1} received for ${args.chunkId}. Waiting for remaining chunks.`;
   }
 
   // Sort chunks by index and combine
@@ -75,8 +82,7 @@ export async function storeAsset(
   contentBuffer.delete(args.chunkId);
 
   await processContent(database, openaiClient, args, content)
-  const chunkInfo = args.totalChunks > 1 ? ` (${args.totalChunks} chunks)` : '';
-  return `Successfully stored ${args.kind} data for terms: ${args.keywords.join(', ')}${args.filename ? ` from file: ${args.filename}` : ''}${chunkInfo}`;
+  return `Successfully stored ${args.kind} data`;
 }
 
 async function processContent(

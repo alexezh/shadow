@@ -4,7 +4,7 @@ import { importBlueprint } from './import-blueprint.js';
 import { importDoc } from './import-doc.js';
 import { INITIAL_RULES, initInstructions } from './instructions.js';
 import { makeSample } from './makeSample.js';
-import { mcpTools } from './mcp-client.js';
+import { mcpTools } from './mcptools.js';
 import { generateEmbedding, OpenAIClient } from './openai-client.js';
 import * as readline from 'readline';
 import * as fs from 'fs';

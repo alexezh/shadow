@@ -30,6 +30,13 @@ make document name and store it using set_context(["document_name]) API call.
  - such as if a user asked to make cool looking, specify "cool" as one of terms.
 - create an HTML version of the document using formatting described in the blueprint. 
 - store HTML version using store_asset(kind: "html") API 
+
+ATTENTION: When producing large text, NEVER write placeholders like "[continued]".
+Instead, you MUST call the tool store_asset repeatedly using chunk encoding:
+- Max 1000 tokens in content per call.
+- Use the same "chunkId" for the whole document.
+- Start with "chunkIndex = 0", then increment by 1 each call.
+- Set eos on the last chunk.
 `
   },
   {

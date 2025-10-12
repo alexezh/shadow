@@ -153,26 +153,22 @@ export class Database {
     const keywordsString = JSON.stringify(keywords);
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
 
-    // First, insert text into data table
-    const dataResult = await this.runAsync(
-      'INSERT INTO data (text, sourceDoc, kind) VALUES (?, ?, ?)',
-      [text, sourceDoc || null, kind || null]
+    // Insert asset directly with text
+    const result = await this.runAsync(
+      'INSERT INTO assets (filename, keywords, text) VALUES (?, ?, ?)',
+      [filename || null, keywordsString, text]
     );
 
-    if (!dataResult) {
-      throw new Error('Failed to insert data: no result returned');
+    if (!result || result.lastID === undefined || result.lastID === null) {
+      throw new Error('Failed to insert asset: no lastID returned');
     }
 
-    const dataId = dataResult.lastID;
+    const assetId = result.lastID;
 
-    if (dataId === undefined || dataId === null) {
-      throw new Error('Failed to insert data: no lastID returned');
-    }
-
-    // Then insert asset with reference to data
+    // Insert embedding into asset_emb table
     await this.runAsync(
-      'INSERT INTO assets (filename, keywords, data_id, embedding) VALUES (?, ?, ?, ?)',
-      [filename || null, keywordsString, dataId, embeddingBlob]
+      'INSERT INTO asset_emb (asset_id, embedding) VALUES (?, ?)',
+      [assetId, embeddingBlob]
     );
   }
 
@@ -206,27 +202,11 @@ export class Database {
     }
   }
 
-  async findSimilarTexts(keywords: string[], limit: number = 10): Promise<Array<{ text: string, similarity: number }>> {
-    const termsString = JSON.stringify(keywords);
-
-    // For now, we'll do a simple exact match on terms
-    // In a production system, you'd want to compute cosine similarity on embeddings
-    const results = await this.allAsync(
-      'SELECT d.text, a.embedding FROM assets a JOIN data d ON a.data_id = d.id WHERE a.keywords = ? ORDER BY a.created_at DESC LIMIT ?',
-      [termsString, limit]
-    );
-
-    return results.map(row => ({
-      text: row.text,
-      similarity: 1.0 // Placeholder - would compute actual similarity
-    }));
-  }
-
   async getAllTextsForTerms(terms: string[]): Promise<string[]> {
     const termsString = JSON.stringify(terms);
 
     const results = await this.allAsync(
-      'SELECT d.text FROM assets a JOIN data d ON a.data_id = d.id WHERE a.keywords = ? ORDER BY a.created_at DESC',
+      'SELECT text FROM assets WHERE keywords = ? ORDER BY created_at DESC',
       [termsString]
     );
 
@@ -275,15 +255,10 @@ export class Database {
   }
 
   async getAssets(queryEmbedding: number[], limit: number = 2, kind?: string):
-    Promise<Array<{ keywords: string[], text: string, filename: string | null, sourceDoc: string | null, kind: string | null, similarity: number }>> {
+    Promise<Array<{ keywords: string[], text: string, filename: string | null, similarity: number }>> {
 
-    let sql = 'SELECT a.filename, a.keywords, d.text, d.sourceDoc, d.kind, a.embedding FROM assets a JOIN data d ON a.data_id = d.id';
+    let sql = 'SELECT a.id, a.filename, a.keywords, a.text, ae.embedding FROM assets a JOIN asset_emb ae ON a.id = ae.asset_id';
     let params: any[] = [];
-
-    if (kind) {
-      sql += ' WHERE d.kind = ?';
-      params.push(kind);
-    }
 
     sql += ' ORDER BY a.created_at DESC';
 
@@ -294,11 +269,9 @@ export class Database {
       const similarity = this.cosineSimilarity(queryEmbedding, storedEmbedding);
 
       return {
-        keywords: JSON.parse(row.terms) as string[],
+        keywords: JSON.parse(row.keywords) as string[],
         text: row.text,
         filename: row.filename,
-        sourceDoc: row.sourceDoc,
-        kind: row.kind,
         similarity
       };
     });

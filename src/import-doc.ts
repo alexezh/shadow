@@ -1,4 +1,4 @@
-import { mcpTools } from "./mcp-client.js";
+import { mcpTools } from "./mcptools.js";
 import { OpenAIClient } from "./openai-client.js";
 
 /*
