@@ -8,6 +8,7 @@ import { getInstructions } from './instructions.js';
 import { getContext, setContext } from './context.js';
 import { getContentRange } from './contentrange.js';
 import { ContentBuffer, loadAsset, storeAsset } from './asset.js';
+import { make31BitId } from './make31bitid.js';
 
 export interface MCPToolCall {
   name: string;
@@ -58,6 +59,9 @@ export class MCPLocalClient {
 
       case 'load_history':
         return await this.loadHistory(toolCall.arguments);
+
+      case 'make_id':
+        return this.makeId();
 
       // case 'get_variable':
       //   return await this.loadHistory(toolCall.arguments);
@@ -185,5 +189,14 @@ export class MCPLocalClient {
         entries: []
       }, null, 2);
     }
+  }
+
+  private makeId(): string {
+    const id = make31BitId();
+    //console.log(`🔢 Generated ID: ${id}`);
+    return JSON.stringify({
+      success: true,
+      id: id
+    }, null, 2);
   }
 }

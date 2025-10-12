@@ -21,7 +21,7 @@ export const mcpTools: ChatCompletionTool[] = [
             description: 'List of terms to get instructions for'
           }
         },
-        required: ['terms']
+        required: ['keywords']
       }
     }
   },
@@ -61,6 +61,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
           },
           start_para: { type: 'string' },
           end_para: { type: 'string' },
+          scope: { type: 'string', description: 'scope for storing data such as body or cell' },
           content: { type: 'string', description: 'data to store' },
 
           // Chunking parameters
@@ -194,6 +195,18 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
         properties: {
           limit: { type: 'integer', description: 'Number of history entries to retrieve (default: 10, max: 50)', minimum: 1, maximum: 50 }
         },
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'make_id',
+      description: 'Generate a random 31-bit ID as a string',
+      parameters: {
+        type: 'object',
+        properties: {},
         additionalProperties: false
       }
     }

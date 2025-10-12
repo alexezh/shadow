@@ -37,14 +37,14 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
   * example. if text is section header and formatted as 24Pt font, output section.header - font: 24Pt, textcolor: blue.
   * when storing blueprint, add terms describing type of documents this blueprint can be used for. Include short description of layout as one of terms.`;
 
-    const foo = `-make a map of html ids to semantic
-  * format is "id1: semantic\nid2:semantic\n"
-  * output your data in chunks of max 1500 tokens
-  * store each chunk store_asset(kind="blueprint", chunkId=N).
-  * if there are multiple entities such as person, use 1,2,3 to disambiguate
-  * Example, if html contains <p id="3442">Fred</p><p id="57">1st ave</p> where 1st ave is an address, output 3442: person.name; 57: person.address
-  * If a document contains tables, provide semantic for every row and cell. For rows, provide aggregative semantic across cells, such as order.item or experience.item.
-  * Specify semantic information as category.subcategory.subsubcategory.etc. Do not include actual content.`;
+    //   const foo = `-make a map of html ids to semantic
+    // * format is "id1: semantic\nid2:semantic\n"
+    // * output your data in chunks of max 1500 tokens
+    // * store each chunk store_asset(kind="blueprint", chunkId=N).
+    // * if there are multiple entities such as person, use 1,2,3 to disambiguate
+    // * Example, if html contains <p id="3442">Fred</p><p id="57">1st ave</p> where 1st ave is an address, output 3442: person.name; 57: person.address
+    // * If a document contains tables, provide semantic for every row and cell. For rows, provide aggregative semantic across cells, such as order.item or experience.item.
+    // * Specify semantic information as category.subcategory.subsubcategory.etc. Do not include actual content.`;
 
     const userMessage = `Produce blueprint and semantic map for document "${filename}"`;
 

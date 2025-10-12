@@ -3,6 +3,49 @@ import { youAreShadow } from "./chatprompt.js";
 import { Database } from "./database.js";
 import { generateEmbedding, OpenAIClient } from "./openai-client.js";
 
+const ChunkSegment = `
+ATTENTION: When producing large markdown or html, NEVER write placeholders like "[continued]".
+Instead, you MUST call the tool store_asset repeatedly using chunk encoding:
+- Max 1000 tokens in content per call.
+- Use the same "chunkId" for the whole document.
+- Start with "chunkIndex = 0", then increment by 1 each call.
+- Set eos on the last chunk.
+
+`;
+
+const MarkdownSegment = `
+ATTENTION: When producing markdownm".
+- Split markdown info chunks with un to 1000 tokens per store_asset call. Follow chunking instructions
+- Use CommonMark “directives” (remark-directive, markdown-it-container, Pandoc fenced divs).
+- For each paragraph, table, cell, row, generate ID using make_id API and store it in the beginning of paragraph using {#p-<id>} syntax. Example
+    ::: para {#p-x22t} 
+    Here is regular Markdown paragrapjh
+- For style information on paragraph use ::: directive with CSS style. Example 
+    ::: para {#p-id> .lead data-sem="body" style="text-indent:1.5em"}
+- For tables, use "::: table" or "::: row". Example
+    ::: table {#t-<id>}
+    ::: row   {#r-1}
+    ::: cell  {#c-1 colspan=1 rowspan=1}
+    Here is regular Markdown inside a cell — paragraphs, lists, code, etc.
+    :::
+
+    ::: cell  {#c-2}
+    Here is a nested table:
+    ::: table {#t-inner}
+    ::: row
+    ::: cell {#c-2-1} Inner p1. :::
+    ::: cell {#c-2-2} Inner p2. :::
+    :::
+    :::
+    :::
+    :::
+    :::
+- If cell body is too big, write a reference and store content using separate store_asset call:
+    ::: cell {#c-2 data-ref="asset:a1b2"}
+    <!-- content is streamed via store_asset(scope="cell", targetId="c-2") -->
+    :::
+
+`
 export const INITIAL_RULES = [
   {
     keywords: ['edit document', 'format document'],
@@ -19,46 +62,63 @@ variations to search for.
 `
   },
   // todo: load summaries of X last documents
+  // - store HTML version using store_asset(kind: "html") API
   {
     keywords: ['create document'],
     text: `
 **to create a document:**
 load recent history using load_history API. check if user is repeating the request.
 make document name and store it using set_context(["document_name]) API call.
-- create a text version of requested document, store the text version using store_asset(kind: "text") API. 
+- create a markdown version of requested document, store the text version using store_asset(kind: "markdown") API.
 - lookup blueprint using load_asset(kind: "blueprint") API providing set of terms describing kind of document to create.
  - such as if a user asked to make cool looking, specify "cool" as one of terms.
 - create an HTML version of the document using formatting described in the blueprint. 
-- store HTML version using store_asset(kind: "html") API 
+- create blueprint for the document following instructions returned by get_instructions("create blueprint") API
 
-ATTENTION: When producing large text, NEVER write placeholders like "[continued]".
-Instead, you MUST call the tool store_asset repeatedly using chunk encoding:
-- Max 1000 tokens in content per call.
-- Use the same "chunkId" for the whole document.
-- Start with "chunkIndex = 0", then increment by 1 each call.
-- Set eos on the last chunk.
+${ChunkSegment}
+${MarkdownSegment}
+`
+  },
+  {
+    keywords: ['create blueprint'],
+    text: `
+**to create a blueprint**
+-compute semantical structure of the document
+   * Example. If document is a resume which contains person name, address and other info, output as 
+        document type - resume, person: tonnie, address: xyz, content and other semantical blocks 
+   * include start and stop paragraph id in markdown at the end of semantic block name using {startId:<id>, endId:<id>} syntax
+   * store semantical structure as markdown using store_asset(kind="semantic")
+   
+-compute layout and formatting of the document as markdown focusing how different semantic elements are formatted
+  * output your data in chunks of max 1500 tokens
+  * store each chunk store_asset(kind="blueprint", chunkId=N).
+  * include both formatting and layout information; such as title: orginized in table with top row containing xyz
+  * example. if text is section header and formatted as 24Pt font, output section.header - font: 24Pt, textcolor: blue.
+  * when storing blueprint, add terms describing type of documents this blueprint can be used for. Include short description of layout as one of terms.
+
+${ChunkSegment}
 `
   },
   {
     keywords: ['use blueprint'],
     text: `
-**to use blueprint:**
-blueprint is a description (guidelines) for formatting the document. It describes what formatting such as colors
+  ** to use blueprint:**
+  blueprint is a description(guidelines) for formatting the document.It describes what formatting such as colors
 to apply to different parts of the document
-To load blueprint, call get_asset(kind="blueprint") API providing set of keywords describing kind of formatting to use.
+To load blueprint, call get_asset(kind = "blueprint") API providing set of keywords describing kind of formatting to use.
  - such as if a user asked to make cool looking, specify "cool" as one of terms.
 If a user asked to update formatting for for document
-- change blueprint following instructions
-- store blueprint using store_asset(kind="blueprint") API providing set of terms describing blueprint
-- create an HTML version of the document using formatting described in the blueprint. 
-- store HTML version using store_asset(kind: "html") API 
+  - change blueprint following instructions
+    - store blueprint using store_asset(kind = "blueprint") API providing set of terms describing blueprint
+      - create an HTML version of the document using formatting described in the blueprint. 
+- store HTML version using store_asset(kind: "html") API
 `
   },
   {
     keywords: ['image', 'add'],
     text: `
-**to add an image:**
-use add_image. 
+  ** to add an image:**
+    use add_image. 
 `
   },
 ];
@@ -87,7 +147,7 @@ export async function initInstructions(openaiClient: OpenAIClient, database: Dat
       console.log(`✓ Stored rule for [${rule.keywords.join(', ')}] with ${allKeywords.length} keywords`);
       successCount++;
     } catch (error) {
-      console.error(`✗ Failed to store rule for [${rule.keywords.join(', ')}]: ${error}`);
+      console.error(`✗ Failed to store rule for [${rule.keywords.join(', ')}]: ${error} `);
       errorCount++;
     }
   }
@@ -102,18 +162,18 @@ async function generateAdditionalKeywords(openaiClient: OpenAIClient, originalTe
     const userPrompt = `Given these original terms: [${originalTerms.join(', ')}] and this instruction text:
 ${instructionText}
 
-Generate 4-6 additional keywords representing different tasks or actions a user might want to accomplish using this instruction. 
+Generate 4 - 6 additional keywords representing different tasks or actions a user might want to accomplish using this instruction. 
 Focus on:
 - Specific user goals and intentions
-- Different ways users might describe what they want to do
-- Variations of the same task with different wording
-- Common user language for these operations
+  - Different ways users might describe what they want to do
+  - Variations of the same task with different wording
+    - Common user language for these operations
 
 Examples:
-- If instruction is about editing: "modify text", "change content", "update paragraph", "revise document"
-- If instruction is about images: "insert picture", "upload photo", "place image", "attach file"
+  - If instruction is about editing: "modify text", "change content", "update paragraph", "revise document"
+    - If instruction is about images: "insert picture", "upload photo", "place image", "attach file"
 
-Return only the task-oriented terms as a comma-separated list, no explanations.`;
+Return only the task - oriented terms as a comma - separated list, no explanations.`;
 
     const response = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt);
 
@@ -125,7 +185,7 @@ Return only the task-oriented terms as a comma-separated list, no explanations.`
     return additionalTerms;
 
   } catch (error) {
-    console.warn(`⚠️ Failed to generate task terms for [${originalTerms.join(', ')}]: ${error}`);
+    console.warn(`⚠️ Failed to generate task terms for [${originalTerms.join(', ')}]: ${error} `);
     return []; // Return empty array on error, continue with original terms only
   }
 }
@@ -152,7 +212,7 @@ export async function getInstructions(database: Database,
   }
 
   if (allMatches.length === 0) {
-    return `No instructions found for terms: ${args.keywords.join(', ')}`;
+    return `No instructions found for terms: ${args.keywords.join(', ')} `;
   }
 
   // Sort by similarity and deduplicate by text content
@@ -168,7 +228,7 @@ export async function getInstructions(database: Database,
   // Take top 2 unique instructions
   const bestMatches = Array.from(uniqueTexts.values()).slice(0, 2);
 
-  console.log(`getInstructions: [terms: ${args.keywords}] [found: ${bestMatches.length}] [terms: ${bestMatches.map(x => x.text.substring(0, 100))}]`)
+  console.log(`getInstructions: [terms: ${args.keywords}][found: ${bestMatches.length}][terms: ${bestMatches.map(x => x.text.substring(0, 100))}]`)
 
   return "\n[CONTEXT]\n" + bestMatches.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
 }

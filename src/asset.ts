@@ -91,18 +91,32 @@ async function processContent(
   args: StoreAssetsArgs, content: string): Promise<void> {
   // Optionally write to file for special kinds (blueprint/semantic)
   if (args.filename) {
-    if (args.kind === 'blueprint') {
-      //await this.writeSpecialFiles({ kind: "mapping", filename: args.filename }, content);
-    } else if (args.kind === 'semantic') {
-      await writeSpecialFiles(args, content);
+    let fileExtension: string | undefined;
+
+    if (args.kind === 'semantic') {
+      fileExtension = '.semantic.md';
+    } else if (args.kind === 'mapping') {
+      fileExtension = '.blueprint.json';
+    } else if (args.kind === 'text') {
+      fileExtension = '.txt';
+    } else if (args.kind === 'markdown') {
+      fileExtension = '.md';
+    } else if (args.kind === 'mapping') {
+      fileExtension = '.blueprint.json';
+    } else if (args.kind === 'blueprint') {
+      fileExtension = '.blueprint.md';
     } else if (args.kind === 'html') {
-      await writeSpecialFiles(args, content);
+      fileExtension = '.html';
+    }
+
+    if (fileExtension) {
+      await writeSpecialFiles(args, content, fileExtension);
     }
   }
 
   if (args.kind === "blueprint") {
     //content = processBlueprint(args.filename, content);
-    await writeSpecialFiles({ kind: "blueprint", filename: args.filename }, content);
+    await writeSpecialFiles({ kind: "blueprint", filename: args.filename }, content, ".blueprint.md");
   }
 
   let kind = args.kind ?? "text";
@@ -113,7 +127,7 @@ async function processContent(
 }
 
 
-async function writeSpecialFiles(args: { kind?: string; filename?: string; }, content: string): Promise<void> {
+async function writeSpecialFiles(args: { kind?: string; filename?: string; }, content: string, fileExtension: string): Promise<void> {
   if (!args.filename) return;
 
   const contentDir = path.join(process.cwd(), 'content');
@@ -123,25 +137,10 @@ async function writeSpecialFiles(args: { kind?: string; filename?: string; }, co
     // Ensure content directory exists
     await fs.mkdir(contentDir, { recursive: true });
 
-    let fileExtension: string;
-    let processedContent: string;
-
-    if (args.kind === 'semantic') {
-      fileExtension = '.semantic.md';
-    } else if (args.kind === 'mapping') {
-      fileExtension = '.blueprint.json';
-    } else if (args.kind === 'blueprint') {
-      fileExtension = '.blueprint.md';
-    } else if (args.kind === 'html') {
-      fileExtension = '.output.html';
-    } else {
-      return; // Unknown kind, skip
-    }
-
     const filePath = path.join(contentDir, `${baseName}${fileExtension}`);
 
     console.log(`🔍 Debug: ${args.kind} content length before write: ${content.length}`);
-    await writeAndVerifyFile(filePath, content, args.kind);
+    await writeAndVerifyFile(filePath, content, args.kind!);
 
   } catch (error) {
     console.error('❌ Error writing special files:', error);
