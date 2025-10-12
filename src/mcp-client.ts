@@ -55,13 +55,15 @@ export const mcpTools = [
     type: 'function' as const,
     function: {
       name: 'store_asset',
-      description: 'Store document data with embeddings. For large content, use chunking parameters.All chunks of the same document MUST share the same chunkId, and include chunkIndex and totalChunks.',
+      description: `Store document data with embeddings. 
+For large content, use chunking parameters.
+All chunks of the same document MUST share the same chunkId, and include chunkIndex and totalChunks.`,
       parameters: {
         type: 'object',
         properties: {
           kind: { type: "string", description: "kind of asset stored" },
           filename: { type: 'string', description: 'name of the document asset is coming from' },
-          terms: {
+          keywords: {
             type: 'array',
             items: { type: 'string' },
             description: 'Terms associated with the data'
@@ -75,7 +77,7 @@ export const mcpTools = [
           chunkIndex: { type: 'integer', minimum: 0, description: 'Index of this chunk (0-based)' },
           totalChunks: { type: 'integer', minimum: 1, description: 'Total number of chunks in this asset' }
         },
-        required: ['terms', 'content', 'chunkId', 'chunkIndex', 'totalChunks']
+        required: ['keywords', 'content', 'chunkId', 'chunkIndex', 'totalChunks']
       }
     }
   },
@@ -83,18 +85,18 @@ export const mcpTools = [
     type: 'function' as const,
     function: {
       name: 'load_asset',
-      description: 'Load stored asset by context terms (keyword + optional semantic match).',
+      description: 'Load stored asset by context keywords (keyword + optional semantic match).',
       parameters: {
         type: 'object',
         properties: {
           kind: { type: "string", description: "kind of asset stored" },
-          terms: {
+          keywords: {
             type: 'array',
             items: { type: 'string' },
             description: 'Context words/phrases to match (no filenames).'
           }
         },
-        required: ['terms']
+        required: ['keywords']
       }
     }
   },
@@ -102,13 +104,13 @@ export const mcpTools = [
     type: 'function' as const,
     function: {
       name: 'find_ranges',
-      description: 'Find ranges in document that match one or more search terms',
+      description: 'Find ranges in document that match one or more search keywords',
       parameters: {
         type: 'object',
         properties: {
           name: { type: 'string', description: 'Document name' },
           format: { type: 'string', enum: ['text', 'html'] },
-          terms: {
+          keywords: {
             type: 'array',
             items: { type: 'string' },
             description: 'Terms to search for'
@@ -136,7 +138,7 @@ export const mcpTools = [
             description: 'Terms to get context for (e.g., ["last_file_name"], ["last_range"], ["current_document"])'
           }
         },
-        required: ['terms']
+        required: ['keywords']
       }
     }
   },
@@ -148,9 +150,9 @@ export const mcpTools = [
       parameters: {
         type: 'object',
         properties: {
-          terms: {
+          keywords: {
             type: 'array',
-            keywords: { type: 'string' },
+            items: { type: 'string' },
             description: 'Keywords to identify which context to set (e.g., ["document_name"], ["current_file"])'
           },
           value: {
@@ -158,7 +160,7 @@ export const mcpTools = [
             description: 'The value to store in the context'
           }
         },
-        required: ['terms', 'value']
+        required: ['keywords', 'value']
       }
     }
   },

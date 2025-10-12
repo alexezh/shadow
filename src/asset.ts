@@ -7,7 +7,7 @@ import OpenAI from "openai";
 export type StoreAssetsArgs = {
   kind: string;
   filename?: string;
-  terms: string[];
+  keywords: string[];
   content: any;
   chunkId?: string;
   chunkIndex?: number;
@@ -42,7 +42,7 @@ export async function storeAsset(
     bufferEntry = {
       chunks: [],
       filename: args.filename,
-      terms: args.terms,
+      terms: args.keywords,
       isComplete: false
     };
     contentBuffer.set(args.chunkId, bufferEntry);
@@ -76,7 +76,7 @@ export async function storeAsset(
 
   await processContent(database, openaiClient, args, content)
   const chunkInfo = args.totalChunks > 1 ? ` (${args.totalChunks} chunks)` : '';
-  return `Successfully stored ${args.kind} data for terms: ${args.terms.join(', ')}${args.filename ? ` from file: ${args.filename}` : ''}${chunkInfo}`;
+  return `Successfully stored ${args.kind} data for terms: ${args.keywords.join(', ')}${args.filename ? ` from file: ${args.filename}` : ''}${chunkInfo}`;
 }
 
 async function processContent(
@@ -102,8 +102,8 @@ async function processContent(
   let kind = args.kind ?? "text";
 
   // Always store full content in database
-  const embedding = await generateEmbedding(openaiClient, args.terms);
-  await database.storeAsset(args.terms, content, embedding, args.filename, args.filename, kind);
+  const embedding = await generateEmbedding(openaiClient, args.keywords);
+  await database.storeAsset(args.keywords, content, embedding, args.filename, args.filename, kind);
 }
 
 
@@ -154,16 +154,16 @@ export async function writeAndVerifyFile(filePath: string, content: string, kind
   }
 }
 
-export async function loadAsset(database: Database, openaiClient: OpenAI, args: { kind?: string; terms: string[] }): Promise<string> {
-  const embedding = await generateEmbedding(openaiClient, args.terms);
+export async function loadAsset(database: Database, openaiClient: OpenAI, args: { kind?: string; keywords: string[] }): Promise<string> {
+  const embedding = await generateEmbedding(openaiClient, args.keywords);
   const assets = await database.getAssets(embedding, 1, args.kind ?? "text");
 
   if (assets.length > 0) {
-    console.log(`loadAsset: [kind: ${args.kind}] [terms: ${JSON.stringify(args.terms)} [outfile: ${assets[0].filename}] [outterms: ${JSON.stringify(assets[0].terms)}]`)
+    console.log(`loadAsset: [kind: ${args.kind}] [terms: ${JSON.stringify(args.keywords)} [outfile: ${assets[0].filename}] [outterms: ${JSON.stringify(assets[0].keywords)}]`)
   }
 
   return JSON.stringify({
-    terms: args.terms,
+    terms: args.keywords,
     kind: args.kind,
     texts: assets.map(x => x.text),
     count: assets.length

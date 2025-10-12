@@ -7,7 +7,7 @@ export class Database {
   private getAsync: (sql: string, params?: any[]) => Promise<any>;
   private allAsync: (sql: string, params?: any[]) => Promise<any[]>;
 
-  constructor(dbPath: string = './embeddings.db') {
+  constructor(dbPath: string = './shadow.db') {
     this.db = new sqlite3.Database(dbPath);
 
     // Properly promisify the run method to return the Statement object with lastID
@@ -44,10 +44,6 @@ export class Database {
         text TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
-    `);
-
-    await this.runAsync(`
-      CREATE INDEX IF NOT EXISTS idx_assets_terms ON assets(terms)
     `);
 
     await this.runAsync(`
@@ -131,6 +127,10 @@ export class Database {
     `);
 
     await this.runAsync(`
+      CREATE INDEX IF NOT EXISTS idx_assets_terms ON assets(keywords)
+    `);
+
+    await this.runAsync(`
       CREATE INDEX IF NOT EXISTS idx_asset_emb_asset_id ON asset_emb(asset_id)
     `);
 
@@ -149,8 +149,8 @@ export class Database {
     `);
   }
 
-  async storeAsset(terms: string[], text: string, embedding: number[], filename?: string, sourceDoc?: string, kind?: string): Promise<void> {
-    const termsString = JSON.stringify(terms);
+  async storeAsset(keywords: string[], text: string, embedding: number[], filename?: string, sourceDoc?: string, kind?: string): Promise<void> {
+    const keywordsString = JSON.stringify(keywords);
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
 
     // First, insert text into data table
@@ -171,8 +171,8 @@ export class Database {
 
     // Then insert asset with reference to data
     await this.runAsync(
-      'INSERT INTO assets (filename, terms, data_id, embedding) VALUES (?, ?, ?, ?)',
-      [filename || null, termsString, dataId, embeddingBlob]
+      'INSERT INTO assets (filename, keywords, data_id, embedding) VALUES (?, ?, ?, ?)',
+      [filename || null, keywordsString, dataId, embeddingBlob]
     );
   }
 
@@ -206,13 +206,13 @@ export class Database {
     }
   }
 
-  async findSimilarTexts(terms: string[], limit: number = 10): Promise<Array<{ text: string, similarity: number }>> {
-    const termsString = JSON.stringify(terms);
+  async findSimilarTexts(keywords: string[], limit: number = 10): Promise<Array<{ text: string, similarity: number }>> {
+    const termsString = JSON.stringify(keywords);
 
     // For now, we'll do a simple exact match on terms
     // In a production system, you'd want to compute cosine similarity on embeddings
     const results = await this.allAsync(
-      'SELECT d.text, a.embedding FROM assets a JOIN data d ON a.data_id = d.id WHERE a.terms = ? ORDER BY a.created_at DESC LIMIT ?',
+      'SELECT d.text, a.embedding FROM assets a JOIN data d ON a.data_id = d.id WHERE a.keywords = ? ORDER BY a.created_at DESC LIMIT ?',
       [termsString, limit]
     );
 
@@ -226,7 +226,7 @@ export class Database {
     const termsString = JSON.stringify(terms);
 
     const results = await this.allAsync(
-      'SELECT d.text FROM assets a JOIN data d ON a.data_id = d.id WHERE a.terms = ? ORDER BY a.created_at DESC',
+      'SELECT d.text FROM assets a JOIN data d ON a.data_id = d.id WHERE a.keywords = ? ORDER BY a.created_at DESC',
       [termsString]
     );
 
@@ -275,9 +275,9 @@ export class Database {
   }
 
   async getAssets(queryEmbedding: number[], limit: number = 2, kind?: string):
-    Promise<Array<{ terms: string[], text: string, filename: string | null, sourceDoc: string | null, kind: string | null, similarity: number }>> {
+    Promise<Array<{ keywords: string[], text: string, filename: string | null, sourceDoc: string | null, kind: string | null, similarity: number }>> {
 
-    let sql = 'SELECT a.filename, a.terms, d.text, d.sourceDoc, d.kind, a.embedding FROM assets a JOIN data d ON a.data_id = d.id';
+    let sql = 'SELECT a.filename, a.keywords, d.text, d.sourceDoc, d.kind, a.embedding FROM assets a JOIN data d ON a.data_id = d.id';
     let params: any[] = [];
 
     if (kind) {
@@ -294,7 +294,7 @@ export class Database {
       const similarity = this.cosineSimilarity(queryEmbedding, storedEmbedding);
 
       return {
-        terms: JSON.parse(row.terms) as string[],
+        keywords: JSON.parse(row.terms) as string[],
         text: row.text,
         filename: row.filename,
         sourceDoc: row.sourceDoc,
@@ -371,7 +371,7 @@ export class Database {
     const embeddingBlob = Buffer.from(new Float32Array(embedding).buffer);
     await this.runAsync(
       'INSERT INTO context_emb (keyword, context_name, embedding) VALUES (?, ?, ?)',
-      [term, contextName, embeddingBlob]
+      [keyword, contextName, embeddingBlob]
     );
   }
 

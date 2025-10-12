@@ -123,12 +123,12 @@ export async function getContext(database: Database, openaiClient: OpenAI, args:
   }, null, 2);
 }
 
-export async function setContext(database: Database, openaiClient: OpenAI, args: { terms: string[], value: string }): Promise<string> {
+export async function setContext(database: Database, openaiClient: OpenAI, args: { keywords: string[], value: string }): Promise<string> {
   try {
     console.log("setContext: " + JSON.stringify(args));
 
     // Generate embedding for the terms
-    const embedding = await generateEmbedding(openaiClient, args.terms);
+    const embedding = await generateEmbedding(openaiClient, args.keywords);
 
     // Find matching context name by embedding similarity
     const matches = await database.findContextByEmbedding(embedding, 1);
@@ -136,8 +136,8 @@ export async function setContext(database: Database, openaiClient: OpenAI, args:
     if (matches.length === 0 || matches[0].similarity < 0.7) {
       return JSON.stringify({
         success: false,
-        message: `No matching context found for terms: ${args.terms.join(', ')}. Available contexts can be found using get_context.`,
-        terms: args.terms
+        message: `No matching context found for terms: ${args.keywords.join(', ')}. Available contexts can be found using get_context.`,
+        terms: args.keywords
       }, null, 2);
     }
 
