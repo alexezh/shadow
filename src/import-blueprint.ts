@@ -48,7 +48,8 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
 
     const userMessage = `Produce blueprint and semantic map for document "${filename}"`;
 
-    const response = await openaiClient.chatWithMCPTools(mcpTools, systemPrompt, userMessage);
+    const result = await openaiClient.chatWithMCPTools(mcpTools, systemPrompt, userMessage);
+    const response = result.response;
     console.log('🤖 Shadow:', response);
 
   } catch (error) {

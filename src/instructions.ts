@@ -50,14 +50,68 @@ export const INITIAL_RULES = [
   {
     keywords: ['edit document', 'format document'],
     text: `
-**to edit a document:**
-If user has not specified the name, use get_context API to retrieve the document name
-If a user specified the name, store it using set_context(["document_name]) API call.
-If a user asked to update formatting, get additional instructions by calling get_instructions("use blueprint") API
-editing is done by ranges identified by paragraph ids. paragraph ids specified as {id=xyz} at the end of paragraph
-use get_context tool with terms like ["last_range"] or ["last_file_name"] to retrieve the current editing context
-use find_ranges to locate range given some text as references. If a user asks "find xyz", invoke find_range with list of 
-variations to search for.
+**to edit a document (multi-turn approach):**
+
+## Phase 1: Document Context
+- If user has not specified the document name, use get_context(["document_name"]) to retrieve it
+- If user specified the name, store it using set_context(["document_name"], value) API call
+- If user asked to update formatting, get additional instructions by calling get_instructions(["use blueprint"])
+
+## Phase 2: Structure Analysis
+- Check if document structure already exists: call load_asset(kind="structure", keywords=["document_name", "structure"])
+- If structure NOT found, analyze document to create structure:
+  1. Read document content in chunks using get_contentrange(name, format) API. Start without start_para/end_para to get full document
+  2. DO NOT reorder or modify text content
+  3. Propose section/subsection spans as contiguous ranges [start_id, end_id] following these rules:
+     - Boundaries only between paragraphs (use paragraph IDs like {#p-123})
+     - Levels: 1=section, 2=subsection, 3=subsubsection (max depth 3)
+     - Minimum size: section≥3 paragraphs unless "Intro/Summary"; subsection≥2 paragraphs
+     - Titles should be 3-7 words, noun-phrase, no punctuation at end
+     - Merge obviously tiny/thematic asides into neighbor sections
+  4. Output structure as JSON and store with store_asset(kind="structure", keywords=["document_name", "structure"], content=<json>)
+
+  JSON Schema:
+  {
+    "sections": [
+      {
+        "level": 1,
+        "title": "Section Title",
+        "start_id": "p-123",
+        "end_id": "p-456",
+        "subsections": [
+          {
+            "level": 2,
+            "title": "Subsection Title",
+            "start_id": "p-200",
+            "end_id": "p-300"
+          }
+        ]
+      }
+    ]
+  }
+
+## Phase 3: Selection Management
+- If user asks to perform action on previous selection (e.g., "rewrite in softer tone", "make it shorter"):
+  * Call get_context(["selection"]) or get_context(["last_range"]) to retrieve the current selection
+  * Use the returned start_id and end_id to identify the content range
+- If user specifies new content to edit:
+  * Use find_ranges(name, format, keywords) to locate ranges matching the user's description
+  * Store the new selection using set_context(["selection"], "<start_id>:<end_id>")
+  * Store also with set_context(["last_range"], "<start_id>:<end_id>")
+- If user provides section/subsection names from structure, map those to paragraph ID ranges
+
+## Phase 4: Edit Execution
+- Editing is done by ranges identified by paragraph ids (format: {#p-xyz})
+- Read the selected range content with get_contentrange(name, format, start_para, end_para)
+- Apply the requested edits while preserving paragraph IDs
+- Return the modified content for user review
+
+## Context Preservation
+- Always save current editing context:
+  * set_context(["last_file_name"], document_name)
+  * set_context(["selection"], "<start_id>:<end_id>")
+  * set_context(["last_action"], description_of_what_was_done)
+- This enables seamless continuation in subsequent turns
 
 `
   },
@@ -173,7 +227,8 @@ Examples:
 
 Return only the task - oriented terms as a comma - separated list, no explanations.`;
 
-    const response = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt);
+    const result = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt);
+    const response = result.response;
 
     // Parse the response to extract terms
     const additionalTerms = response
