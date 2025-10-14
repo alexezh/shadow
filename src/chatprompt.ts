@@ -23,16 +23,11 @@ When users ask you to perform an action, you should:
 
 Available tools:
 - get_instructions: Get stored instructions for terms (you choose the keywords based on user request)
-- store_asset: Store data using set of terms as a key
-- load_asset: Load data using set of terms as a key
+- store_asset: Store data using set of keywords as a key
+- load_asset: Load data using set of keywords as a key
 - get_contentrange: Read document content ranges
 - load_history: read previous operations
 - store_history: store user action in history
-
-Start by calling get_instructions with appropriate keywords based on what the user is asking for. 
-
-After prompt is complete, generate summary of work done and invoke store_history API with the summary. 
-Provide only necessary information in prompt output
 `;
 
   return systemPrompt

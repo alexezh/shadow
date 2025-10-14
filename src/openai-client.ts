@@ -119,6 +119,28 @@ export class OpenAIClient {
       { role: 'user', content: userMessage }
     ];
 
+    const respondToToolCallsWithError = (toolCalls: any[], reason: string) => {
+      if (!toolCalls || toolCalls.length === 0) {
+        return;
+      }
+
+      for (const toolCall of toolCalls) {
+        if (!toolCall?.id) {
+          console.warn(`⚠️ Unable to respond to tool call without id (tool=${toolCall?.function?.name || 'unknown'})`);
+          continue;
+        }
+
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: JSON.stringify({
+            success: false,
+            error: reason
+          }, null, 2)
+        });
+      }
+    };
+
     // Loop to handle multiple function calls
     let maxIterations = 100;
     let iteration = 0;
@@ -178,6 +200,14 @@ export class OpenAIClient {
         }
       }
 
+      const toolCalls = assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0
+        ? assistantMessage.tool_calls
+        : [];
+
+      if (toolCalls.length === 0) {
+        delete (assistantMessage as any).tool_calls;
+      }
+
       // Add the complete assistant message
       messages.push(assistantMessage);
 
@@ -208,17 +238,21 @@ export class OpenAIClient {
             throw new Error(`Assistant failed to provide a valid phase-gated control envelope JSON after multiple attempts: ${error?.message || String(error)}`);
           }
 
+          respondToToolCallsWithError(toolCalls, `Rejected tool call: ${error?.message || String(error)}`);
+
           messages.push({
             role: 'system',
             content: `Your previous reply was not valid phase-gated control envelope JSON. Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`
           });
           continue;
         }
-      } else if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+      } else if (toolCalls && toolCalls.length > 0) {
         invalidEnvelopeCount++;
         if (invalidEnvelopeCount > 5) {
           throw new Error('Assistant attempted to call tools repeatedly without providing the control envelope JSON.');
         }
+
+        respondToToolCallsWithError(toolCalls, 'Rejected tool call: control envelope JSON missing.');
 
         messages.push({
           role: 'system',
@@ -227,10 +261,10 @@ export class OpenAIClient {
         continue;
       }
 
-      const toolCalls = assistantMessage.tool_calls || [];
-
       if (toolCalls.length > 0) {
         if (!controlEnvelope) {
+          respondToToolCallsWithError(toolCalls, 'Rejected tool call: control envelope JSON missing.');
+
           messages.push({
             role: 'system',
             content: 'You must include the control envelope JSON in every response. Try again.'
@@ -243,6 +277,8 @@ export class OpenAIClient {
         }
 
         if (controlEnvelope.phase !== 'action') {
+          respondToToolCallsWithError(toolCalls, 'Rejected tool call: phase must be "action" when invoking tools.');
+
           messages.push({
             role: 'system',
             content: 'When invoking tools, set phase="action" in the control envelope JSON and list the tools in control.allowed_tools. Retry now.'
@@ -261,6 +297,8 @@ export class OpenAIClient {
           .filter(name => name.length > 0 && allowedTools.length > 0 && !allowedTools.includes(name));
 
         if (allowToolUse === false) {
+          respondToToolCallsWithError(toolCalls, 'Rejected tool call: control.allow_tool_use is false.');
+
           messages.push({
             role: 'system',
             content: 'control.allow_tool_use is false; do not invoke tools in the same response. Provide a new envelope.'
@@ -273,6 +311,8 @@ export class OpenAIClient {
         }
 
         if (disallowed.length > 0) {
+          respondToToolCallsWithError(toolCalls, `Rejected tool call: ${disallowed.join(', ')} not listed in control.allowed_tools.`);
+
           messages.push({
             role: 'system',
             content: `The tools ${disallowed.join(', ')} are not listed in control.allowed_tools. Update the envelope and resend.`

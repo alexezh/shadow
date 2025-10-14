@@ -63,6 +63,7 @@ variations to search for.
   },
   // todo: load summaries of X last documents
   // - store HTML version using store_asset(kind: "html") API
+  // - create an HTML version of the document only after the markdown draft is ready. apply blueprint formatting when one was successfully loaded.
   {
     keywords: ['create document'],
     text: `
@@ -70,10 +71,9 @@ variations to search for.
 load recent history using load_history API. check if user is repeating the request.
 make document name and store it using set_context(["document_name]) API call.
 - create a markdown version of requested document, store the text version using store_asset(kind: "markdown") API.
-- lookup blueprint using load_asset(kind: "blueprint") API providing set of terms describing kind of document to create.
- - such as if a user asked to make cool looking, specify "cool" as one of terms.
-- create an HTML version of the document using formatting described in the blueprint. 
-- create blueprint for the document following instructions returned by get_instructions("create blueprint") API
+- deliver the primary document content before starting blueprint work. The user should receive the draft even if no blueprint exists.
+- produce a keyword set from the prompt and draft content that captures desired formatting. Use those keywords when calling load_asset(kind: "blueprint") to request an existing layout, refine the blueprint to match the document, then store it back with store_asset(kind: "blueprint") using the same keywords.
+- create an HTML version of the document only after the markdown draft is ready. apply blueprint formatting when one was successfully loaded.
 
 ${ChunkSegment}
 ${MarkdownSegment}
@@ -105,12 +105,10 @@ ${ChunkSegment}
   ** to use blueprint:**
   blueprint is a description(guidelines) for formatting the document.It describes what formatting such as colors
 to apply to different parts of the document
-To load blueprint, call get_asset(kind = "blueprint") API providing set of keywords describing kind of formatting to use.
- - such as if a user asked to make cool looking, specify "cool" as one of terms.
-If a user asked to update formatting for for document
-  - change blueprint following instructions
-    - store blueprint using store_asset(kind = "blueprint") API providing set of terms describing blueprint
-      - create an HTML version of the document using formatting described in the blueprint. 
+produce a keyword set from the user prompt and current content that summarizes the desired styling.
+Call load_asset(kind = "blueprint") with those keywords to retrieve the closest existing blueprint.
+If the returned blueprint needs adjustments, update it to match the document and persist the revision with store_asset(kind = "blueprint") using the same keywords.
+- create an HTML version of the document using formatting described in the blueprint once it aligns with the draft.
 - store HTML version using store_asset(kind: "html") API
 `
   },
@@ -232,4 +230,3 @@ export async function getInstructions(database: Database,
 
   return "\n[CONTEXT]\n" + bestMatches.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
 }
-
