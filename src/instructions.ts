@@ -70,13 +70,13 @@ variations to search for.
 **to create a document:**
 load recent history using load_history API. check if user is repeating the request.
 make document name and store it using set_context(["document_name]) API call.
-- create a markdown version of requested document, store the text version using store_asset(kind: "markdown") API.
-- deliver the primary document content before starting blueprint work. The user should receive the draft even if no blueprint exists.
-- produce a keyword set from the prompt and draft content that captures desired formatting. Use those keywords when calling load_asset(kind: "blueprint") to request an existing layout, refine the blueprint to match the document, then store it back with store_asset(kind: "blueprint") using the same keywords.
-- create an HTML version of the document only after the markdown draft is ready. apply blueprint formatting when one was successfully loaded.
+- produce a keyword set from the prompt that captures desired formatting. Use those keywords when calling load_asset(kind: "blueprint") to request an existing layout and formatting, refine it, then persist the update with store_asset(kind: "blueprint") using the same keywords.
+- compose the document directly in HTML that fulfills the user request; do not emit markdown drafts. Use blueprint for HTML formatting 
+- stream the HTML via store_asset(kind: "html") using chunkId, chunkIndex, and eos for every call.
+- when content grows beyond ~1000 tokens, break it into logical units (sections, subsections, paragraphs, table cells) and issue separate store_asset calls per unit, reusing chunkId for related chunks and setting scope to the appropriate unit.
+- do not call get_instructions("create blueprint") unless the user explicitly requests new formatting after the document is complete.
 
 ${ChunkSegment}
-${MarkdownSegment}
 `
   },
   {

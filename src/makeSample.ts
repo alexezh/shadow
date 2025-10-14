@@ -67,7 +67,8 @@ The HTML should be complete and ready to use as sample content.`;
 
 Please generate appropriate HTML elements and suggest a filename.`;
 
-    const response = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt);
+    const result = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt);
+    const response = result.response;
 
     // Extract filename from response
     const filenameMatch = response.match(/FILENAME:\s*(.+\.html)/i);

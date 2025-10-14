@@ -18,6 +18,7 @@ export class ConsoleApp {
   private openaiClient: OpenAIClient;
   private rl: readline.Interface;
   private historyFile: string;
+  private currentConversationId?: string;
 
   constructor(database: Database) {
     this.database = database;
@@ -257,8 +258,17 @@ export class ConsoleApp {
     try {
       console.log('🤔 Processing your message...');
 
-      const response = await this.openaiClient.chatWithMCPTools(mcpTools, getChatPrompt(), message);
-      console.log('🤖 Shadow:', response);
+      const result = await this.openaiClient.chatWithMCPTools(
+        mcpTools,
+        getChatPrompt(),
+        message,
+        this.currentConversationId
+      );
+
+      // Store conversation ID for continuation
+      this.currentConversationId = result.conversationId;
+
+      console.log('🤖 Shadow:', result.response);
 
     } catch (error) {
       console.error('❌ Error processing chat message:', error);

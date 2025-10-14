@@ -72,15 +72,24 @@ export async function generateEmbedding(client: OpenAI, terms: string | string[]
   });
 }
 
+interface ConversationState {
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  systemPrompt: string;
+  lastPhase: Phase | null;
+  createdAt: Date;
+}
+
 export class OpenAIClient {
   private client: OpenAI;
   private mcpClient: MCPLocalClient;
+  private conversations: Map<string, ConversationState>;
 
   constructor(database: Database, apiKey?: string) {
     this.client = new OpenAI({
       apiKey: apiKey || process.env.OPENAI_API_KEY
     });
     this.mcpClient = new MCPLocalClient(database, this.client);
+    this.conversations = new Map();
   }
 
   // async generateInstructions(terms: string[]): Promise<string> {
@@ -109,15 +118,96 @@ export class OpenAIClient {
     return generateEmbedding(this.client, terms)
   }
 
-  async chatWithMCPTools(mcpTools: Array<ChatCompletionTool>, systemPrompt: string, userMessage: string): Promise<string> {
-    
-    // Set the current prompt in the MCP client for history tracking
-    this.mcpClient.setCurrentPrompt(userMessage);
+  /**
+   * Get or create a conversation by ID
+   */
+  private getOrCreateConversation(conversationId: string | undefined, systemPrompt: string, userMessage: string): {
+    conversationId: string;
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+    lastPhase: Phase | null;
+    isNew: boolean;
+  } {
+    if (conversationId && this.conversations.has(conversationId)) {
+      const state = this.conversations.get(conversationId)!;
+      // Add new user message to existing conversation
+      state.messages.push({ role: 'user', content: userMessage });
+      return {
+        conversationId,
+        messages: state.messages,
+        lastPhase: state.lastPhase,
+        isNew: false
+      };
+    }
 
-    let messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    // Create new conversation
+    const newId = conversationId || `conv_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage }
     ];
+
+    this.conversations.set(newId, {
+      messages,
+      systemPrompt,
+      lastPhase: null,
+      createdAt: new Date()
+    });
+
+    return { conversationId: newId, messages, lastPhase: null, isNew: true };
+  }
+
+  /**
+   * Update conversation state
+   */
+  private updateConversation(conversationId: string, messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[], lastPhase: Phase | null): void {
+    const state = this.conversations.get(conversationId);
+    if (state) {
+      state.messages = messages;
+      state.lastPhase = lastPhase;
+    }
+  }
+
+  /**
+   * Clear a conversation by ID
+   */
+  clearConversation(conversationId: string): boolean {
+    return this.conversations.delete(conversationId);
+  }
+
+  /**
+   * Clear all conversations
+   */
+  clearAllConversations(): void {
+    this.conversations.clear();
+  }
+
+  /**
+   * Get conversation IDs
+   */
+  getConversationIds(): string[] {
+    return Array.from(this.conversations.keys());
+  }
+
+  async chatWithMCPTools(
+    mcpTools: Array<ChatCompletionTool>,
+    systemPrompt: string,
+    userMessage: string,
+    conversationId?: string
+  ): Promise<{ response: string; conversationId: string }> {
+
+    // Set the current prompt in the MCP client for history tracking
+    this.mcpClient.setCurrentPrompt(userMessage);
+
+    // Get or create conversation
+    const conv = this.getOrCreateConversation(conversationId, systemPrompt, userMessage);
+    const messages = conv.messages;
+    let lastPhase = conv.lastPhase;
+
+    if (conv.isNew) {
+      console.log(`💬 Started new conversation: ${conv.conversationId}`);
+    } else {
+      console.log(`💬 Continuing conversation: ${conv.conversationId} (${messages.length} messages)`);
+    }
 
     const respondToToolCallsWithError = (toolCalls: any[], reason: string) => {
       if (!toolCalls || toolCalls.length === 0) {
@@ -144,7 +234,6 @@ export class OpenAIClient {
     // Loop to handle multiple function calls
     let maxIterations = 100;
     let iteration = 0;
-    let lastPhase: Phase | null = null;
     let invalidEnvelopeCount = 0;
 
     while (iteration < maxIterations) {
@@ -350,7 +439,13 @@ export class OpenAIClient {
           continue;
         }
 
-        return JSON.stringify(controlEnvelope, null, 2);
+        // Update conversation state before returning
+        this.updateConversation(conv.conversationId, messages, lastPhase);
+
+        return {
+          response: JSON.stringify(controlEnvelope, null, 2),
+          conversationId: conv.conversationId
+        };
       }
 
       // Execute tool calls
@@ -381,6 +476,12 @@ export class OpenAIClient {
       iteration++;
     }
 
-    return 'Max iterations reached without final response';
+    // Update conversation state even if max iterations reached
+    this.updateConversation(conv.conversationId, messages, lastPhase);
+
+    return {
+      response: 'Max iterations reached without final response',
+      conversationId: conv.conversationId
+    };
   }
 }
