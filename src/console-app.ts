@@ -4,6 +4,7 @@ import { importBlueprint } from './import-blueprint.js';
 import { importDoc } from './import-doc.js';
 import { INITIAL_RULES, initInstructions } from './instructions.js';
 import { makeSample } from './makeSample.js';
+import { makeHtml } from './makeHtml.js';
 import { mcpTools } from './mcptools.js';
 import { generateEmbedding, OpenAIClient } from './openai-client.js';
 import * as readline from 'readline';
@@ -33,7 +34,7 @@ export class ConsoleApp {
   }
 
   async start(): Promise<void> {
-    console.log('Console mode started. Available commands: !init, !list-rules, !get-rule, !store-rule, !import, exit');
+    console.log('Console mode started. Available commands: !init, !import-doc, !import-blueprint, !make-sample, !make-html, exit');
 
     this.promptUser();
   }
@@ -74,12 +75,13 @@ export class ConsoleApp {
       '!import-blueprint',
       '!ib',
       '!make-sample',
+      '!make-html',
       'exit'
     ];
 
     // Check if we're completing a filename after certain commands
     const words = line.split(' ');
-    if (words.length > 1 && (words[0] === '!import-doc' || words[0] === '!import-blueprint')) {
+    if (words.length > 1 && (words[0] === '!import-doc' || words[0] === '!import-blueprint' || words[0] === '!make-html')) {
       const partialFilename = words[words.length - 1];
       const contentDir = path.join(process.cwd(), 'content');
 
@@ -174,12 +176,20 @@ export class ConsoleApp {
         await makeSample(this.openaiClient, command);
         break;
 
+      case '!make-html':
+        if (parts.length < 2) {
+          console.log('Usage: !make-html <markdown-filename>');
+          return;
+        }
+        await makeHtml(parts[1]);
+        break;
+
       default:
         // Treat as chat message if not starting with !
         if (!command.startsWith('!')) {
           await this.handleChatMessage(command);
         } else {
-          console.log('Unknown command. Available: !init, !list-rules, !get-rule, !store-rule, !import, exit');
+          console.log('Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, exit');
         }
     }
   }

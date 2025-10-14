@@ -14,7 +14,7 @@ Instead, you MUST call the tool store_asset repeatedly using chunk encoding:
 `;
 
 const MarkdownSegment = `
-ATTENTION: When producing markdownm".
+ATTENTION: When producing markdown".
 - Split markdown info chunks with un to 1000 tokens per store_asset call. Follow chunking instructions
 - Use CommonMark “directives” (remark-directive, markdown-it-container, Pandoc fenced divs).
 - For each paragraph, table, cell, row, generate ID using make_id API and store it in the beginning of paragraph using {#p-<id>} syntax. Example
