@@ -58,7 +58,7 @@ export const INITIAL_RULES = [
 - If user asked to update formatting, get additional instructions by calling get_instructions(["use blueprint"])
 
 ## Phase 2: Structure Analysis
-- Check if document structure already exists: call load_asset(kind="structure", keywords=["document_name", "structure"])
+- Check if document structure already exists: call load_asset(kind="structure", keywords=[document_name, "structure"])
 - If structure NOT found, analyze document to create structure:
   1. Read document content in chunks using get_contentrange(name, format) API. Start without start_para/end_para to get full document
   2. DO NOT reorder or modify text content
@@ -68,7 +68,7 @@ export const INITIAL_RULES = [
      - Minimum size: section≥3 paragraphs unless "Intro/Summary"; subsection≥2 paragraphs
      - Titles should be 3-7 words, noun-phrase, no punctuation at end
      - Merge obviously tiny/thematic asides into neighbor sections
-  4. Output structure as JSON and store with store_asset(kind="structure", keywords=["document_name", "structure"], content=<json>)
+  4. Output structure as JSON and store with store_asset(kind="structure", keywords=[document_name, "structure"], content=<json>)
 
   JSON Schema:
   {
