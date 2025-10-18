@@ -147,6 +147,16 @@ export class Database {
     await this.runAsync(`
       CREATE INDEX IF NOT EXISTS idx_keyword_emb_keyword ON keyword_emb(keyword)
     `);
+
+    await this.runAsync(`
+      CREATE TABLE IF NOT EXISTS rulemodel (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        model_json TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
   }
 
   async storeAsset(keywords: string[], text: string, embedding: number[], filename?: string, sourceDoc?: string, kind?: string): Promise<void> {
@@ -413,6 +423,15 @@ export class Database {
     return similarities
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit);
+  }
+
+  async storeRuleModel(name: string, modelJson: string): Promise<void> {
+    await this.runAsync(
+      `INSERT INTO rulemodel (name, model_json, created_at, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT(name) DO UPDATE SET model_json = excluded.model_json, updated_at = CURRENT_TIMESTAMP`,
+      [name, modelJson]
+    );
   }
 
   async close(): Promise<void> {

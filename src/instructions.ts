@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { youAreShadow } from "./chatprompt.js";
 import { Database } from "./database.js";
 import { generateEmbedding, OpenAIClient } from "./openai-client.js";
+import { TrainedModel, Literal, Rule, RuleSet, TrainingExamples, Example, trainRuleReliabilities } from "./rulemodel.js";
 
 const ChunkSegment = `
 ATTENTION: When producing large markdown or html, NEVER write placeholders like "[continued]".
@@ -180,28 +181,136 @@ Execution rules:
 }
 `
   },
+  {
+    keywords: ['create document', 'blueprint step'],
+    text: `
+{
+  "step": "blueprint_semantics",
+  "goal": "Align blueprint and semantic context with the requested document before writing.",
+  "done_when": "A blueprint matching the request is stored (or confirmed) and primary keywords are recorded in context.",
+  "actions": [
+    "Load recent history with load_history to avoid duplicating a document the user already confirmed.",
+    "Set or retrieve the document name via set_context(['document_name'], value) or get_context when unspecified.",
+    "Assemble a keyword set covering tone, genre, length, audience, timeframe, and notable entities; record it using set_context(['document_keywords'], <keywords>).",
+    "Call load_asset(kind='blueprint', keywords=<assembled keywords>).",
+    "If the loaded blueprint metadata conflicts with the request, regenerate it using get_instructions(['create blueprint']) and persist the result with store_asset(kind='blueprint') using the new keyword set.",
+    "Capture any semantic outline or styling notes from the blueprint so later steps can reference them."
+  ],
+  "completion_format": {
+    "status": "blueprint_semantics-complete",
+    "next_step": "outline_plan",
+    "next_prompt": "Call get_instructions(['create document', 'outline step']) to create and store the section plan.",
+    "handoff": {
+      "document_keywords": ["<keyword1>", "<keyword2>"],
+      "blueprint_reference": "<stored blueprint identifier or 'none'>"
+    }
+  }
+}
+`
+  },
+  {
+    keywords: ['create document', 'outline step'],
+    text: `
+{
+  "step": "outline_plan",
+  "goal": "Produce and store the structural outline that will guide chunking.",
+  "done_when": "A structure asset capturing ordered sections/subsections is stored and referenced in context.",
+  "actions": [
+    "Review the blueprint and user request to confirm required sections.",
+    "Draft a concise JSON outline listing sections, subsections, and key notes.",
+    "Store the outline via store_asset(kind='structure', keywords including the document name and type, content=<json>).",
+    "Record structure metadata with set_context(['structure_keywords'], <keywords>) so the compose step can reference it."
+  ],
+  "completion_format": {
+    "status": "outline_plan-complete",
+    "next_step": "compose_html",
+    "next_prompt": "Call get_instructions(['create document', 'compose step']) to stream the HTML content.",
+    "handoff": {
+      "outline_asset": "<structure asset reference>",
+      "section_order": ["<section 1>", "<section 2>"]
+    }
+  }
+}
+`
+  },
+  {
+    keywords: ['create document', 'compose step'],
+    text: `
+{
+  "step": "compose_html",
+  "goal": "Write and stream the HTML content according to the outline and blueprint styles.",
+  "done_when": "All sections are streamed via store_asset(kind='html') with eos on the final chunk.",
+  "actions": [
+    "Plan chunk groups using the stored outline; decide how many chunks each section requires.",
+    "For each section, write HTML paragraphs, tables, and lists with deterministic IDs (generate them when absent).",
+    "For each chunk, call store_asset(kind='html', chunkId=<id>, chunkIndex=<n>, eos=<bool>, scope set to the appropriate unit, and keywords referencing the document name and section).",
+    "Keep each chunk under ~1000 tokens, maintain a consistent chunkId, and increment chunkIndex sequentially.",
+    "List the tool being used in control.allowed_tools before each call and set phase='action'."
+  ],
+  "completion_format": {
+    "status": "compose_html-complete",
+    "next_step": "finalize_history",
+    "next_prompt": "Call get_instructions(['create document', 'finalize step']) to verify storage and record history.",
+    "handoff": {
+      "chunk_count": "<number of chunks streamed>",
+      "last_chunk_id": "<chunkId used>"
+    }
+  }
+}
+`
+  },
+  {
+    keywords: ['create document', 'finalize step'],
+    text: `
+{
+  "step": "finalize_history",
+  "goal": "Verify stored content and record completion details.",
+  "done_when": "A history entry summarizing the document creation is stored and context is updated.",
+  "actions": [
+    "Optionally reload representative sections with load_asset or get_contentrange to confirm the stored output.",
+    "Summarize blueprint usage, chunk statistics, and any outstanding follow-up tasks.",
+    "Call store_history with the summary and update set_context(['last_action'], 'document created') plus any other relevant context."
+  ],
+  "completion_format": {
+    "status": "finalize_history-complete",
+    "next_step": null,
+    "next_prompt": "Present the final summary to the user and offer follow-up options.",
+    "handoff": {
+      "history_entry": "<store_history payload>",
+      "outstanding_questions": "<list or 'none'>"
+    }
+  }
+}
+`
+  },
   // todo: load summaries of X last documents
   // - store HTML version using store_asset(kind: "html") API
   // - create an HTML version of the document only after the markdown draft is ready. apply blueprint formatting when one was successfully loaded.
   {
     keywords: ['create document'],
     text: `
-**to create a document:**
-load recent history using load_history API. check if user is repeating the request.
-make document name and store it using set_context(["document_name]) API call.
-1. Blueprint + semantic context
-   - produce a keyword set from the prompt capturing tone, genre, length, audience, and important entities.
-   - call load_asset(kind: "blueprint") with these keywords. If returned blueprint metadata does not match the request, generate a fresh one using get_instructions(["create blueprint"]) and persist it with store_asset(kind: "blueprint") using the new keyword set.
-   - capture any semantic outline the blueprint provides; if missing, draft a section list yourself so later chunks have structure.
-2. Outline & plan storage
-   - draft a concise JSON outline (sections/subsections) and store it via store_asset(kind: "structure", keywords including the document name and type). This outline drives HTML chunk grouping.
-3. Compose HTML content
-   - write the full document in HTML paragraphs/sections using the verified blueprint styles.
-   - stream the HTML via store_asset(kind: "html") calls. Use a single chunkId per document generation, increment chunkIndex each call, and set eos=true only on the last chunk.
-   - keep each call under ~1000 tokens. When content is long, split by logical unit: section, subsection, paragraph, or table cell. Supply scope (e.g., "section", "paragraph", "cell") and include keywords for section names or semantic roles.
-   - ensure each paragraph or cell carries its identifier (e.g., {#p-…}) before storing, generating IDs with make_id when needed.
-4. Validation & history
-   - after streaming all chunks, confirm total sections/chunks stored, note any blueprint updates, and record a summary via store_history (include document name, chunk count, and key styling choices).
+**create document · step pipeline**
+
+Represent document creation as sequential JSON step cards. Emit only the active card in envelope.metadata.step_card using:
+{
+  "step": "<current step>",
+  "goal": "<target outcome>",
+  "keywords": ["create document", "<step keyword>"],
+  "done_when": "<exit condition>"
+}
+
+Pipeline order:
+1. blueprint_semantics — gather blueprint and semantic context
+2. outline_plan — persist an outline to guide chunking
+3. compose_html — stream formatted HTML content
+4. finalize_history — verify output and record completion
+
+Execution rules:
+- Start each step by calling get_instructions with ["create document", "<step keyword>"]; the response contains JSON guidance and a completion_format for the next step.
+- Perform only the actions listed for the active step. Once done_when is satisfied, respond using the completion_format JSON (including next_prompt) before moving on.
+- Advance to the next step only after emitting the completion JSON. Clear the step card when finalize_history completes.
+- Always list the tool names you invoke in control.allowed_tools and set phase="action" while executing tool calls.
+- Pause and ask the user when additional context is required before continuing.
 
 ${ChunkSegment}
 `
@@ -277,7 +386,146 @@ export async function initInstructions(openaiClient: OpenAIClient, database: Dat
     }
   }
 
+  try {
+    await initRuleModel(database);
+    console.log('✓ Stored rule model based on current instructions');
+  } catch (error) {
+    console.error(`✗ Failed to initialize rule model: ${error}`);
+  }
+
   return [successCount, errorCount]
+}
+
+function normalizeIdentifier(value: string, fallback: string): string {
+  const sanitized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return sanitized.length > 0 ? sanitized : fallback;
+}
+
+async function initRuleModel(database: Database): Promise<void> {
+  const instructions = await database.getAllInstructions();
+
+  if (instructions.length === 0) {
+    const emptyModel: TrainedModel = {
+      version: "noisyor-1.0",
+      labels: [],
+      priors: {},
+      rules: [],
+      train_meta: {
+        objective: "multiclass-log-loss",
+        epochs: 0,
+        optimizer: "adam",
+        lr: 0,
+        l2_c: 0,
+        seed: 0,
+        train_size: 0,
+        val_size: 0,
+        timestamp_utc: new Date().toISOString(),
+        best_val_logloss: 0
+      }
+    };
+
+    await database.storeRuleModel('instructions', JSON.stringify(emptyModel, null, 2));
+    return;
+  }
+
+  const labels: string[] = [];
+  const labelSet = new Set<string>();
+  const rules: Rule[] = [];
+  const examples: Example[] = [];
+
+  instructions.forEach((record, index) => {
+    let keywords: string[] = [];
+    try {
+      keywords = JSON.parse(record.keywords) as string[];
+    } catch {
+      keywords = [];
+    }
+
+    const literals: Literal[] = [];
+    const factsInRule = new Set<string>();
+    const exampleFacts: Record<string, number> = {};
+
+    keywords.forEach((keyword, idx) => {
+      const factName = normalizeIdentifier(keyword, `keyword_${index + 1}_${idx + 1}`);
+      if (factsInRule.has(factName)) {
+        return;
+      }
+      factsInRule.add(factName);
+      literals.push({ fact: factName, positive: true });
+      exampleFacts[factName] = 1;
+    });
+
+    if (literals.length === 0) {
+      const fallbackFact = `instruction_${index + 1}`;
+      factsInRule.add(fallbackFact);
+      literals.push({ fact: fallbackFact, positive: true });
+      exampleFacts[fallbackFact] = 1;
+    }
+
+    const baseLabel = keywords.length > 0
+      ? normalizeIdentifier(keywords[0], `instruction_${index + 1}`)
+      : `instruction_${index + 1}`;
+    let label = baseLabel;
+    let suffix = 1;
+    while (labelSet.has(label)) {
+      label = `${baseLabel}_${++suffix}`;
+    }
+    labelSet.add(label);
+    labels.push(label);
+
+    const rule: Rule = {
+      id: `R${index + 1}`,
+      label,
+      literals,
+      init_c: 0.9,
+      enabled: true,
+      meta: {
+        keywords,
+        instruction_text: record.text
+      }
+    };
+
+    rules.push(rule);
+
+    examples.push({
+      id: `ex_${index + 1}`,
+      label,
+      facts: exampleFacts,
+      weight: 1
+    });
+  });
+
+  const priors: Record<string, number> = {};
+  if (labels.length > 0) {
+    const uniform = 1 / labels.length;
+    labels.forEach(label => {
+      priors[label] = uniform;
+    });
+  }
+
+  const ruleSet: RuleSet = {
+    rules,
+    labels,
+    priors
+  };
+
+  const trainingData: TrainingExamples = {
+    examples
+  };
+
+  const model: TrainedModel = await trainRuleReliabilities(ruleSet, trainingData, trainingData, {
+    epochs: 1,
+    batchSize: Math.max(1, examples.length),
+    lr: 0.05,
+    calibrate: false,
+    earlyStopPatience: 1,
+    seed: 42
+  });
+
+  await database.storeRuleModel('instructions', JSON.stringify(model, null, 2));
 }
 
 async function generateAdditionalKeywords(openaiClient: OpenAIClient, originalTerms: string[], instructionText: string): Promise<string[]> {
@@ -319,6 +567,39 @@ Return only the task - oriented terms as a comma - separated list, no explanatio
 }
 
 export async function getInstructions(database: Database,
+  openaiClient: OpenAI,
+  args: { keywords: string[] }): Promise<string> {
+  console.log("getInstructions: " + JSON.stringify(args))
+
+  // Look up instructions for each term individually
+  const keywordMatches: Array<{ text: string, similarity: number, terms: string[] }> = [];
+
+  for (const term of args.keywords) {
+    const embedding = await generateEmbedding(openaiClient, [term]);
+    const matches = await database.getInstructions(embedding, 3); // Get top 3 for each term
+
+    for (const match of matches) {
+      keywordMatches.push({
+        text: match.text,
+        similarity: match.similarity,
+        terms: match.terms
+      });
+    }
+  }
+
+  if (keywordMatches.length === 0) {
+    return `No instructions found for terms: ${args.keywords.join(', ')} `;
+  }
+
+  // instantiate rule model and lookup weights
+  // then lookup instructions based on combined embedding
+
+  console.log(`getInstructions: [terms: ${args.keywords}][found: ${bestMatches.length}][terms: ${bestMatches.map(x => x.text.substring(0, 100))}]`)
+
+  return "\n[CONTEXT]\n" + bestMatches.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
+}
+
+async function getInstructionsBestMatch(database: Database,
   openaiClient: OpenAI,
   args: { keywords: string[] }): Promise<string> {
   console.log("getInstructions: " + JSON.stringify(args))
