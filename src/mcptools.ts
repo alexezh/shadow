@@ -210,5 +210,35 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
         additionalProperties: false
       }
     }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'store_htmlpart',
+      description: 'Store an HTML part/fragment for a document. Returns the part ID. Use this to break large HTML content into manageable sections, subsections, tables, or cells.',
+      parameters: {
+        type: 'object',
+        properties: {
+          partid: { type: 'string', description: 'Unique identifier for this HTML part (use make_id to generate)' },
+          docid: { type: 'string', description: 'Document identifier this part belongs to' },
+          html: { type: 'string', description: 'HTML content to store' }
+        },
+        required: ['partid', 'docid', 'html']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'load_htmlpart',
+      description: 'Load a previously stored HTML part by its part ID',
+      parameters: {
+        type: 'object',
+        properties: {
+          partid: { type: 'string', description: 'The part ID to retrieve' }
+        },
+        required: ['partid']
+      }
+    }
   }
 ];

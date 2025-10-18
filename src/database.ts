@@ -157,6 +157,20 @@ export class Database {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Create htmlparts table for storing HTML parts
+    await this.runAsync(`
+      CREATE TABLE IF NOT EXISTS htmlparts (
+        partid TEXT PRIMARY KEY,
+        docid TEXT NOT NULL,
+        html TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await this.runAsync(`
+      CREATE INDEX IF NOT EXISTS idx_htmlparts_docid ON htmlparts(docid)
+    `);
   }
 
   async storeAsset(keywords: string[], text: string, embedding: number[], filename?: string, sourceDoc?: string, kind?: string): Promise<void> {
@@ -440,6 +454,30 @@ export class Database {
       [name]
     );
     return result ? result.model_json : null;
+  }
+
+  async storeHtmlPart(partid: string, docid: string, html: string): Promise<void> {
+    await this.runAsync(
+      'INSERT OR REPLACE INTO htmlparts (partid, docid, html) VALUES (?, ?, ?)',
+      [partid, docid, html]
+    );
+  }
+
+  async loadHtmlPart(partid: string): Promise<{ partid: string, docid: string, html: string } | null> {
+    const result = await this.getAsync(
+      'SELECT partid, docid, html FROM htmlparts WHERE partid = ?',
+      [partid]
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    return {
+      partid: result.partid,
+      docid: result.docid,
+      html: result.html
+    };
   }
 
   async close(): Promise<void> {
