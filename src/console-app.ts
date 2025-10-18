@@ -2,7 +2,7 @@ import { getChatPrompt } from './chatprompt.js';
 import { Database } from './database.js';
 import { importBlueprint } from './import-blueprint.js';
 import { importDoc } from './import-doc.js';
-import { INITIAL_RULES, initInstructions } from './instructions.js';
+import { INITIAL_RULES, initInstructions, initRuleModel } from './instructions.js';
 import { makeSample } from './makeSample.js';
 import { makeHtml } from './makeHtml.js';
 import { mcpTools } from './mcptools.js';
@@ -135,6 +135,10 @@ export class ConsoleApp {
     switch (cmd) {
       case '!init':
         await this.handleInit();
+        break;
+
+      case '!initmodel':
+        await initRuleModel(this.database);
         break;
 
       case '!list-instructions':

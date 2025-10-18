@@ -434,6 +434,14 @@ export class Database {
     );
   }
 
+  async loadRuleModel(name: string): Promise<string | null> {
+    const result = await this.getAsync(
+      'SELECT model_json FROM rulemodel WHERE name = ?',
+      [name]
+    );
+    return result ? result.model_json : null;
+  }
+
   async close(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.close((err) => {

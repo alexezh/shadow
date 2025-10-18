@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { youAreShadow } from "./chatprompt.js";
 import { Database } from "./database.js";
 import { generateEmbedding, OpenAIClient } from "./openai-client.js";
-import { TrainedModel, Literal, Rule, RuleSet, TrainingExamples, Example, trainRuleReliabilities } from "./rulemodel.js";
+import { TrainedModel, Literal, Rule, RuleSet, TrainingExamples, Example, trainRuleReliabilities, predictLabel, forwardPass } from "./rulemodel.js";
 
 const ChunkSegment = `
 ATTENTION: When producing large markdown or html, NEVER write placeholders like "[continued]".
@@ -404,7 +404,8 @@ function normalizeIdentifier(value: string, fallback: string): string {
   return sanitized.length > 0 ? sanitized : fallback;
 }
 
-async function initRuleModel(database: Database): Promise<void> {
+export async function initRuleModel(database: Database): Promise<void> {
+  const start = performance.now();
   const instructions = await database.getAllInstructions();
 
   if (instructions.length === 0) {
@@ -526,6 +527,9 @@ async function initRuleModel(database: Database): Promise<void> {
   });
 
   await database.storeRuleModel('instructions', JSON.stringify(model, null, 2));
+
+  const end = performance.now();
+  console.log(`initRuleModel: duration: ${end - start}`);
 }
 
 async function generateAdditionalKeywords(openaiClient: OpenAIClient, originalTerms: string[], instructionText: string): Promise<string[]> {
@@ -592,9 +596,53 @@ export async function getInstructions(database: Database,
   }
 
   // instantiate rule model and lookup weights
-  // then lookup instructions based on combined embedding
+  const modelJson = await database.loadRuleModel('instructions');
+  if (!modelJson) {
+    // Fallback to similarity-based matching if no model exists
+    const sortedMatches = keywordMatches.sort((a, b) => b.similarity - a.similarity);
+    const uniqueTexts = new Map<string, { text: string, similarity: number, terms: string[] }>();
+    for (const match of sortedMatches) {
+      if (!uniqueTexts.has(match.text)) {
+        uniqueTexts.set(match.text, match);
+      }
+    }
+    const bestMatches = Array.from(uniqueTexts.values()).slice(0, 2);
+    console.log(`getInstructions (fallback): [terms: ${args.keywords}][found: ${bestMatches.length}]`)
+    return "\n[CONTEXT]\n" + bestMatches.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
+  }
 
-  console.log(`getInstructions: [terms: ${args.keywords}][found: ${bestMatches.length}][terms: ${bestMatches.map(x => x.text.substring(0, 100))}]`)
+  const model: TrainedModel = JSON.parse(modelJson);
+
+  // Build facts dictionary from user keywords
+  const facts: Record<string, number> = {};
+  for (const keyword of args.keywords) {
+    const factName = normalizeIdentifier(keyword, 'unknown');
+    facts[factName] = 1;
+  }
+
+  // Use rule model to predict best instructions
+  const result = predictLabel(model, facts);
+
+  // Get top 2 labels by probability
+  const sortedLabels = Object.entries(result.posteriors)
+    .sort(([, a], [, b]) => (b as number) - (a as number))
+    .slice(0, 2)
+    .map(([label]) => label);
+
+  // Find instruction texts for these labels
+  const bestMatches: Array<{ text: string, label: string, probability: number }> = [];
+  for (const label of sortedLabels) {
+    const rule = model.rules.find(r => r.label === label);
+    if (rule && rule.meta && rule.meta.instruction_text) {
+      bestMatches.push({
+        text: rule.meta.instruction_text as string,
+        label: label,
+        probability: result.posteriors[label]
+      });
+    }
+  }
+
+  console.log(`getInstructions: [terms: ${args.keywords}][found: ${bestMatches.length}][labels: ${bestMatches.map(x => x.label + ':' + x.probability.toFixed(3))}]`)
 
   return "\n[CONTEXT]\n" + bestMatches.map(x => x.text).join('\n\n') + "\n[/CONTEXT]\n";
 }
