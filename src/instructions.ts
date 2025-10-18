@@ -189,12 +189,19 @@ Execution rules:
 **to create a document:**
 load recent history using load_history API. check if user is repeating the request.
 make document name and store it using set_context(["document_name]) API call.
-- produce a keyword set from the prompt that captures desired semantics and formatting (tone, genre, length, audience). Use those keywords when calling load_asset(kind: "blueprint") to request an existing layout.
-- If the retrieved blueprint keywords, length, or document type do not match the current request, discard it and generate a fresh blueprint: call get_instructions(["create blueprint"]) if necessary, then store the updated blueprint with store_asset(kind: "blueprint") using the new keyword set.
-- compose the document directly in HTML that fulfills the user request; do not emit markdown drafts. Apply formatting from the verified blueprint (or sensible defaults if none exists).
-- stream the HTML via store_asset(kind: "html") using chunkId, chunkIndex, and eos for every call.
-- when content grows beyond ~1000 tokens, break it into logical units (sections, subsections, paragraphs, table cells) and issue separate store_asset calls per unit, reusing chunkId for related chunks and setting scope to the appropriate unit.
-- after streaming the body, summarize validation steps and ensure store_history captures the work completed.
+1. Blueprint + semantic context
+   - produce a keyword set from the prompt capturing tone, genre, length, audience, and important entities.
+   - call load_asset(kind: "blueprint") with these keywords. If returned blueprint metadata does not match the request, generate a fresh one using get_instructions(["create blueprint"]) and persist it with store_asset(kind: "blueprint") using the new keyword set.
+   - capture any semantic outline the blueprint provides; if missing, draft a section list yourself so later chunks have structure.
+2. Outline & plan storage
+   - draft a concise JSON outline (sections/subsections) and store it via store_asset(kind: "structure", keywords including the document name and type). This outline drives HTML chunk grouping.
+3. Compose HTML content
+   - write the full document in HTML paragraphs/sections using the verified blueprint styles.
+   - stream the HTML via store_asset(kind: "html") calls. Use a single chunkId per document generation, increment chunkIndex each call, and set eos=true only on the last chunk.
+   - keep each call under ~1000 tokens. When content is long, split by logical unit: section, subsection, paragraph, or table cell. Supply scope (e.g., "section", "paragraph", "cell") and include keywords for section names or semantic roles.
+   - ensure each paragraph or cell carries its identifier (e.g., {#p-…}) before storing, generating IDs with make_id when needed.
+4. Validation & history
+   - after streaming all chunks, confirm total sections/chunks stored, note any blueprint updates, and record a summary via store_history (include document name, chunk count, and key styling choices).
 
 ${ChunkSegment}
 `

@@ -104,7 +104,8 @@ async function processContent(
     } else if (args.kind === 'mapping') {
       fileExtension = '.blueprint.json';
     } else if (args.kind === 'blueprint') {
-      fileExtension = '.blueprint.md';
+      //fileExtension = '.blueprint.md';
+      // handled separately
     } else if (args.kind === 'html') {
       fileExtension = '.html';
     }

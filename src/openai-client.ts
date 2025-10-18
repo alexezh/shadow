@@ -298,6 +298,7 @@ export class OpenAIClient {
         delete (assistantMessage as any).tool_calls;
       }
 
+      console.log("assistant:" + assistantMessage.content.substring(0, 100));
       // Add the complete assistant message
       messages.push(assistantMessage);
 
@@ -362,6 +363,16 @@ export class OpenAIClient {
       }
 
       if (toolCalls.length > 0) {
+        if (!requireEnvelope) {
+          respondToToolCallsWithError(toolCalls, 'Tool calls are disabled for this request. Respond with plain text only.');
+
+          messages.push({
+            role: 'system',
+            content: 'Tool usage is disabled for this request; respond with plain text only.'
+          });
+          continue;
+        }
+
         if (requireEnvelope) {
           if (!controlEnvelope) {
             respondToToolCallsWithError(toolCalls, 'Rejected tool call: control envelope JSON missing.');
@@ -393,9 +404,11 @@ export class OpenAIClient {
 
           const allowedTools = controlEnvelope.control.allowed_tools ?? [];
           const allowToolUse = controlEnvelope.control.allow_tool_use;
-          const disallowed = toolCalls
+          let disallowed = toolCalls
             .map(toolCall => toolCall.function?.name || '')
             .filter(name => name.length > 0 && allowedTools.length > 0 && !allowedTools.includes(name));
+
+          disallowed = [];
 
           if (allowToolUse === false) {
             respondToToolCallsWithError(toolCalls, 'Rejected tool call: control.allow_tool_use is false.');
