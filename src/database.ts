@@ -248,6 +248,47 @@ export class Database {
     }));
   }
 
+  async getInstructionById(id: number): Promise<{ id: number, keywords: string[], text: string } | null> {
+    const result = await this.getAsync(
+      'SELECT id, keywords, text FROM instructions WHERE id = ?',
+      [id]
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    return {
+      id: result.id,
+      keywords: JSON.parse(result.keywords) as string[],
+      text: result.text
+    };
+  }
+
+  async findInstructionByKeywords(keywords: string[]): Promise<{ id: number, keywords: string[], text: string } | null> {
+    const keywordsString = JSON.stringify(keywords.map(k => k.toLowerCase().trim()).sort());
+
+    // Try exact match first
+    const results = await this.allAsync(
+      'SELECT id, keywords, text FROM instructions'
+    );
+
+    for (const row of results) {
+      const storedKeywords = JSON.parse(row.keywords) as string[];
+      const normalizedStored = JSON.stringify(storedKeywords.map((k: string) => k.toLowerCase().trim()).sort());
+
+      if (normalizedStored === keywordsString) {
+        return {
+          id: row.id,
+          keywords: storedKeywords,
+          text: row.text
+        };
+      }
+    }
+
+    return null;
+  }
+
   private cosineSimilarity(vecA: number[], vecB: number[]): number {
     if (vecA.length !== vecB.length) {
       return 0;

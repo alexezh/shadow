@@ -11,14 +11,22 @@ export const mcpTools: ChatCompletionTool[] = [
     type: 'function' as const,
     function: {
       name: 'get_instructions',
-      description: 'Get stored instructions for given terms',
+      description: 'Get stored instructions for given terms. If keywords match a root rule, returns the rule with a rule_id. To get a specific step, provide rule_id and step name.',
       parameters: {
         type: 'object',
         properties: {
           keywords: {
             type: 'array',
             items: { type: 'string' },
-            description: 'List of terms to get instructions for'
+            description: 'List of terms to get instructions for (e.g., ["edit document"], ["create document"])'
+          },
+          rule_id: {
+            type: 'string',
+            description: 'Optional rule ID from a previous get_instructions call. When provided with step, retrieves that specific step instruction.'
+          },
+          step: {
+            type: 'string',
+            description: 'Optional step name (e.g., "structure step", "selection step"). Must be used with rule_id.'
           }
         },
         required: ['keywords']
@@ -215,15 +223,17 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     type: 'function' as const,
     function: {
       name: 'store_htmlpart',
-      description: 'Store an HTML part/fragment for a document. Returns the part ID. Use this to break large HTML content into manageable sections, subsections, tables, or cells.',
+      description: 'Store an HTML part/fragment for a document. Supports chunking for parts larger than 1000 tokens. Returns the part ID. Use this to break large HTML content into manageable sections, subsections, tables, or cells.',
       parameters: {
         type: 'object',
         properties: {
           partid: { type: 'string', description: 'Unique identifier for this HTML part (use make_id to generate)' },
           docid: { type: 'string', description: 'Document identifier this part belongs to' },
-          html: { type: 'string', description: 'HTML content to store' }
+          html: { type: 'string', description: 'HTML content to store for this chunk' },
+          chunkIndex: { type: 'integer', minimum: 0, description: 'Index of this chunk (0-based). Required for chunking.' },
+          eos: { type: 'boolean', description: 'End of stream - true for the last chunk. Required for chunking.' }
         },
-        required: ['partid', 'docid', 'html']
+        required: ['partid', 'docid', 'html', 'chunkIndex', 'eos']
       }
     }
   },

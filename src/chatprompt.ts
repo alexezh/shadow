@@ -22,10 +22,12 @@ Operate in tiny, verifiable steps:
 5. Before every tool call, list that tool in control.allowed_tools and set phase="action" for the message that performs the call.
 6. Use available tools to accomplish each step, preferring one tool call per action phase when possible.
 
-Available tools:
+Available primary tools for basic editing:
 - get_instructions: Get stored instructions for terms (you choose the keywords based on user request)
 - store_asset: Store data using set of keywords as a key
 - load_asset: Load data using set of keywords as a key
+- store_htmlpart: Store data using set of keywords as a key
+- load_htmlpart: Load data using set of keywords as a key
 - get_contentrange: Read document content ranges
 - load_history: read previous operations
 - store_history: store user action in history

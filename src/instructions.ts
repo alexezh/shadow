@@ -4,21 +4,25 @@ import { Database } from "./database.js";
 import { generateEmbedding, OpenAIClient } from "./openai-client.js";
 import { TrainedModel, Literal, Rule, RuleSet, TrainingExamples, Example, trainRuleReliabilities, predictLabel, forwardPass } from "./rulemodel.js";
 import { CORE_RULES } from "./corerules.js";
+import { yToId } from "./affineperm.js";
+import { RuleDef } from "./ruledef.js";
 
 export async function initInstructions(openaiClient: OpenAIClient, database: Database): Promise<number[]> {
   let successCount = 0;
   let errorCount = 0;
 
-  for (const rule of CORE_RULES) {
+  // Store only parent rules with their childRules intact
+  for (const ruleDef of CORE_RULES) {
     try {
-      // Generate additional terms using OpenAI
-      const additionalKeywords = await generateAdditionalKeywords(openaiClient, rule.keywords, rule.text);
+      // Generate additional terms using OpenAI, passing the whole ruleDef as JSON
+      const ruleJson = JSON.stringify(ruleDef);
+      const additionalKeywords = await generateAdditionalKeywords(openaiClient, ruleDef.keywords, ruleJson);
 
       // Combine original and additional terms as keywords
-      const allKeywords = [...rule.keywords, ...additionalKeywords];
+      const allKeywords = [...ruleDef.keywords, ...additionalKeywords];
 
-      // Store instruction with keywords and text
-      const instructionId = await database.storeInstruction(allKeywords, rule.text);
+      // Store instruction with keywords and complete rule JSON (including childRules)
+      const instructionId = await database.storeInstruction(allKeywords, ruleJson);
 
       // Store embeddings for each keyword
       for (const keyword of allKeywords) {
@@ -26,10 +30,10 @@ export async function initInstructions(openaiClient: OpenAIClient, database: Dat
         await database.storeInstructionEmbedding(instructionId, embedding);
       }
 
-      console.log(`✓ Stored rule for [${rule.keywords.join(', ')}] with ${allKeywords.length} keywords`);
+      console.log(`✓ Stored rule for [${ruleDef.keywords.join(', ')}] with ${allKeywords.length} keywords`);
       successCount++;
     } catch (error) {
-      console.error(`✗ Failed to store rule for [${rule.keywords.join(', ')}]: ${error} `);
+      console.error(`✗ Failed to store rule for [${ruleDef.keywords.join(', ')}]: ${error} `);
       errorCount++;
     }
   }
@@ -180,14 +184,14 @@ export async function initRuleModel(database: Database): Promise<void> {
   console.log(`initRuleModel: duration: ${end - start}`);
 }
 
-async function generateAdditionalKeywords(openaiClient: OpenAIClient, originalTerms: string[], instructionText: string): Promise<string[]> {
+async function generateAdditionalKeywords(openaiClient: OpenAIClient, originalTerms: string[], ruleJson: string): Promise<string[]> {
   try {
     const systemPrompt = youAreShadow;
 
-    const userPrompt = `Given these original terms: [${originalTerms.join(', ')}] and this instruction text:
-${instructionText}
+    const userPrompt = `Given these original terms: [${originalTerms.join(', ')}] and this rule definition (as JSON):
+${ruleJson}
 
-Generate 4 - 6 additional keywords representing different tasks or actions a user might want to accomplish using this instruction. 
+Generate 4 - 6 additional keywords representing different tasks or actions a user might want to accomplish using this instruction.
 Focus on:
 - Specific user goals and intentions
   - Different ways users might describe what they want to do
@@ -208,6 +212,8 @@ Return only the task - oriented terms as a comma - separated list, no explanatio
     // Parse the response to extract terms
     const additionalTerms = response
       .split(',')
+      .map(t => t.trim())
+      .filter(t => t.length > 0);
 
     console.log(`🔍 Generated task terms for [${originalTerms.join(', ')}]: [${additionalTerms.join(', ')}]`);
     return additionalTerms;
@@ -220,15 +226,88 @@ Return only the task - oriented terms as a comma - separated list, no explanatio
 
 export async function getInstructions(database: Database,
   openaiClient: OpenAI,
-  args: { keywords: string[] }): Promise<string> {
+  args: { keywords: string[]; rule_id?: string; step?: string }): Promise<string> {
   console.log("getInstructions: " + JSON.stringify(args))
 
-  // Look up instructions for each term individually
+  // If rule_id and step are provided, look up the specific child rule
+  if (args.rule_id && args.step) {
+    return getInstructionById(database, args)
+  }
+
+  // Try direct lookup in database first
+  const directMatch = await database.findInstructionByKeywords(args.keywords);
+  if (directMatch) {
+    console.log(`getInstructions: [keywords: ${args.keywords}][direct match][rule_id: ${directMatch.id}]`);
+
+    // Parse the stored JSON to get the RuleDef
+    let ruleDef: RuleDef;
+    try {
+      const storedRule = JSON.parse(directMatch.text);
+      ruleDef = storedRule as RuleDef;
+    } catch (error) {
+      // If not valid JSON, treat as plain text (backward compatibility)
+      return "\n[CONTEXT]\n" + directMatch.text + "\n[/CONTEXT]\n";
+    }
+
+    // Return rule with rule_id for root rules
+    return JSON.stringify({
+      rule_id: directMatch.id.toString(),
+      keywords: ruleDef.keywords,
+      has_steps: !!ruleDef.childRules && ruleDef.childRules.length > 0,
+      steps: ruleDef.childRules?.map(cr => cr.step) || [],
+      instruction: ruleDef.text
+    }, null, 2);
+  }
+
+  // Fall back to embedding-based search
+  return await getInstructionsFuzzy(database,
+    openaiClient,
+    args);
+
+}
+
+async function getInstructionById(database: Database, args: { keywords: string[]; rule_id?: string; step?: string }): Promise<string> {
+  const ruleId = args.rule_id ? yToId(args.rule_id) : undefined;
+  const instruction = ruleId ? await database.getInstructionById(ruleId) : undefined;
+
+  if (!instruction) {
+    return JSON.stringify({
+      error: `Rule ID "${args.rule_id}" not found`,
+      available_rule_ids: "Use get_instructions with keywords first to get a rule_id"
+    }, null, 2);
+  }
+
+  // Parse the stored JSON to get the RuleDef
+  let ruleDef: RuleDef;
+  try {
+    const storedRule = JSON.parse(instruction.text);
+    ruleDef = storedRule as RuleDef;
+  } catch (error) {
+    return JSON.stringify({
+      error: `Failed to parse rule JSON for ID "${args.rule_id}"`
+    }, null, 2);
+  }
+
+  const childRule = ruleDef.childRules?.find((x) => x.step === args.step);
+  if (!childRule) {
+    return JSON.stringify({
+      error: `Step "${args.step}" not found in rule "${args.rule_id}"`,
+      available_steps: ruleDef.childRules?.map(cr => cr.step) || []
+    }, null, 2);
+  }
+
+  console.log(`getInstructions: [rule_id: ${args.rule_id}][step: ${args.step}][found child rule]`);
+  return "\n[CONTEXT]\n" + childRule.text + "\n[/CONTEXT]\n";
+}
+
+async function getInstructionsFuzzy(database: Database,
+  openaiClient: OpenAI,
+  args: { keywords: string[]; rule_id?: string; step?: string }): Promise<string> {
   const keywordMatches: Array<{ text: string, similarity: number, terms: string[] }> = [];
 
   for (const term of args.keywords) {
     const embedding = await generateEmbedding(openaiClient, [term]);
-    const matches = await database.getInstructions(embedding, 3); // Get top 3 for each term
+    const matches = await database.getInstructions(embedding, 3);
 
     for (const match of matches) {
       keywordMatches.push({
@@ -240,10 +319,12 @@ export async function getInstructions(database: Database,
   }
 
   if (keywordMatches.length === 0) {
-    return `No instructions found for terms: ${args.keywords.join(', ')} `;
+    return JSON.stringify({
+      error: `No instructions found for terms: ${args.keywords.join(', ')}`
+    }, null, 2);
   }
 
-  // instantiate rule model and lookup weights
+  // Use rule model if available
   const modelJson = await database.loadRuleModel('instructions');
   if (!modelJson) {
     // Fallback to similarity-based matching if no model exists

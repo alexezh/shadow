@@ -9,6 +9,7 @@ import { getContext, setContext } from './context.js';
 import { getContentRange } from './contentrange.js';
 import { ContentBuffer, loadAsset, storeAsset } from './asset.js';
 import { make31BitId } from './make31bitid.js';
+import { loadHtmlPart, storeHtmlPart } from './htmlparts.js';
 
 export interface MCPToolCall {
   name: string;
@@ -64,10 +65,10 @@ export class MCPLocalClient {
         return this.makeId();
 
       case 'store_htmlpart':
-        return await this.storeHtmlPart(toolCall.arguments);
+        return await storeHtmlPart(this.database, toolCall.arguments);
 
       case 'load_htmlpart':
-        return await this.loadHtmlPart(toolCall.arguments);
+        return await loadHtmlPart(this.database, toolCall.arguments);
 
       // case 'get_variable':
       //   return await this.loadHistory(toolCall.arguments);
@@ -204,58 +205,5 @@ export class MCPLocalClient {
       success: true,
       id: id
     }, null, 2);
-  }
-
-  private async storeHtmlPart(args: { partid: string; docid: string; html: string }): Promise<string> {
-    try {
-      await this.database.storeHtmlPart(args.partid, args.docid, args.html);
-
-      console.log(`💾 Stored HTML part: partid="${args.partid}" docid="${args.docid}" (${args.html.length} chars)`);
-
-      return JSON.stringify({
-        success: true,
-        partid: args.partid,
-        docid: args.docid,
-        html_length: args.html.length,
-        message: 'HTML part stored successfully'
-      }, null, 2);
-    } catch (error: any) {
-      console.error('❌ Error storing HTML part:', error);
-      return JSON.stringify({
-        success: false,
-        error: error.message
-      }, null, 2);
-    }
-  }
-
-  private async loadHtmlPart(args: { partid: string }): Promise<string> {
-    try {
-      const result = await this.database.loadHtmlPart(args.partid);
-
-      if (!result) {
-        console.log(`⚠️ HTML part not found: partid="${args.partid}"`);
-        return JSON.stringify({
-          success: false,
-          error: 'HTML part not found',
-          partid: args.partid
-        }, null, 2);
-      }
-
-      console.log(`📖 Loaded HTML part: partid="${result.partid}" docid="${result.docid}" (${result.html.length} chars)`);
-
-      return JSON.stringify({
-        success: true,
-        partid: result.partid,
-        docid: result.docid,
-        html: result.html,
-        html_length: result.html.length
-      }, null, 2);
-    } catch (error: any) {
-      console.error('❌ Error loading HTML part:', error);
-      return JSON.stringify({
-        success: false,
-        error: error.message
-      }, null, 2);
-    }
   }
 }
