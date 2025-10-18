@@ -67,8 +67,10 @@ Examples:
 
 Return only the terms as a comma-separated list, no explanations.`;
 
-    const result = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt);
-    const response = result.response;
+    const { response, conversationId } = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt, {
+      requireEnvelope: false
+    });
+    openaiClient.clearConversation(conversationId);
 
     // Parse the response to extract terms
     const additionalTerms = response

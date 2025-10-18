@@ -192,14 +192,15 @@ export class OpenAIClient {
     mcpTools: Array<ChatCompletionTool>,
     systemPrompt: string,
     userMessage: string,
-    conversationId?: string
+    options?: { conversationId?: string; requireEnvelope?: boolean }
   ): Promise<{ response: string; conversationId: string }> {
 
     // Set the current prompt in the MCP client for history tracking
     this.mcpClient.setCurrentPrompt(userMessage);
 
     // Get or create conversation
-    const conv = this.getOrCreateConversation(conversationId, systemPrompt, userMessage);
+    const requireEnvelope = options?.requireEnvelope ?? false;
+    const conv = this.getOrCreateConversation(options?.conversationId, systemPrompt, userMessage);
     const messages = conv.messages;
     let lastPhase = conv.lastPhase;
 
@@ -306,172 +307,174 @@ export class OpenAIClient {
       if (rawContent.length > 0) {
         try {
           controlEnvelope = parsePhaseEnvelope(rawContent);
-          const transitionIssue = validatePhaseProgression(lastPhase, controlEnvelope.phase);
-          if (transitionIssue) {
-            messages.push({
-              role: 'system',
-              content: `Phase transition error: ${transitionIssue} Respond again with a valid phase-gated control envelope JSON.`
-            });
+          if (requireEnvelope) {
+            const transitionIssue = validatePhaseProgression(lastPhase, controlEnvelope.phase);
+            if (transitionIssue) {
+              messages.push({
+                role: 'system',
+                content: `Phase transition error: ${transitionIssue} Respond again with a valid phase-gated control envelope JSON.`
+              });
+              invalidEnvelopeCount++;
+              if (invalidEnvelopeCount > 5) {
+                throw new Error('Exceeded maximum invalid phase transitions from the assistant.');
+              }
+              continue;
+            }
+
+            lastPhase = controlEnvelope.phase;
+            invalidEnvelopeCount = 0;
+          } else {
+            lastPhase = controlEnvelope.phase;
+          }
+        } catch (error: any) {
+          if (requireEnvelope) {
             invalidEnvelopeCount++;
             if (invalidEnvelopeCount > 5) {
-              throw new Error('Exceeded maximum invalid phase transitions from the assistant.');
+              throw new Error(`Assistant failed to provide a valid phase-gated control envelope JSON after multiple attempts: ${error?.message || String(error)}`);
             }
+
+            respondToToolCallsWithError(toolCalls, `Rejected tool call: ${error?.message || String(error)}`);
+
+            messages.push({
+              role: 'system',
+              content: `Your previous reply was not valid phase-gated control envelope JSON. Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`
+            });
             continue;
+          } else {
+            controlEnvelope = null;
           }
-
-          lastPhase = controlEnvelope.phase;
-          invalidEnvelopeCount = 0;
-        } catch (error: any) {
-          invalidEnvelopeCount++;
-          if (invalidEnvelopeCount > 5) {
-            throw new Error(`Assistant failed to provide a valid phase-gated control envelope JSON after multiple attempts: ${error?.message || String(error)}`);
-          }
-
-          respondToToolCallsWithError(toolCalls, `Rejected tool call: ${error?.message || String(error)}`);
-
-          messages.push({
-            role: 'system',
-            content: `Your previous reply was not valid phase-gated control envelope JSON. Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`
-          });
-          continue;
         }
       } else if (toolCalls && toolCalls.length > 0) {
-        invalidEnvelopeCount++;
-        if (invalidEnvelopeCount > 5) {
-          throw new Error('Assistant attempted to call tools repeatedly without providing the control envelope JSON.');
-        }
+        if (requireEnvelope) {
+          invalidEnvelopeCount++;
+          if (invalidEnvelopeCount > 5) {
+            throw new Error('Assistant attempted to call tools repeatedly without providing the control envelope JSON.');
+          }
 
-        respondToToolCallsWithError(toolCalls, 'Rejected tool call: control envelope JSON missing.');
-
-        messages.push({
-          role: 'system',
-          content: 'Every response must include the phase-gated control envelope JSON before invoking tools. Provide the envelope and retry.'
-        });
-        continue;
-      }
-
-      if (toolCalls.length > 0) {
-        if (!controlEnvelope) {
           respondToToolCallsWithError(toolCalls, 'Rejected tool call: control envelope JSON missing.');
 
           messages.push({
             role: 'system',
-            content: 'You must include the control envelope JSON in every response. Try again.'
+            content: 'Every response must include the phase-gated control envelope JSON before invoking tools. Provide the envelope and retry.'
           });
-          invalidEnvelopeCount++;
-          if (invalidEnvelopeCount > 5) {
-            throw new Error('Assistant failed to provide a control envelope JSON alongside tool calls.');
-          }
           continue;
         }
+      }
 
-        if (controlEnvelope.phase !== 'action') {
-          respondToToolCallsWithError(toolCalls, 'Rejected tool call: phase must be "action" when invoking tools.');
+      if (toolCalls.length > 0) {
+        if (requireEnvelope) {
+          if (!controlEnvelope) {
+            respondToToolCallsWithError(toolCalls, 'Rejected tool call: control envelope JSON missing.');
 
-          messages.push({
-            role: 'system',
-            content: 'When invoking tools, set phase="action" in the control envelope JSON and list the tools in control.allowed_tools. Retry now.'
-          });
-          invalidEnvelopeCount++;
-          if (invalidEnvelopeCount > 5) {
-            throw new Error('Assistant repeatedly invoked tools without using the action phase.');
+            messages.push({
+              role: 'system',
+              content: 'You must include the control envelope JSON in every response. Try again.'
+            });
+            invalidEnvelopeCount++;
+            if (invalidEnvelopeCount > 5) {
+              throw new Error('Assistant failed to provide a control envelope JSON alongside tool calls.');
+            }
+            continue;
           }
-          continue;
-        }
 
-        const allowedTools = controlEnvelope.control.allowed_tools ?? [];
-        const allowToolUse = controlEnvelope.control.allow_tool_use;
-        const disallowed = toolCalls
-          .map(toolCall => toolCall.function?.name || '')
-          .filter(name => name.length > 0 && allowedTools.length > 0 && !allowedTools.includes(name));
+          if (controlEnvelope.phase !== 'action') {
+            respondToToolCallsWithError(toolCalls, 'Rejected tool call: phase must be "action" when invoking tools.');
 
-        if (allowToolUse === false) {
-          respondToToolCallsWithError(toolCalls, 'Rejected tool call: control.allow_tool_use is false.');
-
-          messages.push({
-            role: 'system',
-            content: 'control.allow_tool_use is false; do not invoke tools in the same response. Provide a new envelope.'
-          });
-          invalidEnvelopeCount++;
-          if (invalidEnvelopeCount > 5) {
-            throw new Error('Assistant attempted to invoke tools while explicitly disallowing them.');
+            messages.push({
+              role: 'system',
+              content: 'When invoking tools, set phase="action" in the control envelope JSON and list the tools in control.allowed_tools. Retry now.'
+            });
+            invalidEnvelopeCount++;
+            if (invalidEnvelopeCount > 5) {
+              throw new Error('Assistant repeatedly invoked tools without using the action phase.');
+            }
+            continue;
           }
-          continue;
-        }
 
-        if (disallowed.length > 0) {
-          respondToToolCallsWithError(toolCalls, `Rejected tool call: ${disallowed.join(', ')} not listed in control.allowed_tools.`);
+          const allowedTools = controlEnvelope.control.allowed_tools ?? [];
+          const allowToolUse = controlEnvelope.control.allow_tool_use;
+          const disallowed = toolCalls
+            .map(toolCall => toolCall.function?.name || '')
+            .filter(name => name.length > 0 && allowedTools.length > 0 && !allowedTools.includes(name));
 
-          messages.push({
-            role: 'system',
-            content: `The tools ${disallowed.join(', ')} are not listed in control.allowed_tools. Update the envelope and resend.`
-          });
-          invalidEnvelopeCount++;
-          if (invalidEnvelopeCount > 5) {
-            throw new Error('Assistant repeatedly attempted to invoke tools not present in control.allowed_tools.');
+          if (allowToolUse === false) {
+            respondToToolCallsWithError(toolCalls, 'Rejected tool call: control.allow_tool_use is false.');
+
+            messages.push({
+              role: 'system',
+              content: 'control.allow_tool_use is false; do not invoke tools in the same response. Provide a new envelope.'
+            });
+            invalidEnvelopeCount++;
+            if (invalidEnvelopeCount > 5) {
+              throw new Error('Assistant attempted to invoke tools while explicitly disallowing them.');
+            }
+            continue;
           }
-          continue;
+
+          if (disallowed.length > 0) {
+            respondToToolCallsWithError(toolCalls, `Rejected tool call: ${disallowed.join(', ')} not listed in control.allowed_tools.`);
+
+            messages.push({
+              role: 'system',
+              content: `The tools ${disallowed.join(', ')} are not listed in control.allowed_tools. Update the envelope and resend.`
+            });
+            invalidEnvelopeCount++;
+            if (invalidEnvelopeCount > 5) {
+              throw new Error('Assistant repeatedly attempted to invoke tools not present in control.allowed_tools.');
+            }
+            continue;
+          }
         }
       }
 
       if (toolCalls.length === 0) {
-        if (!controlEnvelope) {
-          messages.push({
-            role: 'system',
-            content: 'All responses must include the control envelope JSON. Provide the envelope.'
-          });
-          invalidEnvelopeCount++;
-          if (invalidEnvelopeCount > 5) {
-            throw new Error('Assistant did not provide the control envelope JSON.');
+        if (requireEnvelope) {
+          if (!controlEnvelope) {
+            messages.push({
+              role: 'system',
+              content: 'All responses must include the control envelope JSON. Provide the envelope.'
+            });
+            invalidEnvelopeCount++;
+            if (invalidEnvelopeCount > 5) {
+              throw new Error('Assistant did not provide the control envelope JSON.');
+            }
+            continue;
           }
-          continue;
-        }
 
-        if (controlEnvelope.phase !== 'final') {
-          messages.push({
-            role: 'system',
-            content: 'Continue working until you can respond with a phase="final" control envelope JSON summarizing the outcome.'
-          });
-          invalidEnvelopeCount++;
-          if (invalidEnvelopeCount > 5) {
-            throw new Error('Assistant failed to reach the final phase with a valid envelope.');
+          if (controlEnvelope.phase !== 'final') {
+            messages.push({
+              role: 'system',
+              content: 'Continue working until you can respond with a phase="final" control envelope JSON summarizing the outcome.'
+            });
+            invalidEnvelopeCount++;
+            if (invalidEnvelopeCount > 5) {
+              throw new Error('Assistant failed to reach the final phase with a valid envelope.');
+            }
+            continue;
           }
-          continue;
+
+          // Update conversation state before returning
+          this.updateConversation(conv.conversationId, messages, lastPhase);
+
+          return {
+            response: JSON.stringify(controlEnvelope, null, 2),
+            conversationId: conv.conversationId
+          };
+        } else {
+          if (rawContent.length === 0) {
+            continue;
+          }
+
+          this.updateConversation(conv.conversationId, messages, lastPhase);
+
+          return {
+            response: rawContent,
+            conversationId: conv.conversationId
+          };
         }
-
-        // Update conversation state before returning
-        this.updateConversation(conv.conversationId, messages, lastPhase);
-
-        return {
-          response: JSON.stringify(controlEnvelope, null, 2),
-          conversationId: conv.conversationId
-        };
       }
 
-      // Execute tool calls
-      for (const toolCall of toolCalls) {
-        if (toolCall.type === 'function') {
-          try {
-            const functionArgs = JSON.parse(toolCall.function.arguments);
-            const result = await this.mcpClient.executeTool({
-              name: toolCall.function.name,
-              arguments: functionArgs
-            });
-
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: result
-            });
-          } catch (error) {
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: `Error executing ${toolCall.function.name}: ${error}`
-            });
-          }
-        }
-      }
+      await this.executeTools(toolCalls, messages);
 
       iteration++;
     }
@@ -483,5 +486,33 @@ export class OpenAIClient {
       response: 'Max iterations reached without final response',
       conversationId: conv.conversationId
     };
+  }
+
+  private async executeTools(toolCalls: any, messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): Promise<void> {
+    // Execute tool calls
+    for (const toolCall of toolCalls) {
+      if (toolCall.type === 'function') {
+        try {
+          const functionArgs = JSON.parse(toolCall.function.arguments);
+          const result = await this.mcpClient.executeTool({
+            name: toolCall.function.name,
+            arguments: functionArgs
+          });
+
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: result
+          });
+        } catch (error) {
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: `Error executing ${toolCall.function.name}: ${error}`
+          });
+        }
+      }
+    }
+
   }
 }

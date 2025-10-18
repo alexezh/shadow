@@ -262,7 +262,7 @@ export class ConsoleApp {
         mcpTools,
         getChatPrompt(),
         message,
-        this.currentConversationId
+        { conversationId: this.currentConversationId, requireEnvelope: true }
       );
 
       // Store conversation ID for continuation

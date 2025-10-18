@@ -71,6 +71,7 @@ Execution rules:
 - Perform only the actions for the current step. When "done_when" is satisfied, respond using the JSON specified in "completion_format", including the embedded "next_prompt".
 - Advance to the next step only after emitting that completion JSON. Clear the step card when the final step completes.
 - If a step requires clarification or missing context, pause the pipeline, ask the user, and resume from the same step after the answer.
+- Whenever a step requires tool usage, add each tool name (for example, "get_instructions") to control.allowed_tools and set phase="action" for that response before making the call.
 
 
 `
@@ -110,10 +111,10 @@ Execution rules:
   "goal": "Pinpoint the precise paragraphs or cells that must change.",
   "done_when": "start_id and end_id are stored in context as the active selection.",
   "actions": [
-    "Check get_context(['selection']) or get_context(['last_range']) for an existing range.",
+    "Check get_context(['selection']) for an existing range.",
     "If the user describes new text, gather synonyms and call find_ranges(name, format, keywords) with useful context_lines.",
     "Map structure titles to paragraph IDs when references come from the cached structure.",
-    "Persist the resolved range via set_context(['selection'], '<start_id>:<end_id>') and mirror to set_context(['last_range'], ...).",
+    "Persist the resolved range via set_context(['selection'], '<start_id>:<end_id>').",
     "Ask the user for clarification instead of guessing when multiple matches exist."
   ],
   "completion_format": {
@@ -188,11 +189,12 @@ Execution rules:
 **to create a document:**
 load recent history using load_history API. check if user is repeating the request.
 make document name and store it using set_context(["document_name]) API call.
-- produce a keyword set from the prompt that captures desired formatting. Use those keywords when calling load_asset(kind: "blueprint") to request an existing layout and formatting, refine it, then persist the update with store_asset(kind: "blueprint") using the same keywords.
-- compose the document directly in HTML that fulfills the user request; do not emit markdown drafts. Use blueprint for HTML formatting 
+- produce a keyword set from the prompt that captures desired semantics and formatting (tone, genre, length, audience). Use those keywords when calling load_asset(kind: "blueprint") to request an existing layout.
+- If the retrieved blueprint keywords, length, or document type do not match the current request, discard it and generate a fresh blueprint: call get_instructions(["create blueprint"]) if necessary, then store the updated blueprint with store_asset(kind: "blueprint") using the new keyword set.
+- compose the document directly in HTML that fulfills the user request; do not emit markdown drafts. Apply formatting from the verified blueprint (or sensible defaults if none exists).
 - stream the HTML via store_asset(kind: "html") using chunkId, chunkIndex, and eos for every call.
 - when content grows beyond ~1000 tokens, break it into logical units (sections, subsections, paragraphs, table cells) and issue separate store_asset calls per unit, reusing chunkId for related chunks and setting scope to the appropriate unit.
-- do not call get_instructions("create blueprint") unless the user explicitly requests new formatting after the document is complete.
+- after streaming the body, summarize validation steps and ensure store_history captures the work completed.
 
 ${ChunkSegment}
 `
@@ -291,8 +293,10 @@ Examples:
 
 Return only the task - oriented terms as a comma - separated list, no explanations.`;
 
-    const result = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt);
-    const response = result.response;
+    const { response, conversationId } = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt, {
+      requireEnvelope: false
+    });
+    openaiClient.clearConversation(conversationId);
 
     // Parse the response to extract terms
     const additionalTerms = response
