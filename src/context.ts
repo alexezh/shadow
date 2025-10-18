@@ -23,7 +23,7 @@ export async function initContextMap(openaiClient: OpenAIClient, database: Datab
   for (const contextDef of CONTEXT_VALUES) {
     try {
       // Generate additional terms using OpenAI
-      const additionalTerms = await generateAdditionalTerms(openaiClient, contextDef.terms, contextDef.text);
+      const additionalTerms = await generateAdditionalKeywords(openaiClient, contextDef.terms, contextDef.text);
 
       // Store embeddings for original terms
       for (const term of contextDef.terms) {
@@ -48,7 +48,7 @@ export async function initContextMap(openaiClient: OpenAIClient, database: Datab
   return [successCount, errorCount];
 }
 
-async function generateAdditionalTerms(openaiClient: OpenAIClient, originalTerms: string[], contextText: string): Promise<string[]> {
+async function generateAdditionalKeywords(openaiClient: OpenAIClient, originalTerms: string[], contextText: string): Promise<string[]> {
   try {
     const systemPrompt = youAreShadow;
 
