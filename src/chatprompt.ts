@@ -63,7 +63,7 @@ Operate in tiny, verifiable steps:
 6. Use available tools to accomplish each step, preferring one tool call per action phase when possible.
 
 Available primary tools for basic editing:
-- get_instructions: Load stored instructions for the selected skill name.
+- get_skills: Load stored instructions for the selected skill name.
 - store_asset: Store data using set of keywords as a key
 - load_asset: Load data using set of keywords as a key
 - store_htmlpart: Store data using set of keywords as a key

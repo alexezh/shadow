@@ -1,7 +1,7 @@
 import { youAreShadow } from "../chatprompt.js";
 import { Database } from "../database.js";
 import { OpenAIClient } from "../openai-client.js";
-import { CORE_RULES } from "./coreskills.js";
+import { CORE_SKILLS } from "./coreskills.js";
 import { initRuleModel } from "../initRuleModel.js";
 
 export async function initInstructions(openaiClient: OpenAIClient, database: Database): Promise<number[]> {
@@ -11,25 +11,32 @@ export async function initInstructions(openaiClient: OpenAIClient, database: Dat
   // Generate and store the skill selection instruction
   const skillSelectionText = await initInstructions2(openaiClient);
   try {
-    const selectionId = await database.storeInstruction(['select', 'skill'], skillSelectionText, 'selectskill');
+    const selectionId = await database.storeSkill({ name: 'selectskill', keywords: ['select', 'skill'], text: skillSelectionText });
     console.log(`✓ Stored skill selection instruction with id ${selectionId}`);
   } catch (error) {
     console.error(`✗ Failed to store skill selection instruction: ${error}`);
     errorCount++;
   }
+  return [successCount, errorCount];
+}
+
+async function initLegacy(openaiClient: OpenAIClient, database: Database): Promise<number[]> {
+  let successCount = 0;
+  let errorCount = 0;
 
   // Store only parent rules with their childRules intact
-  for (const ruleDef of CORE_RULES) {
+  for (const skill of CORE_SKILLS) {
     try {
       // Generate additional terms using OpenAI, passing the whole ruleDef as JSON
-      const ruleJson = JSON.stringify(ruleDef);
-      const additionalKeywords = await generateAdditionalKeywords(openaiClient, ruleDef.keywords, ruleJson);
+      const additionalKeywords = await generateAdditionalKeywords(openaiClient, skill.keywords, JSON.stringify(skill));
 
       // Combine original and additional terms as keywords
-      const allKeywords = [...ruleDef.keywords, ...additionalKeywords];
+      const allKeywords = [...skill.keywords, ...additionalKeywords];
+      const extSkill = { ...skill }
+      extSkill.keywords = allKeywords;
 
       // Store instruction with keywords, complete rule JSON (including childRules), and name
-      const instructionId = await database.storeInstruction(allKeywords, ruleJson, ruleDef.name);
+      const instructionId = await database.storeSkill(extSkill);
 
       // Store embeddings for each keyword
       for (const keyword of allKeywords) {
@@ -37,10 +44,10 @@ export async function initInstructions(openaiClient: OpenAIClient, database: Dat
         await database.storeInstructionEmbedding(instructionId, embedding);
       }
 
-      console.log(`✓ Stored rule [${ruleDef.name}] for [${ruleDef.keywords.join(', ')}] with ${allKeywords.length} keywords`);
+      console.log(`✓ Stored rule [${skill.name}] for [${skill.keywords.join(', ')}] with ${allKeywords.length} keywords`);
       successCount++;
     } catch (error) {
-      console.error(`✗ Failed to store rule for [${ruleDef.keywords.join(', ')}]: ${error} `);
+      console.error(`✗ Failed to store rule for [${skill.keywords.join(', ')}]: ${error} `);
       errorCount++;
     }
   }
@@ -56,7 +63,7 @@ export async function initInstructions(openaiClient: OpenAIClient, database: Dat
 }
 
 export async function initInstructions2(openaiClient: OpenAIClient): Promise<string> {
-  const skillsJson = JSON.stringify(CORE_RULES, null, 2);
+  const skillsJson = JSON.stringify(CORE_SKILLS, null, 2);
 
   const systemPrompt = youAreShadow;
   const userPrompt = `You are provided with the full skill catalog for the system as JSON:

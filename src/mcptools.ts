@@ -10,7 +10,7 @@ export const mcpTools: ChatCompletionTool[] = [
   {
     type: 'function' as const,
     function: {
-      name: 'get_instructions',
+      name: 'get_skills',
       description: 'Get stored instructions by name. Returns instruction text and available steps if applicable.',
       parameters: {
         type: 'object',

@@ -1,6 +1,6 @@
 import { SkillDef } from "../skilldef";
 
-export const editRule: SkillDef =
+export const editSkill: SkillDef =
 {
   name: "edit_text",
   keywords: ['edit document', 'format document'],
@@ -29,12 +29,12 @@ Pipeline order:
 4. apply_formatting — ensure formatting matches the blueprint or request
 
 Execution rules:
-- First, call get_instructions with keywords ["edit document"] to get the rule_id for this pipeline.
-- For each step, call get_instructions(rule_id=<id>, step=<step_name>) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
+- First, call get_skills with keywords ["edit document"] to get the rule_id for this pipeline.
+- For each step, call get_skills(rule_id=<id>, step=<step_name>) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
 - Perform only the actions for the current step. When "done_when" is satisfied, respond using the JSON specified in "completion_format", including the embedded "next_prompt".
 - Advance to the next step only after emitting that completion JSON. Clear the step card when the final step completes.
 - If a step requires clarification or missing context, pause the pipeline, ask the user, and resume from the same step after the answer.
-- Whenever a step requires tool usage, add each tool name (for example, "get_instructions") to control.allowed_tools and set phase="action" for that response before making the call.
+- Whenever a step requires tool usage, add each tool name (for example, "get_skills") to control.allowed_tools and set phase="action" for that response before making the call.
 
 
 `,
@@ -57,7 +57,7 @@ Execution rules:
   "completion_format": {
     "status": "structure-complete",
     "next_step": "selection",
-    "next_prompt": "Call get_instructions(rule_id=<rule_id>, step='selection') to lock the exact range for editing.",
+    "next_prompt": "Call get_skills(rule_id=<rule_id>, step='selection') to lock the exact range for editing.",
     "handoff": {
       "structure_keywords": ["<document_name>", "structure"],
       "blueprint_status": "record whether a blueprint was found"
@@ -83,7 +83,7 @@ Execution rules:
   "completion_format": {
     "status": "selection-complete",
     "next_step": "revise_text",
-    "next_prompt": "Call get_instructions(rule_id=<rule_id>, step='revise') to plan the textual change for the selected range.",
+    "next_prompt": "Call get_skills(rule_id=<rule_id>, step='revise') to plan the textual change for the selected range.",
     "handoff": {
       "range": "<start_id>:<end_id>",
       "notes": "summarize why this range was chosen"
@@ -108,7 +108,7 @@ Execution rules:
   "completion_format": {
     "status": "revise_text-complete",
     "next_step": "apply_formatting",
-    "next_prompt": "Call get_instructions(rule_id=<rule_id>, step='format') to restore styling based on the blueprint and user guidance.",
+    "next_prompt": "Call get_skills(rule_id=<rule_id>, step='format') to restore styling based on the blueprint and user guidance.",
     "handoff": {
       "updated_range": "<start_id>:<end_id>",
       "change_summary": "brief description of modifications"

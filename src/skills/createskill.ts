@@ -11,7 +11,7 @@ Instead, you MUST call the tool store_asset repeatedly using chunk encoding:
 `;
 
 
-export const createRule: SkillDef = {
+export const createSkill: SkillDef = {
   name: "create_document",
   keywords: ['create document'],
   test_keywords: [
@@ -39,8 +39,7 @@ Pipeline order:
 4. finalize_history — verify output and record completion
 
 Execution rules:
-- First, call get_instructions with keywords ["create document"] to get the rule_id for this pipeline.
-- For each step, call get_instructions(rule_id=<id>, step=<step_name>) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
+- For each step, call get_skills(name="create_document", step=<step_name>) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
 - Perform only the actions listed for the active step. Once done_when is satisfied, respond using the completion_format JSON (including next_prompt) before moving on.
 - Advance to the next step only after emitting the completion JSON. Clear the step card when finalize_history completes.
 - Always list the tool names you invoke in control.allowed_tools and set phase="action" while executing tool calls.
@@ -61,13 +60,13 @@ ${ChunkSegment}
     "Set or retrieve the document name via set_context(['document_name'], value) or get_context when unspecified.",
     "Assemble a keyword set covering tone, genre, length, audience, timeframe, and notable entities; record it using set_context(['document_keywords'], <keywords>).",
     "Call load_asset(kind='blueprint', keywords=<assembled keywords>).",
-    "If the loaded blueprint metadata conflicts with the request, regenerate it using get_instructions(['create blueprint']) and persist the result with store_asset(kind='blueprint') using the new keyword set.",
+    "If the loaded blueprint metadata conflicts with the request, regenerate it using get_skills(['create blueprint']) and persist the result with store_asset(kind='blueprint') using the new keyword set.",
     "Capture any semantic outline or styling notes from the blueprint so later steps can reference them."
   ],
   "completion_format": {
     "status": "blueprint_semantics-complete",
     "next_step": "outline_plan",
-    "next_prompt": "Call get_instructions(rule_id=<rule_id>, step='outline') to create and store the section plan.",
+    "next_prompt": "Call get_skills(rule_id=<rule_id>, step='outline') to create and store the section plan.",
     "handoff": {
       "document_keywords": ["<keyword1>", "<keyword2>"],
       "blueprint_reference": "<stored blueprint identifier or 'none'>"
@@ -92,7 +91,7 @@ ${ChunkSegment}
   "completion_format": {
     "status": "outline_plan-complete",
     "next_step": "compose_html",
-    "next_prompt": "Call get_instructions(rule_id=<rule_id>, step='compose') to stream the HTML content.",
+    "next_prompt": "Call get_skills(rule_id=<rule_id>, step='compose') to stream the HTML content.",
     "handoff": {
       "outline_asset": "<structure asset reference>",
       "section_order": ["<section 1>", "<section 2>"]
@@ -127,7 +126,7 @@ ${ChunkSegment}
   "completion_format": {
     "status": "compose_html-complete",
     "next_step": "finalize_history",
-    "next_prompt": "Call get_instructions(rule_id=<rule_id>, step='finalize') to verify storage and record history.",
+    "next_prompt": "Call get_skills(rule_id=<rule_id>, step='finalize') to verify storage and record history.",
     "handoff": {
       "chunk_count": "<number of chunks streamed>",
       "last_chunk_id": "<chunkId used>",

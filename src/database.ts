@@ -1,5 +1,6 @@
 import sqlite3 from 'sqlite3';
 import { promisify } from 'util';
+import { SkillDef } from './skilldef';
 
 export class Database {
   private db: sqlite3.Database;
@@ -201,13 +202,14 @@ export class Database {
     );
   }
 
-  async storeInstruction(keywords: string[], text: string, name?: string): Promise<number> {
-    const keywordsString = JSON.stringify(keywords);
+  async storeSkill(skill: SkillDef): Promise<number> {
+    const keywordsString = JSON.stringify(skill.keywords);
+    const text = JSON.stringify(skill);
 
     // Insert instruction with optional name
     const result = await this.runAsync(
       'INSERT INTO instructions (name, keywords, text) VALUES (?, ?, ?)',
-      [name || null, keywordsString, text]
+      [skill.name || null, keywordsString, text]
     );
 
     if (!result || result.lastID === undefined || result.lastID === null) {
@@ -270,22 +272,17 @@ export class Database {
     };
   }
 
-  async getSkillsByName(name: string): Promise<{ id: number, name: string, keywords: string[], text: string } | null> {
+  async getSkillsByName(name: string): Promise<(SkillDef & { id: number }) | undefined> {
     const result = await this.getAsync(
       'SELECT id, name, keywords, text FROM instructions WHERE name = ?',
       [name]
     );
 
     if (!result) {
-      return null;
+      return undefined;
     }
 
-    return {
-      id: result.id,
-      name: result.name,
-      keywords: JSON.parse(result.keywords) as string[],
-      text: result.text
-    };
+    return { ...JSON.parse(result.text), id: result.id };
   }
 
   async findInstructionByKeywords(keywords: string[]): Promise<{ id: number, keywords: string[], text: string } | null> {

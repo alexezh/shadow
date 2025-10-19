@@ -31,7 +31,7 @@ export class MCPLocalClient {
 
   async executeTool(toolCall: MCPToolCall): Promise<string> {
     switch (toolCall.name) {
-      case 'get_instructions':
+      case 'get_skills':
         return await getSkills(this.database, this.openaiClient, toolCall.arguments);
 
       case 'get_contentrange':
@@ -62,7 +62,7 @@ export class MCPLocalClient {
         return await this.loadHistory(toolCall.arguments);
 
       case 'make_id':
-        return this.makeId();
+        return make31BitId();
 
       case 'store_htmlpart':
         return await storeHtmlPart(this.database, toolCall.arguments);
@@ -196,14 +196,5 @@ export class MCPLocalClient {
         entries: []
       }, null, 2);
     }
-  }
-
-  private makeId(): string {
-    const id = make31BitId();
-    //console.log(`🔢 Generated ID: ${id}`);
-    return JSON.stringify({
-      success: true,
-      id: id
-    }, null, 2);
   }
 }

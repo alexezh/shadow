@@ -1,6 +1,6 @@
 import { Database } from "./database.js";
 import { Example, Literal, Rule, RuleSet, TrainedModel, TrainingExamples, trainRuleReliabilities, predictLabel } from "./rulemodel.js";
-import { CORE_RULES } from "./skills/coreskills.js";
+import { CORE_SKILLS } from "./skills/coreskills.js";
 
 export function normalizeIdentifier(value: string, fallback: string): string {
   const sanitized = value
@@ -191,7 +191,7 @@ export async function testRuleModel(database: Database): Promise<{ total: number
   let failed = 0;
 
   // Test each rule's test_keywords
-  for (const ruleDef of CORE_RULES) {
+  for (const ruleDef of CORE_SKILLS) {
     if (!ruleDef.test_keywords || ruleDef.test_keywords.length === 0) {
       continue;
     }
