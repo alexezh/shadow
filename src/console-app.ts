@@ -2,7 +2,8 @@ import { getChatPrompt } from './chatprompt.js';
 import { Database } from './database.js';
 import { importBlueprint } from './import-blueprint.js';
 import { importDoc } from './import-doc.js';
-import { initInstructions, initRuleModel } from './instructions.js';
+import { initInstructions } from './instructions.js';
+import { initRuleModel, testRuleModel } from './initRuleModel.js';
 import { makeSample } from './makeSample.js';
 import { makeHtml } from './makeHtml.js';
 import { mcpTools } from './mcptools.js';
@@ -70,6 +71,8 @@ export class ConsoleApp {
   private completer(line: string): [string[], string] {
     const completions = [
       '!init',
+      '!initmodel',
+      '!testmodel',
       '!list-instructions',
       '!get-instruction',
       '!import-doc',
@@ -139,6 +142,10 @@ export class ConsoleApp {
 
       case '!initmodel':
         await initRuleModel(this.database);
+        break;
+
+      case '!testmodel':
+        await testRuleModel(this.database);
         break;
 
       case '!list-instructions':

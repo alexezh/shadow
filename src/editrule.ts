@@ -2,7 +2,15 @@ import { RuleDef } from "./ruledef";
 
 export const editRule: RuleDef =
 {
+  name: "edit_text",
   keywords: ['edit document', 'format document'],
+  test_keywords: [
+    'edit document',
+    'modify text',
+    'change paragraph',
+    'update content',
+    'format document'
+  ],
   text: `
 **edit document · step pipeline**
 

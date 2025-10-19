@@ -56,7 +56,14 @@ export const CORE_RULES: RuleDef[] = [
   createRule,
 
   {
+    name: "create_blueprint",
     keywords: ['create blueprint'],
+    test_keywords: [
+      'create blueprint',
+      'extract formatting',
+      'analyze document style',
+      'capture layout'
+    ],
     text: `
 **to create a blueprint**
 -compute semantical structure of the document
@@ -76,7 +83,14 @@ ${ChunkSegment}
 `
   },
   {
+    name: "use_blueprint",
     keywords: ['use blueprint'],
+    test_keywords: [
+      'use blueprint',
+      'apply formatting',
+      'apply style template',
+      'format with blueprint'
+    ],
     text: `
   ** to use blueprint:**
   blueprint is a description(guidelines) for formatting the document.It describes what formatting such as colors
@@ -89,17 +103,50 @@ If the returned blueprint needs adjustments, update it to match the document and
 `
   },
   {
+    name: "edit_image",
     keywords: ['image', 'add'],
+    test_keywords: [
+      'add image',
+      'insert image',
+      'insert picture',
+      'add photo'
+    ],
     text: `
-  ** to add an image:**
-    use insert_entity("image") API to add image. 
+**to add an image:**
+- Get the current selection using get_context(['selection']) to retrieve the start_id where the image should be inserted
+- Invoke insert_object(start_id, "image", "<url to image>") to insert the image at the specified location
+- The start_id should be a paragraph ID from the document structure
 `
   },
   {
-    keywords: ['comment', 'add'],
+    name: "edit_comment",
+    keywords: ['comment', 'edit'],
+    test_keywords: [
+      'add comment',
+      'edit comment',
+      'list comments',
+      'reply to comment',
+      'delete comment'
+    ],
     text: `
-  ** to add an comment:**
-    use insert_entity("image") API to add image. 
+**to work with comments:**
+
+To add a comment:
+- Get the current selection using get_context(['selection'])
+- Invoke comment(selection, "add", "<comment text>") to add a comment to the selected range
+
+To list comment threads:
+- Use comment("list") which returns a list of threads
+- Each thread shows the thread_id, the text of the first comment and the number of replies
+
+To list comments in a specific thread:
+- Use comment("list_thread", <thread_id>) to see all comments in that thread
+
+To reply to a thread:
+- Use comment("reply", <thread_id>, "<reply text>") to add a reply to an existing thread
+
+To delete a comment:
+- Use comment("delete", <thread_id>) to remove a specific comment
 `
   },
 ];

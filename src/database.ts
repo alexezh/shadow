@@ -36,10 +36,11 @@ export class Database {
       )
     `);
 
-    // Recreate instructions table with text field instead of data_id
+    // Recreate instructions table with name and text fields
     await this.runAsync(`
       CREATE TABLE IF NOT EXISTS instructions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
         keywords TEXT NOT NULL,
         text TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -48,6 +49,10 @@ export class Database {
 
     await this.runAsync(`
       CREATE INDEX IF NOT EXISTS idx_instructions_keywords ON instructions(keywords)
+    `);
+
+    await this.runAsync(`
+      CREATE INDEX IF NOT EXISTS idx_instructions_name ON instructions(name)
     `);
 
     // Create instruction_emb table for storing instruction embeddings
@@ -196,13 +201,13 @@ export class Database {
     );
   }
 
-  async storeInstruction(keywords: string[], text: string): Promise<number> {
+  async storeInstruction(keywords: string[], text: string, name?: string): Promise<number> {
     const keywordsString = JSON.stringify(keywords);
 
-    // Insert instruction directly with text
+    // Insert instruction with optional name
     const result = await this.runAsync(
-      'INSERT INTO instructions (keywords, text) VALUES (?, ?)',
-      [keywordsString, text]
+      'INSERT INTO instructions (name, keywords, text) VALUES (?, ?, ?)',
+      [name || null, keywordsString, text]
     );
 
     if (!result || result.lastID === undefined || result.lastID === null) {
@@ -260,6 +265,24 @@ export class Database {
 
     return {
       id: result.id,
+      keywords: JSON.parse(result.keywords) as string[],
+      text: result.text
+    };
+  }
+
+  async getInstructionByName(name: string): Promise<{ id: number, name: string, keywords: string[], text: string } | null> {
+    const result = await this.getAsync(
+      'SELECT id, name, keywords, text FROM instructions WHERE name = ?',
+      [name]
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    return {
+      id: result.id,
+      name: result.name,
       keywords: JSON.parse(result.keywords) as string[],
       text: result.text
     };

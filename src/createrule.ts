@@ -12,7 +12,15 @@ Instead, you MUST call the tool store_asset repeatedly using chunk encoding:
 
 
 export const createRule: RuleDef = {
+  name: "create_document",
   keywords: ['create document'],
+  test_keywords: [
+    'create document',
+    'write new document',
+    'generate content',
+    'compose document',
+    'draft new file'
+  ],
   text: `
 **create document · step pipeline**
 

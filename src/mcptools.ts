@@ -11,25 +11,20 @@ export const mcpTools: ChatCompletionTool[] = [
     type: 'function' as const,
     function: {
       name: 'get_instructions',
-      description: 'Get stored instructions for given terms. If keywords match a root rule, returns the rule with a rule_id. To get a specific step, provide rule_id and step name.',
+      description: 'Get stored instructions by name. Returns instruction text and available steps if applicable.',
       parameters: {
         type: 'object',
         properties: {
-          keywords: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'List of terms to get instructions for (e.g., ["edit document"], ["create document"])'
-          },
-          rule_id: {
+          name: {
             type: 'string',
-            description: 'Optional rule ID from a previous get_instructions call. When provided with step, retrieves that specific step instruction.'
+            description: 'Instruction name (e.g., "edit_text", "create_document", "selectskill", "create_blueprint", "use_blueprint", "edit_image", "edit_comment").'
           },
           step: {
             type: 'string',
-            description: 'Optional step name (e.g., "structure step", "selection step"). Must be used with rule_id.'
+            description: 'Optional step name when requesting a specific step from a multi-step instruction (e.g., "structure", "selection", "revise", "format", "blueprint", "outline", "compose", "finalize").'
           }
         },
-        required: ['keywords']
+        required: ['name']
       }
     }
   },
