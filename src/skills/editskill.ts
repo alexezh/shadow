@@ -29,6 +29,7 @@ Pipeline order:
 4. apply_formatting — ensure formatting matches the blueprint or request
 
 Execution rules:
+- CRITICAL: Once a skill pipeline starts, you MUST complete ALL steps in order (structure → selection → revise_text → apply_formatting) before switching to any other skill. Do NOT call get_skills with a different skill name until this pipeline is fully complete.
 - For each step, call get_skills({ "name": "edit_text", "step": "<step_name>" }) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
 - Perform only the actions for the current step. When "done_when" is satisfied, emit the completion_format JSON in the envelope.
 - IMMEDIATELY after emitting the completion JSON, execute the next_prompt instruction to proceed to the next step. Do NOT wait for user input between steps.

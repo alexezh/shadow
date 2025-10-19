@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { initContextMap } from './context.js';
+import { skilledWorker } from './skilledworker.js';
 
 export class ConsoleApp {
   private database: Database;
@@ -270,11 +271,11 @@ export class ConsoleApp {
       console.log('🤔 Processing your message...');
 
       const systemPrompt = await getChatPrompt(this.database);
-      const result = await this.openaiClient.chatWithMCPTools(
+      const result = await skilledWorker(this.openaiClient,
         mcpTools,
         systemPrompt,
         message,
-        { conversationId: this.currentConversationId, requireEnvelope: true }
+        { conversationId: this.currentConversationId }
       );
 
       // Store conversation ID for continuation

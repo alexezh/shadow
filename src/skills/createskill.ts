@@ -37,10 +37,11 @@ Pipeline order:
 4. finalize_history — verify output and record completion
 
 Execution rules:
+- CRITICAL: Once a skill pipeline starts, you MUST complete ALL steps in order (blueprint_semantics → outline_plan → compose_html → finalize_history) before switching to any other skill. Do NOT call get_skills with a different skill name until this pipeline is fully complete.
 - For each step, call get_skills({ "name": "create_document", "step": "<step_name>" }) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
-- Perform only the actions listed for the active step. Once done_when is satisfied, emit the completion_format JSON in the envelope.
+- Perform only the actions listed for the active step. Once done_when is satisfied, emit the completion_format JSON in phase="analysis" (never phase="final") so the conversation remains open.
 - IMMEDIATELY after emitting the completion JSON, execute the next_prompt instruction to proceed to the next step. Do NOT wait for user input between steps.
-- Continue through all pipeline steps automatically until finalize_history completes or you need to pause for user input.
+- Continue through all pipeline steps automatically until finalize_history completes or you need to pause for user input. Do not send phase="final" until finalize_history reports next_step null (or the user explicitly halts the workflow).
 - Always list the tool names you invoke in control.allowed_tools and set phase="action" while executing tool calls.
 - Only pause and ask the user when additional context is required before continuing.
 
@@ -59,7 +60,7 @@ ${ChunkSegment}
     "Set or retrieve the document name via set_context(['document_name'], value) or get_context when unspecified.",
     "Assemble a keyword set covering tone, genre, length, audience, timeframe, and notable entities; record it using set_context(['document_keywords'], <keywords>).",
     "Call load_asset(kind='blueprint', keywords=<assembled keywords>).",
-    "If the loaded blueprint metadata conflicts with the request, regenerate it using get_skills({ \"name\": \"create_blueprint\" }) and persist the result with store_asset(kind='blueprint') using the new keyword set.",
+    "If the loaded blueprint metadata conflicts with the request, update the blueprint to match the requested style and store it using store_asset(kind='blueprint', keywords=<assembled keywords>, content=<updated blueprint>).",
     "Capture any semantic outline or styling notes from the blueprint so later steps can reference them."
   ],
   "completion_format": {

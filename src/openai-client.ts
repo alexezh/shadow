@@ -192,11 +192,13 @@ export class OpenAIClient {
     mcpTools: Array<ChatCompletionTool>,
     systemPrompt: string,
     userMessage: string,
-    options?: { conversationId?: string; requireEnvelope?: boolean }
+    options?: { conversationId?: string; skipCurrentPrompt?: boolean, requireEnvelope?: boolean }
   ): Promise<{ response: string; conversationId: string }> {
 
     // Set the current prompt in the MCP client for history tracking
-    this.mcpClient.setCurrentPrompt(userMessage);
+    if (options?.skipCurrentPrompt) {
+      this.mcpClient.setCurrentPrompt(userMessage);
+    }
 
     // Get or create conversation
     const requireEnvelope = options?.requireEnvelope ?? false;
@@ -298,7 +300,11 @@ export class OpenAIClient {
         delete (assistantMessage as any).tool_calls;
       }
 
-      console.log("assistant:" + assistantMessage.content.substring(0, 100));
+      if (assistantMessage.content.length !== 0) {
+        console.log("assistant:" + assistantMessage.content.substring(0, 100));
+      } else {
+        console.log("assistant:" + JSON.stringify(assistantMessage).substring(0, 200));
+      }
       // Add the complete assistant message
       messages.push(assistantMessage);
 
