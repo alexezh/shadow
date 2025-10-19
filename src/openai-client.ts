@@ -223,6 +223,8 @@ export class OpenAIClient {
           continue;
         }
 
+        console.warn(`respondToToolCallsWithError: (tool=${toolCall?.function?.name || 'unknown'}) (reason=${reason})`);
+
         messages.push({
           role: 'tool',
           tool_call_id: toolCall.id,
@@ -510,6 +512,8 @@ export class OpenAIClient {
   private async executeTools(toolCalls: any, messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): Promise<void> {
     // Execute tool calls
     for (const toolCall of toolCalls) {
+      console.log("executeTools:" + toolCall.function.name);
+
       if (toolCall.type === 'function') {
         try {
           const functionArgs = JSON.parse(toolCall.function.arguments);

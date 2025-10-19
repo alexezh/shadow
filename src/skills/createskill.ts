@@ -31,17 +31,16 @@ Represent document creation as sequential JSON step cards. Emit only the active 
 }
 
 Pipeline order:
-1. create_document — create document entry and receive docid
+1. create_docid — create document entry and receive docid
 2. blueprint_semantics — gather blueprint and semantic context
 3. outline_plan — persist an outline to guide chunking
 4. compose_html — stream formatted HTML content
 5. finalize_history — verify output and record completion
 
 Execution rules:
-- CRITICAL: Once a skill pipeline starts, you MUST complete ALL steps in order (create_document → blueprint_semantics → outline_plan → compose_html → finalize_history) before switching to any other skill. Do NOT call get_skills with a different skill name until this pipeline is fully complete.
+- CRITICAL: Once a skill pipeline starts, you MUST complete ALL steps in order (create_docid → blueprint_semantics → outline_plan → compose_html → finalize_history) before switching to any other skill. Do NOT call get_skills with a different skill name until this pipeline is fully complete.
 - For each step, call get_skills({ "name": "create_document", "step": "<step_name>" }) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
-- Perform only the actions listed for the active step. Once done_when is satisfied, emit the completion_format JSON in phase="analysis" (never phase="final") so the conversation remains open.
-- IMMEDIATELY after emitting the completion JSON, execute the next_prompt instruction to proceed to the next step. Do NOT wait for user input between steps.
+- Perform only the actions listed for the active step. Once done_when is satisfied, IMMEDIATELY execute the next_prompt instruction to proceed to the next step. Do NOT wait for user input between steps.
 - Continue through all pipeline steps automatically until finalize_history completes or you need to pause for user input. Do not send phase="final" until finalize_history reports next_step null (or the user explicitly halts the workflow).
 - Always list the tool names you invoke in control.allowed_tools and set phase="action" while executing tool calls.
 - Only pause and ask the user when additional context is required before continuing.
@@ -50,20 +49,22 @@ ${ChunkSegment}
 `,
   childSkill: [
     {
-      step: "create_document",
+      step: "create_docid",
       text: `
 {
-  "step": "create_document",
+  "step": "create_docid",
   "goal": "Create a document entry in the database and obtain the document ID for all subsequent operations.",
   "done_when": "A document is created in the database and the docid is stored in context.",
+  "allowed_tools": ["document_create", "set_context"],
   "actions": [
     "Determine the document filename from the user request or generate one based on the document type and subject (e.g., 'story.html', 'report.html').",
     "Call document_create(name=<document filename>) to create the document entry and receive the docid.",
     "Store the docid using set_context(['document_id'], <docid>) for all subsequent steps to reference.",
-    "Store the document name using set_context(['document_name'], <filename>) for reference in later steps."
+    "Store the document name using set_context(['document_name'], <filename>) for reference in later steps.",
+    "IMPORTANT: Only use document_create and set_context tools in this step. List them in control.allowed_tools."
   ],
   "completion_format": {
-    "status": "create_document-complete",
+    "status": "create_docid-complete",
     "next_step": "blueprint_semantics",
     "next_prompt": "Call get_skills({ \"name\": \"create_document\", \"step\": \"blueprint_semantics\" }) to gather blueprint and semantic context.",
     "handoff": {
