@@ -250,13 +250,14 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     type: 'function' as const,
     function: {
       name: 'load_htmlpart',
-      description: 'Load a previously stored HTML part by its part ID',
+      description: 'Load a previously stored HTML part by document ID and part ID',
       parameters: {
         type: 'object',
         properties: {
+          docid: { type: 'string', description: 'The document ID this part belongs to' },
           partid: { type: 'string', description: 'The part ID to retrieve' }
         },
-        required: ['partid']
+        required: ['docid', 'partid']
       }
     }
   }

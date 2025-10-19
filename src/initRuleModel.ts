@@ -1,5 +1,5 @@
 import { Database } from "./database.js";
-import { Example, Literal, Rule, RuleSet, TrainedModel, TrainingExamples, trainRuleReliabilities, predictLabel } from "./rulemodel.js";
+import { Example, Literal, Rule, RuleSet, TrainedModel, TrainingExamples, trainRuleReliabilities, predictLabel } from "./factmodel.js";
 import { CORE_SKILLS } from "./skills/coreskills.js";
 
 export function normalizeIdentifier(value: string, fallback: string): string {

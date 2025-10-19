@@ -202,15 +202,19 @@ export class ConsoleApp {
         break;
 
       case '!listparts':
-        await handleListParts(this.database);
+        if (parts.length >= 2) {
+          await handleListParts(this.database, parts[1]);
+        } else {
+          await handleListParts(this.database);
+        }
         break;
 
       case '!editpart':
-        if (parts.length < 2) {
-          console.log('Usage: !editpart <partid>');
+        if (parts.length < 3) {
+          console.log('Usage: !editpart <docid> <partid>');
           return;
         }
-        await handleEditPart(this.database, parts[1]);
+        await handleEditPart(this.database, parts[1], parts[2]);
         break;
 
       default:

@@ -70,7 +70,7 @@ Available primary tools for basic editing:
 - store_asset: Store data using set of keywords as a key
 - load_asset: Load data using set of keywords as a key
 - store_htmlpart: Store HTML parts for a document (requires docid from document_create)
-- load_htmlpart: Load HTML parts by part ID
+- load_htmlpart: Load HTML parts by document ID and part ID
 - get_contentrange: Read document content ranges
 - load_history: read previous operations
 - store_history: store user action in history

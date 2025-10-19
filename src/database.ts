@@ -542,15 +542,15 @@ export class Database {
 
   async storeHtmlPart(partid: string, docid: string, html: string): Promise<void> {
     await this.runAsync(
-      'INSERT OR REPLACE INTO htmlparts (partid, docid, html) VALUES (?, ?, ?)',
-      [partid, docid, html]
+      'INSERT INTO htmlparts (docid, partid, html) VALUES (?, ?, ?) ON CONFLICT(docid, partid) DO UPDATE SET html = excluded.html',
+      [docid, partid, html]
     );
   }
 
-  async loadHtmlPart(partid: string): Promise<{ partid: string, docid: string, html: string } | null> {
+  async loadHtmlPart(docid: string, partid: string): Promise<{ id: number, partid: string, docid: string, html: string } | null> {
     const result = await this.getAsync(
-      'SELECT partid, docid, html FROM htmlparts WHERE partid = ?',
-      [partid]
+      'SELECT id, docid, partid, html FROM htmlparts WHERE docid = ? AND partid = ?',
+      [docid, partid]
     );
 
     if (!result) {
@@ -558,28 +558,38 @@ export class Database {
     }
 
     return {
+      id: result.id,
       partid: result.partid,
       docid: result.docid,
       html: result.html
     };
   }
 
-  async getAllHtmlParts(): Promise<Array<{ partid: string, docid: string, html: string }>> {
-    const results = await this.allAsync(
-      'SELECT partid, docid, html FROM htmlparts ORDER BY docid, partid'
-    );
+  async getAllHtmlParts(docid?: string): Promise<Array<{ id: number, partid: string, docid: string, html: string }>> {
+    let sql = 'SELECT id, docid, partid, html FROM htmlparts';
+    const params: any[] = [];
+
+    if (docid) {
+      sql += ' WHERE docid = ?';
+      params.push(docid);
+    }
+
+    sql += ' ORDER BY docid, partid';
+
+    const results = await this.allAsync(sql, params);
 
     return results.map(row => ({
+      id: row.id,
       partid: row.partid,
       docid: row.docid,
       html: row.html
     }));
   }
 
-  async updateHtmlPart(partid: string, html: string): Promise<void> {
+  async updateHtmlPart(docid: string, partid: string, html: string): Promise<void> {
     await this.runAsync(
-      'UPDATE htmlparts SET html = ? WHERE partid = ?',
-      [html, partid]
+      'UPDATE htmlparts SET html = ? WHERE docid = ? AND partid = ?',
+      [html, docid, partid]
     );
   }
 

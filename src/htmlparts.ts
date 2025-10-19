@@ -107,15 +107,16 @@ export async function storeHtmlPart(
   }
 }
 
-export async function loadHtmlPart(database: Database, args: { partid: string }): Promise<string> {
+export async function loadHtmlPart(database: Database, args: { docid: string; partid: string }): Promise<string> {
   try {
-    const result = await database.loadHtmlPart(args.partid);
+    const result = await database.loadHtmlPart(args.docid, args.partid);
 
     if (!result) {
-      console.log(`⚠️ HTML part not found: partid="${args.partid}"`);
+      console.log(`⚠️ HTML part not found: docid="${args.docid}" partid="${args.partid}"`);
       return JSON.stringify({
         success: false,
         error: 'HTML part not found',
+        docid: args.docid,
         partid: args.partid
       }, null, 2);
     }
@@ -124,6 +125,7 @@ export async function loadHtmlPart(database: Database, args: { partid: string })
 
     return JSON.stringify({
       success: true,
+      id: result.id,
       partid: result.partid,
       docid: result.docid,
       html: result.html,
@@ -138,22 +140,27 @@ export async function loadHtmlPart(database: Database, args: { partid: string })
   }
 }
 
-export async function handleListParts(database: Database): Promise<void> {
+export async function handleListParts(database: Database, docid?: string): Promise<void> {
   try {
-    const parts = await database.getAllHtmlParts();
+    // Pass docid directly to database method for efficient filtering
+    const parts = await database.getAllHtmlParts(docid);
 
     if (parts.length === 0) {
-      console.log('No HTML parts found.');
+      if (docid) {
+        console.log(`No HTML parts found for document: ${docid}`);
+      } else {
+        console.log('No HTML parts found.');
+      }
       return;
     }
 
     // Group parts by docid
-    const partsByDoc = new Map<string, Array<{ partid: string, html: string }>>();
+    const partsByDoc = new Map<string, Array<{ id: number, partid: string, html: string }>>();
     for (const part of parts) {
       if (!partsByDoc.has(part.docid)) {
         partsByDoc.set(part.docid, []);
       }
-      partsByDoc.get(part.docid)!.push({ partid: part.partid, html: part.html });
+      partsByDoc.get(part.docid)!.push({ id: part.id, partid: part.partid, html: part.html });
     }
 
     // Display as hierarchy
@@ -171,12 +178,13 @@ export async function handleListParts(database: Database): Promise<void> {
   }
 }
 
-export async function handleEditPart(database: Database, partid: string): Promise<void> {
+export async function handleEditPart(database: Database, docid: string, partid: string): Promise<void> {
   try {
     // Load the part from database
-    const part = await database.loadHtmlPart(partid);
+    const part = await database.loadHtmlPart(docid, partid);
+
     if (!part) {
-      console.log(`❌ Part not found: ${partid}`);
+      console.log(`❌ Part not found: docid="${docid}" partid="${partid}"`);
       return;
     }
 
@@ -203,9 +211,9 @@ export async function handleEditPart(database: Database, partid: string): Promis
             // Read updated content
             const updatedHtml = fs.readFileSync(tmpFile, 'utf-8');
 
-            // Update database
-            await database.updateHtmlPart(partid, updatedHtml);
-            console.log(`✓ Updated part ${partid} in database`);
+            // Update database with both docid and partid
+            await database.updateHtmlPart(part.docid, partid, updatedHtml);
+            console.log(`✓ Updated part ${partid} (docid: ${part.docid}) in database`);
 
             // Clean up temp file
             fs.unlinkSync(tmpFile);
