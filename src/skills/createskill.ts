@@ -38,10 +38,11 @@ Pipeline order:
 
 Execution rules:
 - For each step, call get_skills({ "name": "create_document", "step": "<step_name>" }) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
-- Perform only the actions listed for the active step. Once done_when is satisfied, respond using the completion_format JSON (including next_prompt) before moving on.
-- Advance to the next step only after emitting the completion JSON. Clear the step card when finalize_history completes.
+- Perform only the actions listed for the active step. Once done_when is satisfied, emit the completion_format JSON in the envelope.
+- IMMEDIATELY after emitting the completion JSON, execute the next_prompt instruction to proceed to the next step. Do NOT wait for user input between steps.
+- Continue through all pipeline steps automatically until finalize_history completes or you need to pause for user input.
 - Always list the tool names you invoke in control.allowed_tools and set phase="action" while executing tool calls.
-- Pause and ask the user when additional context is required before continuing.
+- Only pause and ask the user when additional context is required before continuing.
 
 ${ChunkSegment}
 `,

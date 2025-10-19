@@ -280,7 +280,7 @@ export class ConsoleApp {
       // Store conversation ID for continuation
       this.currentConversationId = result.conversationId;
 
-      console.log('🤖 Shadow:', result.response);
+      console.log('Shadow complete:', result.response);
 
     } catch (error) {
       console.error('❌ Error processing chat message:', error);
