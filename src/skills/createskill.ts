@@ -10,7 +10,6 @@ Instead, you MUST call the tool store_asset repeatedly using chunk encoding:
 
 `;
 
-
 export const createSkill: SkillDef = {
   name: "create_document",
   keywords: ['create document'],
@@ -28,7 +27,6 @@ Represent document creation as sequential JSON step cards. Emit only the active 
 {
   "step": "<current step>",
   "goal": "<target outcome>",
-  "keywords": ["create document", "<step keyword>"],
   "done_when": "<exit condition>"
 }
 
@@ -39,7 +37,7 @@ Pipeline order:
 4. finalize_history — verify output and record completion
 
 Execution rules:
-- For each step, call get_skills(name="create_document", step=<step_name>) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
+- For each step, call get_skills({ "name": "create_document", "step": "<step_name>" }) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
 - Perform only the actions listed for the active step. Once done_when is satisfied, respond using the completion_format JSON (including next_prompt) before moving on.
 - Advance to the next step only after emitting the completion JSON. Clear the step card when finalize_history completes.
 - Always list the tool names you invoke in control.allowed_tools and set phase="action" while executing tool calls.
@@ -49,7 +47,7 @@ ${ChunkSegment}
 `,
   childRules: [
     {
-      step: 'blueprint',
+      step: "blueprint_semantics",
       text: `
 {
   "step": "blueprint_semantics",
@@ -60,15 +58,15 @@ ${ChunkSegment}
     "Set or retrieve the document name via set_context(['document_name'], value) or get_context when unspecified.",
     "Assemble a keyword set covering tone, genre, length, audience, timeframe, and notable entities; record it using set_context(['document_keywords'], <keywords>).",
     "Call load_asset(kind='blueprint', keywords=<assembled keywords>).",
-    "If the loaded blueprint metadata conflicts with the request, regenerate it using get_skills(['create blueprint']) and persist the result with store_asset(kind='blueprint') using the new keyword set.",
+    "If the loaded blueprint metadata conflicts with the request, regenerate it using get_skills({ \"name\": \"create_blueprint\" }) and persist the result with store_asset(kind='blueprint') using the new keyword set.",
     "Capture any semantic outline or styling notes from the blueprint so later steps can reference them."
   ],
   "completion_format": {
     "status": "blueprint_semantics-complete",
     "next_step": "outline_plan",
-    "next_prompt": "Call get_skills(rule_id=<rule_id>, step='outline') to create and store the section plan.",
+    "next_prompt": "Call get_skills({ \"name\": \"create_document\", \"step\": \"outline_plan\" }) to create and store the section plan.",
     "handoff": {
-      "document_keywords": ["<keyword1>", "<keyword2>"],
+      "document_keywords": [\"<keyword1>\", \"<keyword2>\"],
       "blueprint_reference": "<stored blueprint identifier or 'none'>"
     }
   }
@@ -76,7 +74,7 @@ ${ChunkSegment}
 `
     },
     {
-      step: 'outline',
+      step: "outline_plan",
       text: `
 {
   "step": "outline_plan",
@@ -91,17 +89,17 @@ ${ChunkSegment}
   "completion_format": {
     "status": "outline_plan-complete",
     "next_step": "compose_html",
-    "next_prompt": "Call get_skills(rule_id=<rule_id>, step='compose') to stream the HTML content.",
+    "next_prompt": "Call get_skills({ \"name\": \"create_document\", \"step\": \"compose_html\" }) to stream the HTML content.",
     "handoff": {
       "outline_asset": "<structure asset reference>",
-      "section_order": ["<section 1>", "<section 2>"]
+      "section_order": [\"<section 1>\", \"<section 2>\"]
     }
   }
 }
 `
     },
     {
-      step: 'compose',
+      step: "compose_html",
       text: `
 {
   "step": "compose_html",
@@ -118,15 +116,15 @@ ${ChunkSegment}
     "    * Call store_htmlpart(partid, docid, html, chunkIndex=N, eos=true) for the final chunk",
     "  - If the HTML part is under ~1000 tokens, store it in a single call:",
     "    * Call store_htmlpart(partid, docid, html, chunkIndex=0, eos=true)",
-    "  - In the parent HTML, embed a reference comment: <!-- htmlpart:include id=\\"<partid>\\" mime=\\"text/html\\" scope=\\"section|subsection|table|cell\\" target=\\"<target-id>\\" required=\\"true\\" -->",
-    "  - Example for a large table cell: <!-- htmlpart:include id=\\"a1b2c3\\" mime=\\"text/html\\" scope=\\"cell\\" target=\\"t-outer:r-12:c-2\\" required=\\"true\\" -->",
+    "  - In the parent HTML, embed a reference comment: <!-- htmlpart:include id=\\\"<partid>\\\" mime=\\\"text/html\\\" scope=\\\"section|subsection|table|cell\\\" target=\\\"<target-id>\\\" required=\\\"true\\\" -->",
+    "  - Example for a large table cell: <!-- htmlpart:include id=\\\"a1b2c3\\\" mime=\\\"text/html\\\" scope=\\\"cell\\\" target=\\\"t-outer:r-12:c-2\\\" required=\\\"true\\\" -->",
     "For the main document content, use store_asset(kind='html', chunkId=<id>, chunkIndex=<n>, eos=<bool>) with consistent chunkId and sequential chunkIndex.",
     "List the tool being used in control.allowed_tools before each call and set phase='action'."
   ],
   "completion_format": {
     "status": "compose_html-complete",
     "next_step": "finalize_history",
-    "next_prompt": "Call get_skills(rule_id=<rule_id>, step='finalize') to verify storage and record history.",
+    "next_prompt": "Call get_skills({ \"name\": \"create_document\", \"step\": \"finalize_history\" }) to verify storage and record history.",
     "handoff": {
       "chunk_count": "<number of chunks streamed>",
       "last_chunk_id": "<chunkId used>",
@@ -137,7 +135,7 @@ ${ChunkSegment}
 `
     },
     {
-      step: 'finalize',
+      step: "finalize_history",
       text: `
 {
   "step": "finalize_history",
@@ -161,4 +159,4 @@ ${ChunkSegment}
 `
     }
   ]
-}
+};
