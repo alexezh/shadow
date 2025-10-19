@@ -1,7 +1,7 @@
 import OpenAI from "openai";
-import { Database } from "../database";
-import { SkillDef } from "../skilldef";
-import { CORE_SKILLS } from "./coreskills";
+import { Database } from "../database.js";
+import { SkillDef } from "../skilldef.js";
+import { CORE_SKILLS } from "./coreskills.js";
 
 
 export async function getSkills(database: Database,
@@ -21,15 +21,13 @@ export async function getSkills(database: Database,
 
   // Try to parse as RuleDef
   try {
-    const skillDef = JSON.parse(skill.text) as SkillDef;
-
     // If step is requested, find it in childRules
-    if (args.step && skillDef.childRules) {
-      const childRule = skillDef.childRules.find(cr => cr.step === args.step);
+    if (args.step && skill.childRules) {
+      const childRule = skill.childRules.find(cr => cr.step === args.step);
       if (!childRule) {
         return JSON.stringify({
           error: `Step "${args.step}" not found in instruction "${args.name}"`,
-          available_steps: skillDef.childRules.map(cr => cr.step)
+          available_steps: skill.childRules.map(cr => cr.step)
         }, null, 2);
       }
       console.log(`getSkills: [name: ${args.name}][step: ${args.step}][found child rule]`);
@@ -37,13 +35,13 @@ export async function getSkills(database: Database,
     }
 
     // Return the full rule info
-    console.log(`getSkills: [name: ${args.name}][has_steps: ${!!skillDef.childRules}]`);
+    console.log(`getSkills: [name: ${args.name}][has_steps: ${!!skill.childRules}]`);
     return JSON.stringify({
       name: skill.name,
-      keywords: skillDef.keywords,
-      has_steps: !!skillDef.childRules && skillDef.childRules.length > 0,
-      steps: skillDef.childRules?.map(cr => cr.step) || [],
-      instruction: skillDef.text
+      keywords: skill.keywords,
+      has_steps: !!skill.childRules && skill.childRules.length > 0,
+      steps: skill.childRules?.map(cr => cr.step) || [],
+      instruction: skill.text
     }, null, 2);
   } catch (error) {
     // If not JSON, return as plain text (for selectskill and other text-only instructions)
