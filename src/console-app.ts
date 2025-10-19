@@ -14,6 +14,8 @@ import * as path from 'path';
 import * as os from 'os';
 import { initContextMap } from './context.js';
 import { skilledWorker } from './skilledworker.js';
+import { spawn } from 'child_process';
+import { handleEditPart, handleListParts } from './htmlparts.js';
 
 export class ConsoleApp {
   private database: Database;
@@ -37,7 +39,7 @@ export class ConsoleApp {
   }
 
   async start(): Promise<void> {
-    console.log('Console mode started. Available commands: !init, !import-doc, !import-blueprint, !make-sample, !make-html, exit');
+    console.log('Console mode started. Available commands: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, exit');
 
     this.promptUser();
   }
@@ -81,6 +83,8 @@ export class ConsoleApp {
       '!ib',
       '!make-sample',
       '!make-html',
+      '!listparts',
+      '!editpart',
       'exit'
     ];
 
@@ -197,12 +201,24 @@ export class ConsoleApp {
         await makeHtml(parts[1]);
         break;
 
+      case '!listparts':
+        await handleListParts(this.database);
+        break;
+
+      case '!editpart':
+        if (parts.length < 2) {
+          console.log('Usage: !editpart <partid>');
+          return;
+        }
+        await handleEditPart(this.database, parts[1]);
+        break;
+
       default:
         // Treat as chat message if not starting with !
         if (!command.startsWith('!')) {
           await this.handleChatMessage(command);
         } else {
-          console.log('Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, exit');
+          console.log('Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, exit');
         }
     }
   }
@@ -268,8 +284,8 @@ export class ConsoleApp {
 
   private async handleChatMessage(message: string): Promise<void> {
     try {
-      console.log('🤔 Processing your message...');
 
+      const startAt = performance.now();
       const systemPrompt = await getChatPrompt(this.database);
       const result = await skilledWorker(this.openaiClient,
         mcpTools,
@@ -281,7 +297,8 @@ export class ConsoleApp {
       // Store conversation ID for continuation
       this.currentConversationId = result.conversationId;
 
-      console.log('Shadow complete:', result.response);
+      const endAt = performance.now();
+      console.log(`Shadow complete: elapsed: ${endAt - startAt} response:`, result.response);
 
     } catch (error) {
       console.error('❌ Error processing chat message:', error);

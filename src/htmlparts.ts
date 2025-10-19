@@ -1,9 +1,41 @@
 import { Database } from "./database";
+import * as readline from 'readline';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { spawn } from "child_process";
 
 // Buffer for chunked HTML parts: partid -> array of chunks
 type HtmlPartBuffer = Map<string, Array<{ chunkIndex: number; html: string }>>;
 
 const htmlPartBuffer: HtmlPartBuffer = new Map();
+
+// Helper function to generate random ID
+function generateId(): string {
+  return Math.floor(Math.random() * 0x7FFFFFFF).toString(36);
+}
+
+export async function documentCreate(database: Database, args: { name: string }): Promise<string> {
+  try {
+    const docId = generateId();
+    await database.createDocument(docId, args.name);
+
+    console.log(`📄 Created document: id="${docId}" name="${args.name}"`);
+
+    return JSON.stringify({
+      success: true,
+      id: docId,
+      name: args.name,
+      message: 'Document created successfully'
+    }, null, 2);
+  } catch (error: any) {
+    console.error('❌ Error creating document:', error);
+    return JSON.stringify({
+      success: false,
+      error: error.message
+    }, null, 2);
+  }
+}
 
 export async function storeHtmlPart(
   database: Database,
@@ -103,5 +135,100 @@ export async function loadHtmlPart(database: Database, args: { partid: string })
       success: false,
       error: error.message
     }, null, 2);
+  }
+}
+
+export async function handleListParts(database: Database): Promise<void> {
+  try {
+    const parts = await database.getAllHtmlParts();
+
+    if (parts.length === 0) {
+      console.log('No HTML parts found.');
+      return;
+    }
+
+    // Group parts by docid
+    const partsByDoc = new Map<string, Array<{ partid: string, html: string }>>();
+    for (const part of parts) {
+      if (!partsByDoc.has(part.docid)) {
+        partsByDoc.set(part.docid, []);
+      }
+      partsByDoc.get(part.docid)!.push({ partid: part.partid, html: part.html });
+    }
+
+    // Display as hierarchy
+    console.log('\nHTML Parts Hierarchy:');
+    for (const [docid, docParts] of partsByDoc) {
+      console.log(`\n📄 ${docid}`);
+      for (const part of docParts) {
+        const preview = part.html.substring(0, 60).replace(/\n/g, ' ');
+        console.log(`  └─ ${part.partid}: ${preview}${part.html.length > 60 ? '...' : ''}`);
+      }
+    }
+    console.log(`\nTotal: ${parts.length} parts across ${partsByDoc.size} documents`);
+  } catch (error) {
+    console.error('❌ Error listing parts:', error);
+  }
+}
+
+export async function handleEditPart(database: Database, partid: string): Promise<void> {
+  try {
+    // Load the part from database
+    const part = await database.loadHtmlPart(partid);
+    if (!part) {
+      console.log(`❌ Part not found: ${partid}`);
+      return;
+    }
+
+    // Get editor from environment variable or use default
+    const editor = process.env.SHADOW_EDITOR || process.env.EDITOR || 'vim';
+
+    // Create temporary file
+    const tmpDir = os.tmpdir();
+    const tmpFile = path.join(tmpDir, `shadow-part-${partid}.html`);
+
+    // Write current content to temp file
+    fs.writeFileSync(tmpFile, part.html, 'utf-8');
+    console.log(`Opening ${tmpFile} in ${editor}...`);
+
+    // Spawn editor
+    return new Promise((resolve, reject) => {
+      const editorProcess = spawn(editor, [tmpFile], {
+        stdio: 'inherit'
+      });
+
+      editorProcess.on('exit', async (code) => {
+        if (code === 0) {
+          try {
+            // Read updated content
+            const updatedHtml = fs.readFileSync(tmpFile, 'utf-8');
+
+            // Update database
+            await database.updateHtmlPart(partid, updatedHtml);
+            console.log(`✓ Updated part ${partid} in database`);
+
+            // Clean up temp file
+            fs.unlinkSync(tmpFile);
+            resolve();
+          } catch (error) {
+            console.error('❌ Error updating part:', error);
+            reject(error);
+          }
+        } else {
+          console.log('Editor exited without saving (or with error)');
+          fs.unlinkSync(tmpFile);
+          resolve();
+        }
+      });
+
+      editorProcess.on('error', (error) => {
+        console.error(`❌ Failed to launch editor ${editor}:`, error);
+        console.log('Set SHADOW_EDITOR or EDITOR environment variable to specify your preferred editor');
+        fs.unlinkSync(tmpFile);
+        reject(error);
+      });
+    });
+  } catch (error) {
+    console.error('❌ Error editing part:', error);
   }
 }

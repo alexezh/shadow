@@ -3,7 +3,7 @@ export type SkillDef = {
   keywords: string[];
   text: string;
   test_keywords?: string[];
-  childRules?: {
+  childSkill?: {
     step: string;
     text: string;
   }[];

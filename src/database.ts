@@ -164,18 +164,41 @@ export class Database {
       )
     `);
 
+    // Create documents table for tracking document metadata
+    await this.runAsync(`
+      CREATE TABLE IF NOT EXISTS documents (
+        id TEXT PRIMARY KEY,
+        filename TEXT NOT NULL,
+        mainpart_id TEXT,
+        blueprint_id TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await this.runAsync(`
+      CREATE INDEX IF NOT EXISTS idx_documents_filename ON documents(filename)
+    `);
+
     // Create htmlparts table for storing HTML parts
     await this.runAsync(`
       CREATE TABLE IF NOT EXISTS htmlparts (
-        partid TEXT PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         docid TEXT NOT NULL,
+        partid TEXT NOT NULL,
         html TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(docid, partid),
+        FOREIGN KEY (docid) REFERENCES documents (id)
       )
     `);
 
     await this.runAsync(`
       CREATE INDEX IF NOT EXISTS idx_htmlparts_docid ON htmlparts(docid)
+    `);
+
+    await this.runAsync(`
+      CREATE INDEX IF NOT EXISTS idx_htmlparts_partid ON htmlparts(partid)
     `);
   }
 
@@ -539,6 +562,125 @@ export class Database {
       docid: result.docid,
       html: result.html
     };
+  }
+
+  async getAllHtmlParts(): Promise<Array<{ partid: string, docid: string, html: string }>> {
+    const results = await this.allAsync(
+      'SELECT partid, docid, html FROM htmlparts ORDER BY docid, partid'
+    );
+
+    return results.map(row => ({
+      partid: row.partid,
+      docid: row.docid,
+      html: row.html
+    }));
+  }
+
+  async updateHtmlPart(partid: string, html: string): Promise<void> {
+    await this.runAsync(
+      'UPDATE htmlparts SET html = ? WHERE partid = ?',
+      [html, partid]
+    );
+  }
+
+  async createDocument(id: string, filename: string, mainpartId?: string, blueprintId?: string): Promise<void> {
+    await this.runAsync(
+      'INSERT INTO documents (id, filename, mainpart_id, blueprint_id) VALUES (?, ?, ?, ?)',
+      [id, filename, mainpartId || null, blueprintId || null]
+    );
+  }
+
+  async getDocument(id: string): Promise<{ id: string, filename: string, mainpartId: string | null, blueprintId: string | null, createdAt: string, updatedAt: string } | null> {
+    const result = await this.getAsync(
+      'SELECT id, filename, mainpart_id, blueprint_id, created_at, updated_at FROM documents WHERE id = ?',
+      [id]
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    return {
+      id: result.id,
+      filename: result.filename,
+      mainpartId: result.mainpart_id,
+      blueprintId: result.blueprint_id,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at
+    };
+  }
+
+  async getDocumentByFilename(filename: string): Promise<{ id: string, filename: string, mainpartId: string | null, blueprintId: string | null, createdAt: string, updatedAt: string } | null> {
+    const result = await this.getAsync(
+      'SELECT id, filename, mainpart_id, blueprint_id, created_at, updated_at FROM documents WHERE filename = ? ORDER BY created_at DESC LIMIT 1',
+      [filename]
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    return {
+      id: result.id,
+      filename: result.filename,
+      mainpartId: result.mainpart_id,
+      blueprintId: result.blueprint_id,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at
+    };
+  }
+
+  async getAllDocuments(): Promise<Array<{ id: string, filename: string, mainpartId: string | null, blueprintId: string | null, createdAt: string, updatedAt: string }>> {
+    const results = await this.allAsync(
+      'SELECT id, filename, mainpart_id, blueprint_id, created_at, updated_at FROM documents ORDER BY updated_at DESC'
+    );
+
+    return results.map(row => ({
+      id: row.id,
+      filename: row.filename,
+      mainpartId: row.mainpart_id,
+      blueprintId: row.blueprint_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  }
+
+  async updateDocument(id: string, updates: { filename?: string, mainpartId?: string, blueprintId?: string }): Promise<void> {
+    const setParts: string[] = [];
+    const params: any[] = [];
+
+    if (updates.filename !== undefined) {
+      setParts.push('filename = ?');
+      params.push(updates.filename);
+    }
+    if (updates.mainpartId !== undefined) {
+      setParts.push('mainpart_id = ?');
+      params.push(updates.mainpartId);
+    }
+    if (updates.blueprintId !== undefined) {
+      setParts.push('blueprint_id = ?');
+      params.push(updates.blueprintId);
+    }
+
+    if (setParts.length === 0) {
+      return; // Nothing to update
+    }
+
+    setParts.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(id);
+
+    await this.runAsync(
+      `UPDATE documents SET ${setParts.join(', ')} WHERE id = ?`,
+      params
+    );
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    // Delete associated HTML parts first (foreign key constraint)
+    await this.runAsync('DELETE FROM htmlparts WHERE docid = ?', [id]);
+
+    // Delete the document
+    await this.runAsync('DELETE FROM documents WHERE id = ?', [id]);
   }
 
   async close(): Promise<void> {

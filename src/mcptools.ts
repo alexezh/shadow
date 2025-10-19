@@ -217,6 +217,20 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
   {
     type: 'function' as const,
     function: {
+      name: 'document_create',
+      description: 'Create a new document in the database. Returns the document ID. Use this at the start of document creation workflow.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Document name/filename (e.g., "story.html", "report.docx")' }
+        },
+        required: ['name']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'store_htmlpart',
       description: 'Store an HTML part/fragment for a document. Supports chunking for parts larger than 1000 tokens. Returns the part ID. Use this to break large HTML content into manageable sections, subsections, tables, or cells.',
       parameters: {

@@ -31,13 +31,14 @@ Represent document creation as sequential JSON step cards. Emit only the active 
 }
 
 Pipeline order:
-1. blueprint_semantics — gather blueprint and semantic context
-2. outline_plan — persist an outline to guide chunking
-3. compose_html — stream formatted HTML content
-4. finalize_history — verify output and record completion
+1. create_document — create document entry and receive docid
+2. blueprint_semantics — gather blueprint and semantic context
+3. outline_plan — persist an outline to guide chunking
+4. compose_html — stream formatted HTML content
+5. finalize_history — verify output and record completion
 
 Execution rules:
-- CRITICAL: Once a skill pipeline starts, you MUST complete ALL steps in order (blueprint_semantics → outline_plan → compose_html → finalize_history) before switching to any other skill. Do NOT call get_skills with a different skill name until this pipeline is fully complete.
+- CRITICAL: Once a skill pipeline starts, you MUST complete ALL steps in order (create_document → blueprint_semantics → outline_plan → compose_html → finalize_history) before switching to any other skill. Do NOT call get_skills with a different skill name until this pipeline is fully complete.
 - For each step, call get_skills({ "name": "create_document", "step": "<step_name>" }) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
 - Perform only the actions listed for the active step. Once done_when is satisfied, emit the completion_format JSON in phase="analysis" (never phase="final") so the conversation remains open.
 - IMMEDIATELY after emitting the completion JSON, execute the next_prompt instruction to proceed to the next step. Do NOT wait for user input between steps.
@@ -47,7 +48,32 @@ Execution rules:
 
 ${ChunkSegment}
 `,
-  childRules: [
+  childSkill: [
+    {
+      step: "create_document",
+      text: `
+{
+  "step": "create_document",
+  "goal": "Create a document entry in the database and obtain the document ID for all subsequent operations.",
+  "done_when": "A document is created in the database and the docid is stored in context.",
+  "actions": [
+    "Determine the document filename from the user request or generate one based on the document type and subject (e.g., 'story.html', 'report.html').",
+    "Call document_create(name=<document filename>) to create the document entry and receive the docid.",
+    "Store the docid using set_context(['document_id'], <docid>) for all subsequent steps to reference.",
+    "Store the document name using set_context(['document_name'], <filename>) for reference in later steps."
+  ],
+  "completion_format": {
+    "status": "create_document-complete",
+    "next_step": "blueprint_semantics",
+    "next_prompt": "Call get_skills({ \"name\": \"create_document\", \"step\": \"blueprint_semantics\" }) to gather blueprint and semantic context.",
+    "handoff": {
+      "document_id": "<docid>",
+      "document_name": "<filename>"
+    }
+  }
+}
+`
+    },
     {
       step: "blueprint_semantics",
       text: `
@@ -57,7 +83,7 @@ ${ChunkSegment}
   "done_when": "A blueprint matching the request is stored (or confirmed) and primary keywords are recorded in context.",
   "actions": [
     "Load recent history with load_history to avoid duplicating a document the user already confirmed.",
-    "Set or retrieve the document name via set_context(['document_name'], value) or get_context when unspecified.",
+    "Retrieve the document name from get_context(['document_name']) if not already known.",
     "Assemble a keyword set covering tone, genre, length, audience, timeframe, and notable entities; record it using set_context(['document_keywords'], <keywords>).",
     "Call load_asset(kind='blueprint', keywords=<assembled keywords>).",
     "If the loaded blueprint metadata conflicts with the request, update the blueprint to match the requested style and store it using store_asset(kind='blueprint', keywords=<assembled keywords>, content=<updated blueprint>).",
@@ -81,7 +107,7 @@ ${ChunkSegment}
 {
   "step": "outline_plan",
   "goal": "Produce and store the structural outline that will guide chunking.",
-  "done_when": "A structure asset capturing ordered sections/subsections is stored and referenced in context.",
+  "done_when": "A structure asset is stored and referenced in context.",
   "actions": [
     "Review the blueprint and user request to confirm required sections.",
     "Draft a concise JSON outline listing sections, subsections, and key notes.",
@@ -106,8 +132,9 @@ ${ChunkSegment}
 {
   "step": "compose_html",
   "goal": "Write and stream the HTML content according to the outline and blueprint styles.",
-  "done_when": "All sections are streamed via store_asset(kind='html') with eos on the final chunk.",
+  "done_when": "All sections are streamed via store_htmlpart() with eos on the final chunk.",
   "actions": [
+    "Retrieve the docid from get_context(['document_id']) to use for all store_htmlpart calls.",
     "Plan chunk groups using the stored outline; decide how many chunks each section requires.",
     "For each section, write HTML paragraphs, tables, and lists with deterministic IDs (generate them when absent).",
     "For large or complex HTML structures (sections, subsections, large tables, or cells), break them into manageable parts:",
@@ -120,7 +147,7 @@ ${ChunkSegment}
     "    * Call store_htmlpart(partid, docid, html, chunkIndex=0, eos=true)",
     "  - In the parent HTML, embed a reference comment: <!-- htmlpart:include id=\\\"<partid>\\\" mime=\\\"text/html\\\" scope=\\\"section|subsection|table|cell\\\" target=\\\"<target-id>\\\" required=\\\"true\\\" -->",
     "  - Example for a large table cell: <!-- htmlpart:include id=\\\"a1b2c3\\\" mime=\\\"text/html\\\" scope=\\\"cell\\\" target=\\\"t-outer:r-12:c-2\\\" required=\\\"true\\\" -->",
-    "For the main document content, use store_asset(kind='html', chunkId=<id>, chunkIndex=<n>, eos=<bool>) with consistent chunkId and sequential chunkIndex.",
+    "For the main document content, use store_htmlpart(partid='0', docid, html, chunkIndex=<n>, eos=<bool>) with the docid retrieved from context and sequential chunkIndex.",
     "List the tool being used in control.allowed_tools before each call and set phase='action'."
   ],
   "completion_format": {

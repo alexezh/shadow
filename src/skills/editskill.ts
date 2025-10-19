@@ -39,7 +39,7 @@ Execution rules:
 
 
 `,
-  childRules: [
+  childSkill: [
     {
       step: "structure",
       text: `

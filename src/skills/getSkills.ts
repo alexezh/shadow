@@ -22,12 +22,12 @@ export async function getSkills(database: Database,
   // Try to parse as RuleDef
   try {
     // If step is requested, find it in childRules
-    if (args.step && skill.childRules) {
-      const childRule = skill.childRules.find(cr => cr.step === args.step);
+    if (args.step && skill.childSkill) {
+      const childRule = skill.childSkill.find(cr => cr.step === args.step);
       if (!childRule) {
         return JSON.stringify({
           error: `Step "${args.step}" not found in instruction "${args.name}"`,
-          available_steps: skill.childRules.map(cr => cr.step)
+          available_steps: skill.childSkill.map(cr => cr.step)
         }, null, 2);
       }
       console.log(`getSkills: [name: ${args.name}][step: ${args.step}][found child rule]`);
@@ -35,12 +35,12 @@ export async function getSkills(database: Database,
     }
 
     // Return the full rule info
-    console.log(`getSkills: [name: ${args.name}][has_steps: ${!!skill.childRules}]`);
+    console.log(`getSkills: [name: ${args.name}][has_steps: ${!!skill.childSkill}]`);
     return JSON.stringify({
       name: skill.name,
       keywords: skill.keywords,
-      has_steps: !!skill.childRules && skill.childRules.length > 0,
-      steps: skill.childRules?.map(cr => cr.step) || [],
+      has_steps: !!skill.childSkill && skill.childSkill.length > 0,
+      steps: skill.childSkill?.map(cr => cr.step) || [],
       instruction: skill.text
     }, null, 2);
   } catch (error) {

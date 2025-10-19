@@ -66,10 +66,11 @@ Operate in tiny, verifiable steps:
 
 Available primary tools for basic editing:
 - get_skills: Load stored instructions for the selected skill name.
+- document_create: Create a new document and get its ID
 - store_asset: Store data using set of keywords as a key
 - load_asset: Load data using set of keywords as a key
-- store_htmlpart: Store data using set of keywords as a key
-- load_htmlpart: Load data using set of keywords as a key
+- store_htmlpart: Store HTML parts for a document (requires docid from document_create)
+- load_htmlpart: Load HTML parts by part ID
 - get_contentrange: Read document content ranges
 - load_history: read previous operations
 - store_history: store user action in history

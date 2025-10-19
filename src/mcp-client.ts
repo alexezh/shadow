@@ -9,7 +9,7 @@ import { getContext, setContext } from './context.js';
 import { getContentRange } from './contentrange.js';
 import { ContentBuffer, loadAsset, storeAsset } from './asset.js';
 import { make31BitId } from './make31bitid.js';
-import { loadHtmlPart, storeHtmlPart } from './htmlparts.js';
+import { documentCreate, loadHtmlPart, storeHtmlPart } from './htmlparts.js';
 
 export interface MCPToolCall {
   name: string;
@@ -63,6 +63,9 @@ export class MCPLocalClient {
 
       case 'make_id':
         return make31BitId();
+
+      case 'document_create':
+        return await documentCreate(this.database, toolCall.arguments);
 
       case 'store_htmlpart':
         return await storeHtmlPart(this.database, toolCall.arguments);
