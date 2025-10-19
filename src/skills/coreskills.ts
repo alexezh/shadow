@@ -1,11 +1,11 @@
 import OpenAI from "openai";
-import { youAreShadow } from "./chatprompt.js";
-import { Database } from "./database.js";
-import { generateEmbedding, OpenAIClient } from "./openai-client.js";
-import { TrainedModel, Literal, Rule, RuleSet, TrainingExamples, Example, trainRuleReliabilities, predictLabel, forwardPass } from "./rulemodel.js";
-import { RuleDef } from "./ruledef.js";
-import { editRule } from "./editrule.js";
-import { createRule } from "./createrule.js";
+import { youAreShadow } from "../chatprompt.js";
+import { Database } from "../database.js";
+import { generateEmbedding, OpenAIClient } from "../openai-client.js";
+import { TrainedModel, Literal, Rule, RuleSet, TrainingExamples, Example, trainRuleReliabilities, predictLabel, forwardPass } from "../rulemodel.js";
+import { SkillDef } from "../skilldef.js";
+import { editRule } from "./editskill.js";
+import { createRule } from "./createskill.js";
 
 const ChunkSegment = `
 ATTENTION: When producing large markdown or html, NEVER write placeholders like "[continued]".
@@ -51,7 +51,7 @@ ATTENTION: When producing markdown".
 
 `
 
-export const CORE_RULES: RuleDef[] = [
+export const CORE_RULES: SkillDef[] = [
   editRule,
   createRule,
 

@@ -2,7 +2,7 @@ import { getChatPrompt } from './chatprompt.js';
 import { Database } from './database.js';
 import { importBlueprint } from './import-blueprint.js';
 import { importDoc } from './import-doc.js';
-import { initInstructions } from './instructions.js';
+import { initInstructions } from './skills/initSkills.js';
 import { initRuleModel, testRuleModel } from './initRuleModel.js';
 import { makeSample } from './makeSample.js';
 import { makeHtml } from './makeHtml.js';
@@ -269,9 +269,10 @@ export class ConsoleApp {
     try {
       console.log('🤔 Processing your message...');
 
+      const systemPrompt = await getChatPrompt(this.database);
       const result = await this.openaiClient.chatWithMCPTools(
         mcpTools,
-        getChatPrompt(),
+        systemPrompt,
         message,
         { conversationId: this.currentConversationId, requireEnvelope: true }
       );

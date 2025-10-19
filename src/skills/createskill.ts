@@ -1,4 +1,4 @@
-import { RuleDef } from "./ruledef";
+import { SkillDef } from "../skilldef";
 
 const ChunkSegment = `
 ATTENTION: When producing large markdown or html, NEVER write placeholders like "[continued]".
@@ -11,7 +11,7 @@ Instead, you MUST call the tool store_asset repeatedly using chunk encoding:
 `;
 
 
-export const createRule: RuleDef = {
+export const createRule: SkillDef = {
   name: "create_document",
   keywords: ['create document'],
   test_keywords: [

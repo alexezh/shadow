@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import * as path from 'path';
 import { generateEmbedding } from './openai-client.js';
 import { findRanges as findRangesStandalone } from './findRange.js';
-import { getInstructions } from './instructions.js';
+import { getSkills } from "./skills/getSkills.js";
 import { getContext, setContext } from './context.js';
 import { getContentRange } from './contentrange.js';
 import { ContentBuffer, loadAsset, storeAsset } from './asset.js';
@@ -32,7 +32,7 @@ export class MCPLocalClient {
   async executeTool(toolCall: MCPToolCall): Promise<string> {
     switch (toolCall.name) {
       case 'get_instructions':
-        return await getInstructions(this.database, this.openaiClient, toolCall.arguments);
+        return await getSkills(this.database, this.openaiClient, toolCall.arguments);
 
       case 'get_contentrange':
         return await getContentRange(toolCall.arguments);

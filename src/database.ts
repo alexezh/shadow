@@ -270,7 +270,7 @@ export class Database {
     };
   }
 
-  async getInstructionByName(name: string): Promise<{ id: number, name: string, keywords: string[], text: string } | null> {
+  async getSkillsByName(name: string): Promise<{ id: number, name: string, keywords: string[], text: string } | null> {
     const result = await this.getAsync(
       'SELECT id, name, keywords, text FROM instructions WHERE name = ?',
       [name]

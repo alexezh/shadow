@@ -1,6 +1,6 @@
 import { Database } from "./database.js";
 import { Example, Literal, Rule, RuleSet, TrainedModel, TrainingExamples, trainRuleReliabilities, predictLabel } from "./rulemodel.js";
-import { CORE_RULES } from "./corerules.js";
+import { CORE_RULES } from "./skills/coreskills.js";
 
 export function normalizeIdentifier(value: string, fallback: string): string {
   const sanitized = value

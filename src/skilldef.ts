@@ -1,4 +1,4 @@
-export type RuleDef = {
+export type SkillDef = {
   name: string;
   keywords: string[];
   text: string;

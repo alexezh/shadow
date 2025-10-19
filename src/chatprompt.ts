@@ -1,11 +1,51 @@
+import path from 'path';
+import { promises as fs } from 'fs';
+import { Database } from './database.js';
 
-export const youAreShadow = 'You are Shadow, a word processing software agent responsible for working with documents.'
+export const youAreShadow = 'You are Shadow, a word processing software agent responsible for working with documents.';
 
-export function getChatPrompt(): string {
-  const systemPrompt = ` 
+function normalizeInstructionText(text?: string | null): string {
+  if (!text) {
+    return '';
+  }
+  const trimmed = text.trim();
+  if (trimmed.startsWith('`') && trimmed.endsWith('`')) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+async function loadSelectSkillInstructions(database: Database): Promise<string> {
+  try {
+    const record = await database.getSkillsByName('selectskill');
+    if (record?.text) {
+      return normalizeInstructionText(record.text);
+    }
+  } catch (error) {
+    console.warn('⚠️ Failed to read selectskill instructions from database:', error);
+  }
+
+  try {
+    const fallbackPath = path.resolve(process.cwd(), 'skill_select_sample.md');
+    const fallback = await fs.readFile(fallbackPath, 'utf-8');
+    return normalizeInstructionText(fallback);
+  } catch (error) {
+    console.warn('⚠️ Failed to read selectskill fallback instructions:', error);
+    return 'Select-skill instructions unavailable: default to manual reasoning.';
+  }
+}
+
+export async function getChatPrompt(database: Database): Promise<string> {
+  const selectSkillInstructions = await loadSelectSkillInstructions(database);
+
+  const systemPrompt = `
 ${youAreShadow}
 You have access to document library which you can read with load_asset API and write with store_asset API.
-You can also store additional data like summary, blueprint or any other information in the library
+You can also store additional data like summary, blueprint or any other information in the library.
+
+Use the following skill-selection guide ONLY to choose which skill to apply internally—never send the skill name directly to the user unless explicitly asked.
+
+${selectSkillInstructions}
 
 All assistant replies MUST be expressed as a phase-gated control envelope JSON object and nothing else. 
 - Structure exactly: {"phase": "<analysis|action|final>", "control": {...}, "envelope": {"type": "<text|markdown|json|...>", "content": "..." }}.
@@ -15,15 +55,15 @@ All assistant replies MUST be expressed as a phase-gated control envelope JSON o
 - Do not wrap the JSON in markdown code fences, do not add commentary outside the JSON, and never emit multiple JSON objects in one reply.
 
 Operate in tiny, verifiable steps:
-1. Build a minimal 'step_card' for the active step only: { step, goal, keywords, done_when }. Emit it via 'envelope.metadata.step_card' and clear it once the step is finished.
-2. Extract explicit keywords from the user prompt (actions plus topical terms) and immediately call get_instructions with those keywords before any other tool.
-3. After each instruction lookup, plan the next minimal action, execute it, then reassess before proceeding. Avoid batching large sequences.
-4. For editing tasks, follow the step cards declared in the "edit document" instructions. Before acting, fetch the step-specific playbook with get_instructions using the card keywords, then complete the step: establish structure, pinpoint selection, revise text, and finally apply formatting.
+1. Build a minimal 'step_card' for the active goal: { step, goal, selected_skill, keywords, done_when }. Emit it via envelope.metadata.step_card and clear it once the goal is finished.
+2. For each high-level step, use the select-skill guide above to choose the single best skill. Immediately call getInstructions(<skillName>) to load its playbook (pass only the chosen skill name).
+3. From that playbook, plan and execute the smallest possible action. Prefer a single tool call per action phase and list the tool in control.allowed_tools.
+4. After each action, reassess progress. If more work remains, return to Step 2 to pick the next skill and reload its instructions; otherwise clear the step_card and finish with phase="final".
 5. Before every tool call, list that tool in control.allowed_tools and set phase="action" for the message that performs the call.
 6. Use available tools to accomplish each step, preferring one tool call per action phase when possible.
 
 Available primary tools for basic editing:
-- get_instructions: Get stored instructions for terms (you choose the keywords based on user request)
+- get_instructions: Load stored instructions for the selected skill name.
 - store_asset: Store data using set of keywords as a key
 - load_asset: Load data using set of keywords as a key
 - store_htmlpart: Store data using set of keywords as a key
@@ -33,15 +73,5 @@ Available primary tools for basic editing:
 - store_history: store user action in history
 `;
 
-  return systemPrompt
+  return systemPrompt;
 }
-
-//
-// The initial set of instructions can be accessed with following terms
-// - edit document: when a user asks to perform editing of an existing document
-// - create document: when a user asks to create a new document
-
-/**
- * let's say user likes red for story and blue for work. I have loadAsset (story, writing)
- * then user changes formattin 
- */

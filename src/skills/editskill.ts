@@ -1,6 +1,6 @@
-import { RuleDef } from "./ruledef";
+import { SkillDef } from "../skilldef";
 
-export const editRule: RuleDef =
+export const editRule: SkillDef =
 {
   name: "edit_text",
   keywords: ['edit document', 'format document'],

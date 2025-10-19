@@ -1,10 +1,8 @@
-import OpenAI from "openai";
-import { youAreShadow } from "./chatprompt.js";
-import { Database } from "./database.js";
-import { OpenAIClient } from "./openai-client.js";
-import { CORE_RULES } from "./corerules.js";
-import { RuleDef } from "./ruledef.js";
-import { initRuleModel } from "./initRuleModel.js";
+import { youAreShadow } from "../chatprompt.js";
+import { Database } from "../database.js";
+import { OpenAIClient } from "../openai-client.js";
+import { CORE_RULES } from "./coreskills.js";
+import { initRuleModel } from "../initRuleModel.js";
 
 export async function initInstructions(openaiClient: OpenAIClient, database: Database): Promise<number[]> {
   let successCount = 0;
@@ -125,47 +123,4 @@ Return only the task - oriented terms as a comma - separated list, no explanatio
   }
 }
 
-export async function getInstructions(database: Database,
-  openaiClient: OpenAI,
-  args: { name: string; step?: string }): Promise<string> {
-  console.log("getInstructions: " + JSON.stringify(args))
 
-  const instruction = await database.getInstructionByName(args.name);
-  if (!instruction) {
-    return JSON.stringify({
-      error: `Instruction with name "${args.name}" not found`
-    }, null, 2);
-  }
-
-  // Try to parse as RuleDef
-  try {
-    const ruleDef = JSON.parse(instruction.text) as RuleDef;
-
-    // If step is requested, find it in childRules
-    if (args.step && ruleDef.childRules) {
-      const childRule = ruleDef.childRules.find(cr => cr.step === args.step);
-      if (!childRule) {
-        return JSON.stringify({
-          error: `Step "${args.step}" not found in instruction "${args.name}"`,
-          available_steps: ruleDef.childRules.map(cr => cr.step)
-        }, null, 2);
-      }
-      console.log(`getInstructions: [name: ${args.name}][step: ${args.step}][found child rule]`);
-      return "\n[CONTEXT]\n" + childRule.text + "\n[/CONTEXT]\n";
-    }
-
-    // Return the full rule info
-    console.log(`getInstructions: [name: ${args.name}][has_steps: ${!!ruleDef.childRules}]`);
-    return JSON.stringify({
-      name: instruction.name,
-      keywords: ruleDef.keywords,
-      has_steps: !!ruleDef.childRules && ruleDef.childRules.length > 0,
-      steps: ruleDef.childRules?.map(cr => cr.step) || [],
-      instruction: ruleDef.text
-    }, null, 2);
-  } catch (error) {
-    // If not JSON, return as plain text (for selectskill and other text-only instructions)
-    console.log(`getInstructions: [name: ${args.name}][plain text]`);
-    return "\n[CONTEXT]\n" + instruction.text + "\n[/CONTEXT]\n";
-  }
-}
