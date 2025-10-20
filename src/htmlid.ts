@@ -4,13 +4,13 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { parseDocument } from 'htmlparser2';
 import { fileURLToPath } from 'url';
-import { make31BitId } from './make31bitid';
+import { make31BitId } from './make31bitid.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
 function addIdsToElements(node: any): void {
   // Tags that should get IDs
-  const targetTags = ['p', 'table', 'tr', 'td', 'th', 'tbody', 'thead', 'tfoot'];
+  const targetTags = ['p', 'table', 'tr', 'td', 'th', 'tbody', 'thead', 'tfoot', 'div'];
 
   if (node.type === 'tag' && targetTags.includes(node.name.toLowerCase())) {
     // Check if the element already has an id attribute
@@ -78,7 +78,7 @@ function serializeNode(node: any): string {
   return '';
 }
 
-function addIdsToHtml(content: string): string {
+export function addIdsToHtml(content: string): string {
   try {
     const document = parseDocument(content, {
       withStartIndices: false,
@@ -151,4 +151,3 @@ if (process.argv[1] === __filename) {
   });
 }
 
-export { addIdsToHtml, make31BitId };

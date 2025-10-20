@@ -232,7 +232,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     type: 'function' as const,
     function: {
       name: 'store_htmlpart',
-      description: 'Store an HTML part/fragment for a document. Supports chunking for parts larger than 1000 tokens. Returns the part ID. Use this to break large HTML content into manageable sections, subsections, tables, or cells.',
+      description: 'Store an HTML part/fragment for a document. Supports chunking for parts larger than 1000 tokens. When eos=true, automatically adds IDs to HTML elements (p, table, tr, td, th, etc.) that lack them and returns the complete HTML with all IDs for selection purposes. Use this to break large HTML content into manageable sections, subsections, tables, or cells.',
       parameters: {
         type: 'object',
         properties: {
@@ -240,7 +240,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
           docid: { type: 'string', description: 'Document identifier this part belongs to' },
           html: { type: 'string', description: 'HTML content to store for this chunk' },
           chunkIndex: { type: 'integer', minimum: 0, description: 'Index of this chunk (0-based). Required for chunking.' },
-          eos: { type: 'boolean', description: 'End of stream - true for the last chunk. Required for chunking.' }
+          eos: { type: 'boolean', description: 'End of stream - true for the last chunk. When true, the response includes the complete HTML with auto-generated IDs.' }
         },
         required: ['partid', 'docid', 'html', 'chunkIndex', 'eos']
       }

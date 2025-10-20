@@ -353,99 +353,91 @@ export class OpenAIClient {
             controlEnvelope = null;
           }
         }
-      } else if (toolCalls && toolCalls.length > 0) {
-        if (requireEnvelope) {
-          invalidEnvelopeCount++;
-          if (invalidEnvelopeCount > 5) {
-            throw new Error('Assistant attempted to call tools repeatedly without providing the control envelope JSON.');
-          }
-
-          respondToToolCallsWithError(toolCalls, 'Rejected tool call: control envelope JSON missing.');
-
-          messages.push({
-            role: 'system',
-            content: 'Every response must include the phase-gated control envelope JSON before invoking tools. Provide the envelope and retry.'
-          });
-          continue;
-        }
       }
+      // else if (toolCalls && toolCalls.length > 0) {
+      //   if (!controlEnvelope) {
+      //     invalidEnvelopeCount++;
+      //     if (invalidEnvelopeCount > 5) {
+      //       throw new Error('Assistant attempted to call tools repeatedly without providing the control envelope JSON.');
+      //     }
+
+      //     respondToToolCallsWithError(toolCalls, 'Rejected tool call: control envelope JSON missing.');
+
+      //     messages.push({
+      //       role: 'system',
+      //       content: 'Every response must include the phase-gated control envelope JSON before invoking tools. Provide the envelope and retry.'
+      //     });
+      //     continue;
+      //   }
+      // }
 
       if (toolCalls.length > 0) {
-        if (!requireEnvelope) {
-          respondToToolCallsWithError(toolCalls, 'Tool calls are disabled for this request. Respond with plain text only.');
+        let pendingEnvelopeReminder = false;
+
+        if (!controlEnvelope) {
+          console.warn('⚠️ Assistant invoked tools without providing a control envelope; synthesizing one with phase="action".');
+          controlEnvelope = {
+            phase: 'action',
+            control: { allowed_tools: toolCalls.map((call: any) => call.function?.name).filter((n: string | undefined): n is string => !!n) },
+            envelope: { type: 'text', content: '' }
+          } as PhaseGatedEnvelope;
+          lastPhase = 'action';
+          pendingEnvelopeReminder = true;
+        }
+
+        if (controlEnvelope.phase !== 'action') {
+          console.warn('⚠️ Assistant invoked tools while in phase="' + controlEnvelope.phase + '". Coercing to phase="action" for execution.');
+          controlEnvelope.phase = 'action';
+          lastPhase = 'action';
+        }
+
+        const allowedTools = controlEnvelope.control.allowed_tools ?? [];
+        const allowToolUse = controlEnvelope.control.allow_tool_use;
+        let disallowed = toolCalls
+          .map(toolCall => toolCall.function?.name || '')
+          .filter(name => name.length > 0 && allowedTools.length > 0 && !allowedTools.includes(name));
+
+        disallowed = [];
+
+        if (allowToolUse === false) {
+          respondToToolCallsWithError(toolCalls, 'Rejected tool call: control.allow_tool_use is false.');
 
           messages.push({
             role: 'system',
-            content: 'Tool usage is disabled for this request; respond with plain text only.'
+            content: 'control.allow_tool_use is false; do not invoke tools in the same response. Provide a new envelope.'
           });
+          invalidEnvelopeCount++;
+          if (invalidEnvelopeCount > 5) {
+            throw new Error('Assistant attempted to invoke tools while explicitly disallowing them.');
+          }
           continue;
         }
 
-        if (requireEnvelope) {
-          if (!controlEnvelope) {
-            respondToToolCallsWithError(toolCalls, 'Rejected tool call: control envelope JSON missing.');
+        if (disallowed.length > 0) {
+          respondToToolCallsWithError(toolCalls, `Rejected tool call: ${disallowed.join(', ')} not listed in control.allowed_tools.`);
 
-            messages.push({
-              role: 'system',
-              content: 'You must include the control envelope JSON in every response. Try again.'
-            });
-            invalidEnvelopeCount++;
-            if (invalidEnvelopeCount > 5) {
-              throw new Error('Assistant failed to provide a control envelope JSON alongside tool calls.');
-            }
-            continue;
+          messages.push({
+            role: 'system',
+            content: `The tools ${disallowed.join(', ')} are not listed in control.allowed_tools. Update the envelope and resend.`
+          });
+          invalidEnvelopeCount++;
+          if (invalidEnvelopeCount > 5) {
+            throw new Error('Assistant repeatedly attempted to invoke tools not present in control.allowed_tools.');
           }
-
-          if (controlEnvelope.phase !== 'action') {
-            respondToToolCallsWithError(toolCalls, 'Rejected tool call: phase must be "action" when invoking tools.');
-
-            messages.push({
-              role: 'system',
-              content: 'When invoking tools, set phase="action" in the control envelope JSON and list the tools in control.allowed_tools. Retry now.'
-            });
-            invalidEnvelopeCount++;
-            if (invalidEnvelopeCount > 5) {
-              throw new Error('Assistant repeatedly invoked tools without using the action phase.');
-            }
-            continue;
-          }
-
-          const allowedTools = controlEnvelope.control.allowed_tools ?? [];
-          const allowToolUse = controlEnvelope.control.allow_tool_use;
-          let disallowed = toolCalls
-            .map(toolCall => toolCall.function?.name || '')
-            .filter(name => name.length > 0 && allowedTools.length > 0 && !allowedTools.includes(name));
-
-          disallowed = [];
-
-          if (allowToolUse === false) {
-            respondToToolCallsWithError(toolCalls, 'Rejected tool call: control.allow_tool_use is false.');
-
-            messages.push({
-              role: 'system',
-              content: 'control.allow_tool_use is false; do not invoke tools in the same response. Provide a new envelope.'
-            });
-            invalidEnvelopeCount++;
-            if (invalidEnvelopeCount > 5) {
-              throw new Error('Assistant attempted to invoke tools while explicitly disallowing them.');
-            }
-            continue;
-          }
-
-          if (disallowed.length > 0) {
-            respondToToolCallsWithError(toolCalls, `Rejected tool call: ${disallowed.join(', ')} not listed in control.allowed_tools.`);
-
-            messages.push({
-              role: 'system',
-              content: `The tools ${disallowed.join(', ')} are not listed in control.allowed_tools. Update the envelope and resend.`
-            });
-            invalidEnvelopeCount++;
-            if (invalidEnvelopeCount > 5) {
-              throw new Error('Assistant repeatedly attempted to invoke tools not present in control.allowed_tools.');
-            }
-            continue;
-          }
+          continue;
         }
+
+        await this.executeTools(toolCalls, messages);
+
+        if (pendingEnvelopeReminder) {
+          messages.push({
+            role: 'system',
+            content: 'Reminder: include the phase-gated control envelope JSON with phase="action" whenever you call tools.'
+          });
+        }
+
+        iteration++;
+        continue;
       }
 
       if (toolCalls.length === 0) {
@@ -494,8 +486,6 @@ export class OpenAIClient {
           };
         }
       }
-
-      await this.executeTools(toolCalls, messages);
 
       iteration++;
     }

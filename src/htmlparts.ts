@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { spawn } from "child_process";
+import { addIdsToHtml } from "./htmlid.js";
 
 // Buffer for chunked HTML parts: partid -> array of chunks
 type HtmlPartBuffer = Map<string, Array<{ chunkIndex: number; html: string }>>;
@@ -13,6 +14,87 @@ const htmlPartBuffer: HtmlPartBuffer = new Map();
 // Helper function to generate random ID
 function generateId(): string {
   return Math.floor(Math.random() * 0x7FFFFFFF).toString(36);
+}
+
+// Assemble complete HTML document by resolving htmlpart:include comments
+export async function assembleHtml(database: Database, docid: string): Promise<string> {
+  // Get all HTML parts for this document, ordered by partid
+  const parts = await database.getAllHtmlParts(docid);
+
+  if (parts.length === 0) {
+    throw new Error(`No HTML parts found for document: ${docid}`);
+  }
+
+  // Create a map of partid -> html for quick lookup
+  const partsMap = new Map<string, string>();
+  for (const part of parts) {
+    partsMap.set(part.partid, part.html);
+  }
+
+  // Start with the main document (partid '0'), or first part if '0' not found
+  let mainHtml = partsMap.get('0');
+  if (!mainHtml) {
+    console.warn(`⚠️ Main document part (partid='0') not found for docid: ${docid}, using parts in order`);
+
+    // Assemble all parts in order (by partid)
+    mainHtml = parts.map(p => p.html).join('\n');
+  }
+
+  // Recursively resolve includes
+  function resolveIncludes(html: string, depth: number = 0): string {
+    if (depth > 100) {
+      throw new Error('Maximum include depth exceeded (100) - possible circular reference');
+    }
+
+    // Regular expression to match htmlpart:include comments
+    // <!-- htmlpart:include id="<partid>" mime="text/html" scope="section|subsection|table|cell" target="<target-id>" required="true" -->
+    const includePattern = /<!--\s*htmlpart:include\s+id=["']([^"']+)["'][^>]*-->/g;
+
+    return html.replace(includePattern, (match, partid) => {
+      const includedHtml = partsMap.get(partid);
+
+      if (!includedHtml) {
+        console.warn(`⚠️ Referenced part not found: ${partid}`);
+        return match; // Keep the comment if part not found
+      }
+
+      // Recursively resolve any includes in the included HTML
+      const resolvedHtml = resolveIncludes(includedHtml, depth + 1);
+
+      // Return the comment followed by the resolved HTML
+      return match + '\n' + resolvedHtml;
+    });
+  }
+
+  // Resolve all includes starting from the main document
+  let assembledHtml = resolveIncludes(mainHtml);
+
+  // Add html and body tags if needed
+  const hasHtmlTag = /<html[^>]*>/i.test(assembledHtml);
+  const hasBodyTag = /<body[^>]*>/i.test(assembledHtml);
+
+  if (!hasHtmlTag) {
+    // Wrap in html tag
+    if (!hasBodyTag) {
+      // Need both html and body
+      assembledHtml = `<!DOCTYPE html>\n<html>\n<body>\n${assembledHtml}\n</body>\n</html>`;
+    } else {
+      // Has body but not html
+      assembledHtml = `<!DOCTYPE html>\n<html>\n${assembledHtml}\n</html>`;
+    }
+  } else if (!hasBodyTag) {
+    // Has html but not body - insert body inside html
+    assembledHtml = assembledHtml.replace(
+      /(<html[^>]*>)/i,
+      '$1\n<body>'
+    );
+    assembledHtml = assembledHtml.replace(
+      /<\/html>/i,
+      '</body>\n</html>'
+    );
+  }
+
+  return assembledHtml;
 }
 
 export async function documentCreate(database: Database, args: { name: string }): Promise<string> {
@@ -69,21 +151,25 @@ export async function storeHtmlPart(
       // Assemble complete HTML
       const completeHtml = chunks.map(c => c.html).join('');
 
+      // Add IDs to HTML elements that don't have them
+      const htmlWithIds = addIdsToHtml(completeHtml);
+
       // Store in database
-      await database.storeHtmlPart(partid, docid, completeHtml);
+      await database.storeHtmlPart(partid, docid, htmlWithIds);
 
       // Clear buffer
       htmlPartBuffer.delete(partid);
 
-      console.log(`✅ Assembled and stored HTML part: partid="${partid}" docid="${docid}" (${chunks.length} chunks, ${completeHtml.length} chars total)`);
+      console.log(`✅ Assembled and stored HTML part: partid="${partid}" docid="${docid}" (${chunks.length} chunks, ${htmlWithIds.length} chars total)`);
 
       return JSON.stringify({
         success: true,
         partid: partid,
         docid: docid,
         chunks_received: chunks.length,
-        html_length: completeHtml.length,
-        message: 'HTML part assembled and stored successfully'
+        html_length: htmlWithIds.length,
+        html: htmlWithIds,
+        message: 'HTML part assembled, IDs added, and stored successfully'
       }, null, 2);
     } else {
       // Not the last chunk, just acknowledge receipt

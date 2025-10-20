@@ -15,7 +15,7 @@ import * as os from 'os';
 import { initContextMap } from './context.js';
 import { skilledWorker } from './skilledworker.js';
 import { spawn } from 'child_process';
-import { handleEditPart, handleListParts } from './htmlparts.js';
+import { assembleHtml, handleEditPart, handleListParts } from './htmlparts.js';
 
 export class ConsoleApp {
   private database: Database;
@@ -39,7 +39,7 @@ export class ConsoleApp {
   }
 
   async start(): Promise<void> {
-    console.log('Console mode started. Available commands: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, exit');
+    console.log('Console mode started. Available commands: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, !assemble, exit');
 
     this.promptUser();
   }
@@ -85,6 +85,7 @@ export class ConsoleApp {
       '!make-html',
       '!listparts',
       '!editpart',
+      '!assemble',
       'exit'
     ];
 
@@ -217,12 +218,20 @@ export class ConsoleApp {
         await handleEditPart(this.database, parts[1], parts[2]);
         break;
 
+      case '!export':
+        if (parts.length < 2) {
+          console.log('Usage: !assemble <docid>');
+          return;
+        }
+        await this.handleExport(parts[1]);
+        break;
+
       default:
         // Treat as chat message if not starting with !
         if (!command.startsWith('!')) {
           await this.handleChatMessage(command);
         } else {
-          console.log('Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, exit');
+          console.log('Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, !assemble, exit');
         }
     }
   }
@@ -285,6 +294,40 @@ export class ConsoleApp {
   //     });
   //   });
   // }
+
+  private async handleExport(docid: string): Promise<void> {
+    try {
+      // Get document metadata to retrieve filename
+      const document = await this.database.getDocument(docid);
+
+      if (!document) {
+        console.log(`❌ Document not found: ${docid}`);
+        return;
+      }
+
+      console.log(`📄 Assembling document: ${document.filename} (docid: ${docid})`);
+
+      // Assemble the HTML
+      const assembledHtml = await assembleHtml(this.database, docid);
+
+      // Determine output path in content directory
+      const contentDir = path.join(process.cwd(), 'content');
+      const outputPath = path.join(contentDir, document.filename);
+
+      // Ensure content directory exists
+      if (!fs.existsSync(contentDir)) {
+        fs.mkdirSync(contentDir, { recursive: true });
+      }
+
+      // Write the assembled HTML to file
+      fs.writeFileSync(outputPath, assembledHtml, 'utf-8');
+
+      console.log(`✅ Assembled HTML written to: ${outputPath}`);
+      console.log(`   Total size: ${assembledHtml.length} characters`);
+    } catch (error) {
+      console.error('❌ Error assembling document:', error);
+    }
+  }
 
   private async handleChatMessage(message: string): Promise<void> {
     try {

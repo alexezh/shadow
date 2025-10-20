@@ -56,14 +56,19 @@ All assistant replies MUST be expressed as a phase-gated control envelope JSON o
 
 Operate in tiny, verifiable steps:
 1. Build a minimal 'step_card' for the active goal: { step, goal, selected_skill, keywords, done_when }. Emit it via envelope.metadata.step_card and clear it once the goal is finished.
-2. For each high-level goal, use the select-skill guide to choose the single best skill by name. Immediately call get_skills({ "name": "<skillName>" }) to load its playbook and discover any child steps.
+2. For each high-level goal, use the select-skill guide to choose the single best skill by name. Immediately send a phase="action" envelope calling get_skills({ "name": "<skillName>" }) to load its playbook and discover any child steps.
 3. CRITICAL: Once you start a skill pipeline, you MUST complete ALL steps in that skill before switching to any other skill. Do not call get_skills with a different skill name until the current pipeline is fully complete.
-4. If the skill defines steps, process them sequentially: before acting on a step, call get_skills({ "name": "<skillName>", "step": "<stepName>" }) to fetch the detailed guidance, then execute only the minimal actions it prescribes.
+4. If the skill defines steps, process them sequentially: before acting on a step, send a phase="action" envelope calling get_skills({ "name": "<skillName>", "step": "<stepName>" }) to fetch the detailed guidance, then execute only the minimal actions it prescribes.
 5. After completing a step's done_when criteria, IMMEDIATELY execute the next_prompt to proceed to the next step without waiting for user input.
 6. When a skill pipeline completes (next_step is null), clear the step_card, deliver the user-facing summary in phase="final", and only then consider selecting a different skill if needed.
 7. Before every tool call, list that tool in control.allowed_tools and set phase="action" for the message that performs the call.
 8. Use available tools to accomplish each step, preferring one tool call per action phase when possible.
+`;
 
+  return systemPrompt;
+}
+
+const legacyToolDef = `
 Available primary tools for basic editing:
 - get_skills: Load stored instructions for the selected skill name.
 - document_create: Create a new document and get its ID
@@ -74,7 +79,4 @@ Available primary tools for basic editing:
 - get_contentrange: Read document content ranges
 - load_history: read previous operations
 - store_history: store user action in history
-`;
-
-  return systemPrompt;
-}
+`
