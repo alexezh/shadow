@@ -38,65 +38,64 @@ export function clearRangeCache(): void {
 }
 
 // Helper to build CSS style string from properties
-function buildStyleFromProperties(properties: FormatProperty[]): Record<string, string> {
-  const styleMap: Record<string, string> = {};
+function classifyProperties(properties: FormatProperty[]): {
+  characterStyles: Record<string, string>;
+  characterDataAttrs: Record<string, string>;
+  paragraphStyles: Record<string, string>;
+  paragraphDataAttrs: Record<string, string>;
+} {
+  const characterStyles: Record<string, string> = {};
+  const characterDataAttrs: Record<string, string> = {};
+  const paragraphStyles: Record<string, string> = {};
+  const paragraphDataAttrs: Record<string, string> = {};
 
   for (const { prop, value } of properties) {
     switch (prop) {
+      // Character-level styles
       case 'fontFamily':
-        styleMap['font-family'] = value;
+        characterStyles['font-family'] = value;
         break;
       case 'fontSize':
-        styleMap['font-size'] = typeof value === 'number' ? `${value}pt` : value;
+        characterStyles['font-size'] = typeof value === 'number' ? `${value}pt` : value;
         break;
       case 'color':
-        styleMap['color'] = value;
+        characterStyles['color'] = value;
         break;
       case 'backgroundColor':
-        styleMap['background-color'] = value;
+        characterStyles['background-color'] = value;
         break;
       case 'bold':
-        styleMap['font-weight'] = value ? 'bold' : 'normal';
+        characterStyles['font-weight'] = value ? 'bold' : 'normal';
         break;
       case 'italic':
-        styleMap['font-style'] = value ? 'italic' : 'normal';
+        characterStyles['font-style'] = value ? 'italic' : 'normal';
         break;
       case 'underline':
         if (value === 'none') {
-          styleMap['text-decoration'] = 'none';
+          characterStyles['text-decoration'] = 'none';
         } else {
-          styleMap['text-decoration'] = 'underline';
+          characterStyles['text-decoration'] = 'underline';
           if (value === 'double') {
-            styleMap['text-decoration-style'] = 'double';
+            characterStyles['text-decoration-style'] = 'double';
           } else if (value === 'dotted') {
-            styleMap['text-decoration-style'] = 'dotted';
+            characterStyles['text-decoration-style'] = 'dotted';
           }
         }
         break;
       case 'strikethrough':
         if (value) {
-          const existing = styleMap['text-decoration'] || '';
-          styleMap['text-decoration'] = existing ? `${existing} line-through` : 'line-through';
+          const existing = characterStyles['text-decoration'] || '';
+          characterStyles['text-decoration'] = existing ? `${existing} line-through` : 'line-through';
         }
         break;
       case 'allCaps':
-        styleMap['text-transform'] = value ? 'uppercase' : 'none';
+        characterStyles['text-transform'] = value ? 'uppercase' : 'none';
         break;
       case 'smallCaps':
-        styleMap['font-variant'] = value ? 'small-caps' : 'normal';
+        characterStyles['font-variant'] = value ? 'small-caps' : 'normal';
         break;
-    }
-  }
 
-  return styleMap;
-}
-
-// Helper to get Word-specific data attributes from properties
-function getWordDataAttributes(properties: FormatProperty[]): Record<string, string> {
-  const dataAttrs: Record<string, string> = {};
-
-  for (const { prop, value } of properties) {
-    switch (prop) {
+      // Character-specific data attributes
       case 'doubleStrikethrough':
       case 'superscript':
       case 'subscript':
@@ -108,16 +107,69 @@ function getWordDataAttributes(properties: FormatProperty[]): Record<string, str
       case 'scaling':
       case 'kerning':
       case 'highlightPattern':
-        dataAttrs[`data-word-${prop.toLowerCase()}`] = String(value);
+        characterDataAttrs[`data-word-${prop.toLowerCase()}`] = String(value);
+        break;
+
+      // Paragraph-level styles
+      case 'alignment':
+        paragraphStyles['text-align'] = value;
+        break;
+      case 'indentLeft':
+        paragraphStyles['margin-left'] = `${value}pt`;
+        break;
+      case 'indentRight':
+        paragraphStyles['margin-right'] = `${value}pt`;
+        break;
+      case 'indentFirstLine':
+        paragraphStyles['text-indent'] = `${value}pt`;
+        break;
+      case 'spacingBefore':
+        paragraphStyles['margin-top'] = `${value}pt`;
+        break;
+      case 'spacingAfter':
+        paragraphStyles['margin-bottom'] = `${value}pt`;
+        break;
+      case 'lineSpacing':
+        paragraphStyles['line-height'] = typeof value === 'number' ? value.toString() : value;
+        break;
+      case 'lineSpacingRule':
+        paragraphDataAttrs['data-word-line-spacing-rule'] = String(value);
+        break;
+      case 'keepWithNext':
+      case 'keepLinesTogether':
+      case 'pageBreakBefore':
+      case 'widowControl':
+      case 'bidi':
+        paragraphDataAttrs[`data-word-${prop.toLowerCase()}`] = String(!!value);
+        break;
+      case 'outlineLevel':
+        paragraphDataAttrs['data-word-outline-level'] = String(value);
+        break;
+      case 'tabStops':
+        paragraphDataAttrs['data-word-tab-stops'] = JSON.stringify(value);
+        break;
+      case 'numbering':
+        paragraphDataAttrs['data-word-numbering'] = JSON.stringify(value);
         break;
     }
   }
 
-  return dataAttrs;
+  return {
+    characterStyles,
+    characterDataAttrs,
+    paragraphStyles,
+    paragraphDataAttrs
+  };
 }
 
 // Helper to wrap specific text within an element with a span
-function wrapTextInSpan($: cheerio.CheerioAPI, $element: cheerio.Cheerio<any>, text: string, styleProps: Record<string, string>, dataAttrs: Record<string, string>): boolean {
+function wrapTextInSpan(
+  $: cheerio.CheerioAPI,
+  $element: cheerio.Cheerio<any>,
+  text: string,
+  styleProps: Record<string, string>,
+  dataAttrs: Record<string, string>
+): boolean {
   // Get the HTML content of the element
   const html = $element.html();
   if (!html) return false;
@@ -143,6 +195,19 @@ function wrapTextInSpan($: cheerio.CheerioAPI, $element: cheerio.Cheerio<any>, t
 
   $element.html(wrapped);
   return true;
+}
+
+function applyParagraphFormatting(
+  $element: cheerio.Cheerio<any>,
+  styles: Record<string, string>,
+  dataAttrs: Record<string, string>
+): void {
+  for (const [cssProp, cssValue] of Object.entries(styles)) {
+    $element.css(cssProp, cssValue);
+  }
+  for (const [attrName, attrValue] of Object.entries(dataAttrs)) {
+    $element.attr(attrName, attrValue);
+  }
 }
 
 export async function formatRange(
@@ -245,13 +310,17 @@ export async function formatRange(
       }
 
       // Build style and data attributes
-      const styleProps = buildStyleFromProperties(properties);
-      const dataAttrs = getWordDataAttributes(properties);
+      const {
+        characterStyles,
+        characterDataAttrs,
+        paragraphStyles,
+        paragraphDataAttrs
+      } = classifyProperties(properties);
 
       // Handle text-based selection
       if (text && start_id === end_id) {
         // Single paragraph: wrap the specific text in a span
-        const wrapped = wrapTextInSpan(startCheerio, $start, text, styleProps, dataAttrs);
+        const wrapped = wrapTextInSpan(startCheerio, $start, text, characterStyles, characterDataAttrs);
         if (!wrapped) {
           rangeResults.push({
             range_id: rangeIdForLog,
@@ -260,6 +329,7 @@ export async function formatRange(
           });
           continue;
         }
+        applyParagraphFormatting($start, paragraphStyles, paragraphDataAttrs);
         rangeResults.push({
           range_id: rangeIdForLog,
           status: 'success'
@@ -268,8 +338,8 @@ export async function formatRange(
         continue;
       } else if (start_text && end_text && start_id !== end_id) {
         // Multi-paragraph: wrap start_text in start element, end_text in end element, and all elements in between
-        const wrappedStart = wrapTextInSpan(startCheerio, $start, start_text, styleProps, dataAttrs);
-        const wrappedEnd = wrapTextInSpan(endCheerio, $end, end_text, styleProps, dataAttrs);
+        const wrappedStart = wrapTextInSpan(startCheerio, $start, start_text, characterStyles, characterDataAttrs);
+        const wrappedEnd = wrapTextInSpan(endCheerio, $end, end_text, characterStyles, characterDataAttrs);
 
         if (!wrappedStart) {
           rangeResults.push({
@@ -289,16 +359,20 @@ export async function formatRange(
           continue;
         }
 
+        applyParagraphFormatting($start, paragraphStyles, paragraphDataAttrs);
+        applyParagraphFormatting($end, paragraphStyles, paragraphDataAttrs);
+
         // Apply formatting to all paragraphs between start and end (exclusive)
         const rangeParagraphs = doc.getParagraphRange(start_id, end_id);
         for (let i = 1; i < rangeParagraphs.length - 1; i++) {
           const para = rangeParagraphs[i];
-          for (const [cssProp, cssValue] of Object.entries(styleProps)) {
+          for (const [cssProp, cssValue] of Object.entries(characterStyles)) {
             para.$element.css(cssProp, cssValue);
           }
-          for (const [attrName, attrValue] of Object.entries(dataAttrs)) {
+          for (const [attrName, attrValue] of Object.entries(characterDataAttrs)) {
             para.$element.attr(attrName, attrValue);
           }
+          applyParagraphFormatting(para.$element, paragraphStyles, paragraphDataAttrs);
         }
 
         rangeResults.push({
@@ -314,14 +388,16 @@ export async function formatRange(
 
       for (const para of rangeParagraphs) {
         // Apply CSS styles
-        for (const [cssProp, cssValue] of Object.entries(styleProps)) {
+        for (const [cssProp, cssValue] of Object.entries(characterStyles)) {
           para.$element.css(cssProp, cssValue);
         }
 
         // Apply Word-specific data attributes
-        for (const [attrName, attrValue] of Object.entries(dataAttrs)) {
+        for (const [attrName, attrValue] of Object.entries(characterDataAttrs)) {
           para.$element.attr(attrName, attrValue);
         }
+
+        applyParagraphFormatting(para.$element, paragraphStyles, paragraphDataAttrs);
       }
 
       rangeResults.push({
