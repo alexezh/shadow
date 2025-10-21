@@ -1,132 +1,207 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { Database } from './database.js';
+import { parseDocument } from 'htmlparser2';
+import OpenAI from 'openai';
+import { make31BitId } from './make31bitid.js';
 
 export interface FindRangeResult {
-  start_para: string | null;
-  end_para: string | null;
-  start_line: number;
-  end_line: number;
-  content: string;
-  matched_terms: string[];
+  range_id: string;
+  start_id: string | null;
+  end_id: string | null;
+  paragraph_count: number;
+  preview: string;
 }
 
 export interface FindRangeOptions {
-  name: string;
-  format: string;
-  terms: string[];
+  docid: string;
+  pattern: string;
+  match_type: 'exact' | 'regex' | 'semantic';
   context_lines?: number;
 }
 
-export async function findRanges(options: FindRangeOptions): Promise<{
+// Helper to extract all paragraphs with IDs from parsed document
+function extractParagraphsWithIds(node: any, paragraphs: Array<{ id: string | null, text: string }> = []): Array<{ id: string | null, text: string }> {
+  const paragraphTags = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th'];
+
+  if (node.type === 'tag' && paragraphTags.includes(node.name.toLowerCase())) {
+    const id = node.attribs?.id || null;
+
+    // Extract text content from this node
+    let text = '';
+    function extractText(n: any): void {
+      if (n.type === 'text') {
+        text += n.data;
+      } else if (n.children) {
+        for (const child of n.children) {
+          extractText(child);
+        }
+      }
+    }
+    extractText(node);
+
+    paragraphs.push({ id, text: text.trim() });
+  }
+
+  // Recursively process children
+  if (node.children) {
+    for (const child of node.children) {
+      extractParagraphsWithIds(child, paragraphs);
+    }
+  }
+
+  return paragraphs;
+}
+
+export async function findRanges(options: FindRangeOptions, database: Database, openaiClient?: OpenAI): Promise<{
   document: string;
-  format: string;
-  search_terms: string[];
+  pattern: string;
+  match_type: string;
   ranges_found: number;
   ranges: FindRangeResult[];
 }> {
-  const contentDir = path.join(process.cwd(), 'content');
-  const extension = options.format === 'html' ? 'html' : 'txt';
-  const filePath = path.join(contentDir, `${options.name}.${extension}`);
   const contextLines = options.context_lines || 0;
 
   try {
-    const content = await fs.readFile(filePath, 'utf-8');
-    const lines = content.split('\n');
-    
+    // Get all HTML parts for this document
+    const parts = await database.getAllHtmlParts(options.docid);
+
+    if (parts.length === 0) {
+      throw new Error(`No HTML parts found for document: ${options.docid}`);
+    }
+
+    // Start with main part '0', or use all parts in order
+    let content: string;
+    const mainPart = parts.find(p => p.partid === '0');
+
+    if (mainPart) {
+      content = mainPart.html;
+    } else {
+      console.warn(`⚠️ Main document part (partid='0') not found for docid: ${options.docid}, searching all parts`);
+      content = parts.map(p => p.html).join('\n');
+    }
+
+    // Parse HTML and extract paragraphs
+    const document = parseDocument(content, {
+      withStartIndices: false,
+      withEndIndices: false
+    });
+
+    let allParagraphs: Array<{ id: string | null, text: string }> = [];
+    for (const child of document.children) {
+      extractParagraphsWithIds(child, allParagraphs);
+    }
+
     const ranges: FindRangeResult[] = [];
+    let matchedIndices: number[] = [];
 
-    let currentRange: {
-      start_line: number;
-      end_line: number;
-      matched_terms: Set<string>;
-      paragraphs: Array<{ line: number, id: string | null }>;
-    } | null = null;
+    // Perform matching based on match_type
+    if (options.match_type === 'exact') {
+      // Exact string match (case-insensitive)
+      const lowerPattern = options.pattern.toLowerCase();
+      matchedIndices = allParagraphs
+        .map((p, i) => p.text.toLowerCase().includes(lowerPattern) ? i : -1)
+        .filter(i => i !== -1);
 
-    // Search through each line for matching terms
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].toLowerCase();
-      const matchedTerms = options.terms.filter(term => line.includes(term.toLowerCase()));
+    } else if (options.match_type === 'regex') {
+      // Regular expression match
+      try {
+        const regex = new RegExp(options.pattern, 'i');
+        matchedIndices = allParagraphs
+          .map((p, i) => regex.test(p.text) ? i : -1)
+          .filter(i => i !== -1);
+      } catch (error) {
+        throw new Error(`Invalid regex pattern: ${options.pattern}`);
+      }
 
-      if (matchedTerms.length > 0) {
-        // Extract paragraph ID from line if it exists
-        const idMatch = lines[i].match(/\{id=([^}]+)\}/);
-        const paraId = idMatch ? idMatch[1] : null;
+    } else if (options.match_type === 'semantic') {
+      // Semantic match using embeddings
+      if (!openaiClient) {
+        throw new Error('OpenAI client required for semantic matching');
+      }
 
-        if (currentRange === null) {
-          // Start new range
-          currentRange = {
-            start_line: Math.max(0, i - contextLines),
-            end_line: Math.min(lines.length - 1, i + contextLines),
-            matched_terms: new Set(matchedTerms),
-            paragraphs: [{ line: i, id: paraId }]
-          };
+      // Generate embedding for the pattern
+      const patternEmbedding = await openaiClient.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: options.pattern
+      });
+      const patternVector = patternEmbedding.data[0].embedding;
+
+      // Calculate similarity for each paragraph
+      const similarities = await Promise.all(
+        allParagraphs.map(async (p) => {
+          if (!p.text) return 0;
+
+          const paraEmbedding = await openaiClient.embeddings.create({
+            model: 'text-embedding-3-small',
+            input: p.text
+          });
+          const paraVector = paraEmbedding.data[0].embedding;
+
+          // Cosine similarity
+          let dotProduct = 0;
+          let normA = 0;
+          let normB = 0;
+          for (let i = 0; i < patternVector.length; i++) {
+            dotProduct += patternVector[i] * paraVector[i];
+            normA += patternVector[i] * patternVector[i];
+            normB += paraVector[i] * paraVector[i];
+          }
+          return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+        })
+      );
+
+      // Select paragraphs with similarity > 0.7
+      matchedIndices = similarities
+        .map((sim, i) => sim > 0.7 ? i : -1)
+        .filter(i => i !== -1);
+    }
+
+    // Group consecutive matches into ranges with context
+    if (matchedIndices.length > 0) {
+      let rangeStart = matchedIndices[0];
+      let rangeEnd = matchedIndices[0];
+
+      for (let i = 1; i <= matchedIndices.length; i++) {
+        const currentIndex = matchedIndices[i];
+
+        // Check if we should extend current range or start new one
+        if (i < matchedIndices.length && currentIndex - rangeEnd <= contextLines * 2 + 1) {
+          rangeEnd = currentIndex;
         } else {
-          // Extend current range if close enough
-          const extendedEnd = Math.min(lines.length - 1, i + contextLines);
-          if (i - currentRange.end_line <= contextLines * 2 + 1) {
-            // Extend existing range
-            currentRange.end_line = extendedEnd;
-            matchedTerms.forEach(term => currentRange!.matched_terms.add(term));
-            if (paraId) {
-              currentRange.paragraphs.push({ line: i, id: paraId });
-            }
-          } else {
-            // Finish current range and start new one
-            addRangeToResults(ranges, currentRange, lines);
-            currentRange = {
-              start_line: Math.max(0, i - contextLines),
-              end_line: extendedEnd,
-              matched_terms: new Set(matchedTerms),
-              paragraphs: [{ line: i, id: paraId }]
-            };
+          // Finalize current range
+          const startIdx = Math.max(0, rangeStart - contextLines);
+          const endIdx = Math.min(allParagraphs.length - 1, rangeEnd + contextLines);
+
+          const rangeParagraphs = allParagraphs.slice(startIdx, endIdx + 1);
+          const paragraphsWithIds = rangeParagraphs.filter(p => p.id !== null);
+
+          ranges.push({
+            range_id: make31BitId(),
+            start_id: paragraphsWithIds[0]?.id || null,
+            end_id: paragraphsWithIds[paragraphsWithIds.length - 1]?.id || null,
+            paragraph_count: rangeParagraphs.length,
+            preview: rangeParagraphs.map(p => p.text).join(' ').substring(0, 200) + '...'
+          });
+
+          // Start new range
+          if (i < matchedIndices.length) {
+            rangeStart = currentIndex;
+            rangeEnd = currentIndex;
           }
         }
       }
     }
 
-    // Add final range if exists
-    if (currentRange !== null) {
-      addRangeToResults(ranges, currentRange, lines);
-    }
-
     return {
-      document: options.name,
-      format: options.format,
-      search_terms: options.terms,
+      document: options.docid,
+      pattern: options.pattern,
+      match_type: options.match_type,
       ranges_found: ranges.length,
       ranges: ranges
     };
 
   } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      throw new Error(`Document '${options.name}.${extension}' not found in content directory`);
-    }
     throw error;
   }
-}
-
-function addRangeToResults(
-  ranges: FindRangeResult[],
-  currentRange: {
-    start_line: number;
-    end_line: number;
-    matched_terms: Set<string>;
-    paragraphs: Array<{ line: number, id: string | null }>;
-  },
-  lines: string[]
-): void {
-  const rangeContent = lines.slice(currentRange.start_line, currentRange.end_line + 1);
-  
-  // Find first and last paragraph IDs in the range
-  const firstPara = currentRange.paragraphs.find(p => p.id !== null);
-  const lastPara = currentRange.paragraphs.reverse().find(p => p.id !== null);
-
-  ranges.push({
-    start_para: firstPara?.id || null,
-    end_para: lastPara?.id || null,
-    start_line: currentRange.start_line,
-    end_line: currentRange.end_line,
-    content: rangeContent.join('\n'),
-    matched_terms: Array.from(currentRange.matched_terms)
-  });
 }

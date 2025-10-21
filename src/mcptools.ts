@@ -32,16 +32,16 @@ export const mcpTools: ChatCompletionTool[] = [
     type: 'function' as const,
     function: {
       name: 'get_contentrange',
-      description: 'Read range of document content. Omit start_para and end_para to read entire document from start to end',
+      description: 'Read range of document content from HTML parts stored in the database. Omit start_para and end_para to read entire document from start to end',
       parameters: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Document name' },
+          docid: { type: 'string', description: 'Document ID' },
           format: { type: 'string', enum: ['text', 'html'] },
           start_para: { type: 'string', description: 'Starting paragraph ID (optional)' },
           end_para: { type: 'string', description: 'Ending paragraph ID (optional)' }
         },
-        required: ['name', 'format']
+        required: ['docid', 'format']
       }
     }
   },
@@ -100,23 +100,23 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     type: 'function' as const,
     function: {
       name: 'find_ranges',
-      description: 'Find ranges in document that match one or more search keywords',
+      description: 'Find ranges in document that match a search pattern. Searches within HTML parts stored in the database. Returns array of ranges with unique range_id that can be used for operations like set_formatting(range_id).',
       parameters: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Document name' },
-          format: { type: 'string', enum: ['text', 'html'] },
-          keywords: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Terms to search for'
+          docid: { type: 'string', description: 'Document ID to search within' },
+          pattern: { type: 'string', description: 'Search pattern to match' },
+          match_type: {
+            type: 'string',
+            enum: ['exact', 'regex', 'semantic'],
+            description: 'Type of matching: "exact" for literal string match, "regex" for regular expression, "semantic" for embedding-based similarity match'
           },
           context_lines: {
             type: 'number',
             description: 'Number of context lines around matches (optional, default: 0)'
           }
         },
-        required: ['name', 'format', 'terms']
+        required: ['docid', 'pattern', 'match_type']
       }
     }
   },

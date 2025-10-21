@@ -35,7 +35,7 @@ export class MCPLocalClient {
         return await getSkills(this.database, this.openaiClient, toolCall.arguments);
 
       case 'get_contentrange':
-        return await getContentRange(toolCall.arguments);
+        return await getContentRange(toolCall.arguments, this.database);
 
       case 'store_asset':
         return await storeAsset(this.database, this.openaiClient, this.contentBuffer, toolCall.arguments);
@@ -83,19 +83,24 @@ export class MCPLocalClient {
 
 
   private async findRanges(args: {
-    name: string;
-    format: string;
-    terms: string[];
+    docid: string;
+    pattern: string;
+    match_type: 'exact' | 'regex' | 'semantic';
     context_lines?: number;
   }): Promise<string> {
     try {
-      const result = await findRangesStandalone(args);
+      const result = await findRangesStandalone({
+        docid: args.docid,
+        pattern: args.pattern,
+        match_type: args.match_type,
+        context_lines: args.context_lines
+      }, this.database, this.openaiClient);
       return JSON.stringify(result, null, 2);
     } catch (error: any) {
       return JSON.stringify({
-        document: args.name,
-        format: args.format,
-        search_terms: args.terms,
+        document: args.docid,
+        pattern: args.pattern,
+        match_type: args.match_type,
         ranges_found: 0,
         ranges: [],
         error: error.message
