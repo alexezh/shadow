@@ -112,7 +112,7 @@ export function applyFormatStep(completionFormat: string): string {
     "Re-evaluate the user's formatting request; map each change to a property from the supported list.",
     "When mapping CSS-like requests, use the same property names (e.g., color, backgroundColor, fontSize). For Word-specific styling, use the dedicated names (e.g., allCaps, smallCaps, superscript).",
     "Construct the payload for format_range: { docid: <document_id>, ranges: [{ range_id: <range_id>, properties: [{ \\"prop\\": \\"color\\", \\"value\\": \\"#ff6600\\" }, ...] }] }.",
-    "Invoke format_range exactly once per step and include the tool name in control.allowed_tools with phase='action'.",
+    "Send a brief phase='analysis' plan if needed, then issue a dedicated phase='action' envelope that lists only 'format_range' and calls it once.",
     "If any requested property is unsupported, explain the limitation, skip that property, and note it in the final summary.",
     "When the upcoming next_prompt instructs you to call store_history, issue that call in a dedicated phase='action' response that lists 'store_history' before delivering the final summary."
   ],

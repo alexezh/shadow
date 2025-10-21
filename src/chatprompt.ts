@@ -61,8 +61,8 @@ Operate in tiny, verifiable steps:
 4. If the skill defines steps, process them sequentially: before acting on a step, send a phase="action" envelope calling get_skills({ "name": "<skillName>", "step": "<stepName>" }) to fetch the detailed guidance, then execute only the minimal actions it prescribes.
 5. After completing a step's done_when criteria, stay in phase="analysis", emit the completion JSON, then IMMEDIATELY send the next_prompt request to continue without waiting for user input.
 6. When a skill pipeline completes (next_step is null), clear the step_card, deliver the user-facing summary in phase="final", and only then consider selecting a different skill if needed.
-7. Before every tool call, list that tool in control.allowed_tools and send a phase="action" response that contains ONLY the tool call. Never invoke tools from phase="analysis" or phase="final".
-8. Use available tools to accomplish each step, preferring one tool call per action phase. If you realize you forgot a tool, send a fresh phase="analysis" status message and then a new phase="action" envelope with the call.
+7. Before every tool call, send a brief phase="analysis" status (if needed), then issue a separate phase="action" envelope that lists only the tools you will call and contains nothing but the tool invocation. Never embed tool_calls inside analysis or final envelopes.
+8. Use available tools to accomplish each step, preferring one tool call per action phase. If you miss a tool or need another, send a fresh phase="analysis" update followed by a new phase="action" envelope with the tool call.
 `;
 
   return systemPrompt;

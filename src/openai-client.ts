@@ -215,7 +215,13 @@ export class OpenAIClient {
     mcpTools: Array<ChatCompletionTool>,
     systemPrompt: string,
     userMessage: string,
-    options?: { conversationId?: string; skipCurrentPrompt?: boolean, requireEnvelope?: boolean, startAt?: number }
+    options?: {
+      tracker?: ContextTracker,
+      conversationId?: string;
+      skipCurrentPrompt?: boolean,
+      requireEnvelope?: boolean,
+      startAt?: number
+    }
   ): Promise<ChatResult> {
 
     // Set the current prompt in the MCP client for history tracking

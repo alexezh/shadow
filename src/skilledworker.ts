@@ -92,11 +92,7 @@ export async function skilledWorker(
 
     const nextPrompt = extractNextPrompt(envelope);
     if (!nextPrompt) {
-      return {
-        response: lastResponse,
-        conversationId,
-        usage: aggregateUsage
-      };
+      break;
     }
 
     console.log(`🔁 Continuing workflow with next prompt: ${nextPrompt}`);
@@ -105,7 +101,7 @@ export async function skilledWorker(
 
   const endAt = performance.now();
   const elapsedSeconds = (endAt - startAt) / 1000;
-  console.log(`skilledWorker: elapsed=${elapsedSeconds.toFixed(2)}s prompt=${aggregateUsage.promptTokens} completion=${aggregateUsage.completionTokens} total=${result.usage.totalTokens}`);
+  console.log(`skilledWorker: elapsed=${elapsedSeconds.toFixed(2)}s prompt=${aggregateUsage.promptTokens} completion=${aggregateUsage.completionTokens} total=${aggregateUsage.totalTokens}`);
   console.log('Response:', lastResponse);
 
   return {
