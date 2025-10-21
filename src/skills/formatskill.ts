@@ -1,6 +1,6 @@
 import { SkillDef } from "../skilldef";
 
-const PROPERTY_REFERENCE = `
+export const TEXT_PROPERTY_REFERENCE = `
 Supported formatting properties (use \`prop\` names exactly as listed):
 - \`fontFamily\` — font family name (e.g., "Times New Roman"); maps to Word font.name.
 - \`fontSize\` — size in points (number or string like "12pt"); maps to Word font.size.
@@ -59,7 +59,7 @@ Execution rules:
 - Only send phase="final" once apply_format finishes and there are no further next steps.
 - Ask the user for clarification whenever the selection or desired style is ambiguous.
 
-${PROPERTY_REFERENCE}
+${TEXT_PROPERTY_REFERENCE}
 `,
   childSkill: [
     {
@@ -74,7 +74,7 @@ ${PROPERTY_REFERENCE}
     "Derive search keywords from the user request (topic, section name, distinctive phrases).",
     "Call find_ranges with { name: <document>, format: 'text', keywords: [...], context_lines: 2 } to locate candidate ranges.",
     "If multiple matches exist, summarize the options and ask the user to disambiguate before proceeding.",
-    "Persist the resolved range via set_context(['selection'], '<start_id>:<end_id>')."
+    "Persist the resolved range via set_context(['selection'], '<range_id>: <start_id> <end_id>')."
   ],
   "completion_format": {
     "status": "select_range-complete",
@@ -90,19 +90,7 @@ ${PROPERTY_REFERENCE}
     },
     {
       step: "apply_format",
-      text: `
-{
-  "step": "apply_format",
-  "goal": "Apply the requested character formatting to the confirmed range.",
-  "done_when": "format_ranges executes successfully with the desired {prop,value} pairs.",
-  "actions": [
-    "Re-evaluate the user's formatting request; map each change to a property from the supported list.",
-    "When mapping CSS-like requests, use the same property names (e.g., color, backgroundColor, fontSize). For Word-specific styling, use the dedicated names (e.g., allCaps, smallCaps, superscript).",
-    "Construct the payload for format_ranges: { name: <document>, range: { start_id, end_id }, properties: [{ \\"prop\\": \\"color\\", \\"value\\": \\"#ff6600\\" }, ...] }.",
-    "Invoke format_ranges exactly once per step and include the tool name in control.allowed_tools with phase='action'.",
-    "If any requested property is unsupported, explain the limitation, skip that property, and note it in the final summary."
-  ],
-  "completion_format": {
+      text: applyFormatStep(`{
     "status": "apply_format-complete",
     "next_step": null,
     "next_prompt": "Summarize the formatting changes, confirm any exclusions, and close with phase=\\"final\\".",
@@ -110,9 +98,26 @@ ${PROPERTY_REFERENCE}
       "applied_properties": [{"prop": "<prop>", "value": "<value>"}],
       "notes": "list unsupported instructions or 'none'"
     }
-  }
-}
-`
+  }`
+      )
     }
   ]
 };
+
+export function applyFormatStep(completionFormat: string): string {
+  return `
+{
+  "step": "apply_format",
+  "goal": "Apply the requested character formatting to the confirmed range.",
+  "done_when": "format_range executes successfully with the desired {prop,value} pairs.",
+  "actions": [
+    "Re-evaluate the user's formatting request; map each change to a property from the supported list.",
+    "When mapping CSS-like requests, use the same property names (e.g., color, backgroundColor, fontSize). For Word-specific styling, use the dedicated names (e.g., allCaps, smallCaps, superscript).",
+    "Construct the payload for format_range: { docid: <document_id>, ranges: [{ range_id: <range_id>, properties: [{ \\"prop\\": \\"color\\", \\"value\\": \\"#ff6600\\" }, ...] }] }.",
+    "Invoke format_range exactly once per step and include the tool name in control.allowed_tools with phase='action'.",
+    "If any requested property is unsupported, explain the limitation, skip that property, and note it in the final summary."
+  ],
+  "completion_format": ${completionFormat}
+}
+`;
+}

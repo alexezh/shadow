@@ -260,5 +260,42 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
         required: ['docid', 'partid']
       }
     }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'format_range',
+      description: 'Apply character-level formatting to one or more ranges in a document. Each range is identified by range_id from find_ranges. Properties are applied as an array of {prop, value} pairs supporting font, color, style, and Word-specific formatting options.',
+      parameters: {
+        type: 'object',
+        properties: {
+          docid: { type: 'string', description: 'Document ID containing the ranges to format' },
+          ranges: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                range_id: { type: 'string', description: 'Unique range identifier from find_ranges result' },
+                properties: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      prop: { type: 'string', description: 'Property name (e.g., "bold", "fontSize", "color", "backgroundColor", "italic", "underline")' },
+                      value: { description: 'Property value (type varies: boolean for bold/italic, string for color/fontSize, etc.)' }
+                    },
+                    required: ['prop', 'value']
+                  },
+                  description: 'Array of formatting properties to apply'
+                }
+              },
+              required: ['range_id', 'properties']
+            },
+            description: 'Array of ranges with their formatting properties'
+          }
+        },
+        required: ['docid', 'ranges']
+      }
+    }
   }
 ];

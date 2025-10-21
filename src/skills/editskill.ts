@@ -1,18 +1,21 @@
 import { SkillDef } from "../skilldef";
+import { applyFormatStep } from "./formatskill.js";
 
 export const editSkill: SkillDef =
 {
   name: "edit_text",
-  keywords: ['edit document', 'format document'],
+  keywords: ['edit document', 'change text', 'modify content'],
   test_keywords: [
     'edit document',
     'modify text',
     'change paragraph',
     'update content',
-    'format document'
+    'rewrite section'
   ],
   text: `
 **edit document · step pipeline**
+
+IMPORTANT: Use this skill ONLY when the user explicitly requests text changes, content modifications, or rewrites. Do NOT use this skill for formatting-only requests (bold, color, font changes, etc.) - use format_text skill instead.
 
 Represent editing as sequential JSON step cards. Emit only the active card in envelope.metadata.step_card using:
 {
@@ -76,9 +79,10 @@ Execution rules:
   "done_when": "start_id and end_id are stored in context as the active selection.",
   "actions": [
     "Check get_context(['selection']) for an existing range.",
-    "If the user describes new text, gather synonyms and call find_ranges(name, format, keywords) with useful context_lines.",
+    "If the user requests a replacement, run find_ranges with the exact phrase first; if no match, retry with regex patterns; if still missing, fall back to a semantic keyword search.",
     "Map structure titles to paragraph IDs when references come from the cached structure.",
-    "Persist the resolved range via set_context(['selection'], '<start_id>:<end_id>').",
+    "When all find_ranges strategies fail and the document has not been loaded yet, read from the beginning with get_contentrange to inspect the text manually.",
+    "Persist the resolved range via set_context(['selection'], '<range_id>: <start_id> <end_id>').",
     "Ask the user for clarification instead of guessing when multiple matches exist."
   ],
   "completion_format": {
@@ -120,29 +124,17 @@ Execution rules:
     },
     {
       step: 'format',
-      text: `
-{
-  "step": "apply_formatting",
-  "goal": "Ensure the revised content conforms to blueprint or requested styling.",
-  "done_when": "Formatting matches expectations or the blueprint is updated to capture new styling rules.",
-  "actions": [
-    "Load the relevant blueprint with load_asset(kind='blueprint') using styling keywords gathered earlier.",
-    "Compare revised paragraphs to blueprint directives; adjust classes, inline styles, or annotations as needed.",
-    "If new styling rules emerge, update the blueprint and persist it with store_asset(kind='blueprint') using the same keywords.",
-    "Restream any formatting tweaks via store_asset(kind='html') if adjustments were required.",
-    "Log completion via set_context(['last_action'], 'applied formatting')."
-  ],
-  "completion_format": {
+      text: applyFormatStep(`{
     "status": "apply_formatting-complete",
     "next_step": null,
     "next_prompt": "Summarize the edits for the user and record history with store_history.",
     "handoff": {
       "formatted_range": "<start_id>:<end_id>",
-      "blueprint_changes": "list of blueprint updates or 'none'"
+      "applied_properties": [{"prop": "<prop>", "value": "<value>"}],
+      "notes": "list unsupported instructions or 'none'"
     }
-  }
-}
-`
+  }`
+      )
     }
   ]
 }
