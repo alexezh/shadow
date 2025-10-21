@@ -1,6 +1,6 @@
 import { Database } from './database.js';
-import { parseDocument } from 'htmlparser2';
-import render from 'dom-serializer';
+import * as cheerio from 'cheerio';
+import { ChunkedDoc } from './chunkedDoc.js';
 
 export interface FormatProperty {
   prop: string;
@@ -8,7 +8,12 @@ export interface FormatProperty {
 }
 
 export interface RangeFormat {
-  range_id: string;
+  range_id?: string;
+  start_id?: string;
+  end_id?: string;
+  text?: string;
+  start_text?: string;
+  end_text?: string;
   properties: FormatProperty[];
 }
 
@@ -32,25 +37,10 @@ export function clearRangeCache(): void {
   rangeCache.clear();
 }
 
-// Helper to apply formatting properties to a DOM node
-function applyFormattingToNode(node: any, properties: FormatProperty[]): void {
-  if (node.type !== 'tag') return;
-
-  // Initialize style object from existing style attribute
-  const existingStyle = node.attribs?.style || '';
+// Helper to build CSS style string from properties
+function buildStyleFromProperties(properties: FormatProperty[]): Record<string, string> {
   const styleMap: Record<string, string> = {};
 
-  // Parse existing styles
-  if (existingStyle) {
-    existingStyle.split(';').forEach((rule: string) => {
-      const [prop, val] = rule.split(':').map(s => s.trim());
-      if (prop && val) {
-        styleMap[prop] = val;
-      }
-    });
-  }
-
-  // Apply each property
   for (const { prop, value } of properties) {
     switch (prop) {
       case 'fontFamily':
@@ -95,7 +85,18 @@ function applyFormattingToNode(node: any, properties: FormatProperty[]): void {
       case 'smallCaps':
         styleMap['font-variant'] = value ? 'small-caps' : 'normal';
         break;
-      // Store Word-specific properties as data attributes for later processing
+    }
+  }
+
+  return styleMap;
+}
+
+// Helper to get Word-specific data attributes from properties
+function getWordDataAttributes(properties: FormatProperty[]): Record<string, string> {
+  const dataAttrs: Record<string, string> = {};
+
+  for (const { prop, value } of properties) {
+    switch (prop) {
       case 'doubleStrikethrough':
       case 'superscript':
       case 'subscript':
@@ -107,59 +108,41 @@ function applyFormattingToNode(node: any, properties: FormatProperty[]): void {
       case 'scaling':
       case 'kerning':
       case 'highlightPattern':
-        node.attribs = node.attribs || {};
-        node.attribs[`data-word-${prop.toLowerCase()}`] = String(value);
+        dataAttrs[`data-word-${prop.toLowerCase()}`] = String(value);
         break;
     }
   }
 
-  // Rebuild style attribute
-  const newStyle = Object.entries(styleMap)
+  return dataAttrs;
+}
+
+// Helper to wrap specific text within an element with a span
+function wrapTextInSpan($: cheerio.CheerioAPI, $element: cheerio.Cheerio<any>, text: string, styleProps: Record<string, string>, dataAttrs: Record<string, string>): boolean {
+  // Get the HTML content of the element
+  const html = $element.html();
+  if (!html) return false;
+
+  // Find the text position
+  const textIndex = html.indexOf(text);
+  if (textIndex === -1) return false;
+
+  // Build style string
+  const styleStr = Object.entries(styleProps)
     .map(([k, v]) => `${k}: ${v}`)
     .join('; ');
 
-  if (newStyle) {
-    node.attribs = node.attribs || {};
-    node.attribs.style = newStyle;
-  }
-}
+  // Build data attributes string
+  const dataAttrStr = Object.entries(dataAttrs)
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(' ');
 
-// Helper to find and format nodes within a range
-function formatNodesInRange(
-  node: any,
-  startId: string | null,
-  endId: string | null,
-  properties: FormatProperty[],
-  state: { inRange: boolean; foundStart: boolean; foundEnd: boolean }
-): void {
-  if (node.type === 'tag') {
-    const nodeId = node.attribs?.id || null;
+  // Create the wrapped version
+  const before = html.substring(0, textIndex);
+  const after = html.substring(textIndex + text.length);
+  const wrapped = `${before}<span style="${styleStr}" ${dataAttrStr}>${text}</span>${after}`;
 
-    // Check if we've found the start
-    if (!state.foundStart && nodeId === startId) {
-      state.foundStart = true;
-      state.inRange = true;
-    }
-
-    // Apply formatting if we're in range
-    if (state.inRange) {
-      applyFormattingToNode(node, properties);
-    }
-
-    // Check if we've found the end
-    if (state.inRange && nodeId === endId) {
-      state.foundEnd = true;
-      state.inRange = false;
-    }
-  }
-
-  // Recursively process children
-  if (node.children && !state.foundEnd) {
-    for (const child of node.children) {
-      formatNodesInRange(child, startId, endId, properties, state);
-      if (state.foundEnd) break;
-    }
-  }
+  $element.html(wrapped);
+  return true;
 }
 
 export async function formatRange(
@@ -175,89 +158,181 @@ export async function formatRange(
   try {
     const { docid, ranges } = options;
 
-    // Get all HTML parts for this document
-    const parts = await database.getAllHtmlParts(docid);
-
-    if (parts.length === 0) {
-      throw new Error(`No HTML parts found for document: ${docid}`);
-    }
-
-    // We'll work with the main part (partid='0')
-    const mainPart = parts.find(p => p.partid === '0');
-
-    if (!mainPart) {
-      throw new Error(`Main document part (partid='0') not found for docid: ${docid}`);
-    }
-
-    // Parse the HTML
-    const document = parseDocument(mainPart.html, {
-      withStartIndices: false,
-      withEndIndices: false
-    });
+    // Load document as ChunkedDoc
+    const doc = new ChunkedDoc(docid);
+    await doc.load(database);
 
     const rangeResults: Array<{ range_id: string; status: string; message?: string }> = [];
     let successCount = 0;
 
     // Process each range
     for (const rangeFormat of ranges) {
-      const { range_id, properties } = rangeFormat;
+      const { range_id, start_id: explicitStartId, end_id: explicitEndId, text, start_text, end_text, properties } = rangeFormat;
 
-      // Try to get range from cache
-      const cachedRange = getCachedRange(range_id);
+      let start_id: string | null = null;
+      let end_id: string | null = null;
+      const rangeIdForLog = range_id || `${explicitStartId}:${explicitEndId}`;
 
-      if (!cachedRange) {
+      // Determine start_id and end_id from range_id (cache) or explicit IDs
+      if (range_id) {
+        const cachedRange = getCachedRange(range_id);
+        if (!cachedRange) {
+          rangeResults.push({
+            range_id: rangeIdForLog,
+            status: 'error',
+            message: `Range ID ${range_id} not found in cache. Call find_ranges first.`
+          });
+          continue;
+        }
+        start_id = cachedRange.start_id;
+        end_id = cachedRange.end_id;
+      } else if (explicitStartId && explicitEndId) {
+        start_id = explicitStartId;
+        end_id = explicitEndId;
+      } else {
         rangeResults.push({
-          range_id,
+          range_id: rangeIdForLog,
           status: 'error',
-          message: `Range ID ${range_id} not found in cache. Call find_ranges first.`
+          message: 'Must provide either range_id or both start_id and end_id'
         });
         continue;
       }
-
-      const { start_id, end_id } = cachedRange;
 
       if (!start_id || !end_id) {
         rangeResults.push({
-          range_id,
+          range_id: rangeIdForLog,
           status: 'error',
-          message: `Range ${range_id} has null start_id or end_id`
+          message: `Range has null start_id or end_id`
         });
         continue;
       }
 
-      // Apply formatting to nodes in range
-      const state = { inRange: false, foundStart: false, foundEnd: false };
-      for (const child of document.children) {
-        formatNodesInRange(child, start_id, end_id, properties, state);
-        if (state.foundEnd) break;
-      }
+      // Find start and end paragraphs using ChunkedDoc
+      const startPara = doc.getParagraph(start_id);
+      const endPara = doc.getParagraph(end_id);
 
-      if (!state.foundStart) {
+      if (!startPara) {
         rangeResults.push({
-          range_id,
+          range_id: rangeIdForLog,
           status: 'error',
           message: `Start ID ${start_id} not found in document`
         });
-      } else if (!state.foundEnd) {
+        continue;
+      }
+
+      if (!endPara) {
         rangeResults.push({
-          range_id,
+          range_id: rangeIdForLog,
           status: 'error',
           message: `End ID ${end_id} not found in document`
         });
-      } else {
+        continue;
+      }
+
+      // Get cheerio instances for the parts containing start and end
+      const $start = startPara.$element;
+      const $end = endPara.$element;
+      const startCheerio = doc.getCheerio(startPara.partid);
+      const endCheerio = doc.getCheerio(endPara.partid);
+
+      if (!startCheerio || !endCheerio) {
         rangeResults.push({
-          range_id,
+          range_id: rangeIdForLog,
+          status: 'error',
+          message: 'Could not get cheerio instance for parts'
+        });
+        continue;
+      }
+
+      // Build style and data attributes
+      const styleProps = buildStyleFromProperties(properties);
+      const dataAttrs = getWordDataAttributes(properties);
+
+      // Handle text-based selection
+      if (text && start_id === end_id) {
+        // Single paragraph: wrap the specific text in a span
+        const wrapped = wrapTextInSpan(startCheerio, $start, text, styleProps, dataAttrs);
+        if (!wrapped) {
+          rangeResults.push({
+            range_id: rangeIdForLog,
+            status: 'error',
+            message: `Text "${text}" not found in element ${start_id}`
+          });
+          continue;
+        }
+        rangeResults.push({
+          range_id: rangeIdForLog,
           status: 'success'
         });
         successCount++;
+        continue;
+      } else if (start_text && end_text && start_id !== end_id) {
+        // Multi-paragraph: wrap start_text in start element, end_text in end element, and all elements in between
+        const wrappedStart = wrapTextInSpan(startCheerio, $start, start_text, styleProps, dataAttrs);
+        const wrappedEnd = wrapTextInSpan(endCheerio, $end, end_text, styleProps, dataAttrs);
+
+        if (!wrappedStart) {
+          rangeResults.push({
+            range_id: rangeIdForLog,
+            status: 'error',
+            message: `Start text "${start_text}" not found in element ${start_id}`
+          });
+          continue;
+        }
+
+        if (!wrappedEnd) {
+          rangeResults.push({
+            range_id: rangeIdForLog,
+            status: 'error',
+            message: `End text "${end_text}" not found in element ${end_id}`
+          });
+          continue;
+        }
+
+        // Apply formatting to all paragraphs between start and end (exclusive)
+        const rangeParagraphs = doc.getParagraphRange(start_id, end_id);
+        for (let i = 1; i < rangeParagraphs.length - 1; i++) {
+          const para = rangeParagraphs[i];
+          for (const [cssProp, cssValue] of Object.entries(styleProps)) {
+            para.$element.css(cssProp, cssValue);
+          }
+          for (const [attrName, attrValue] of Object.entries(dataAttrs)) {
+            para.$element.attr(attrName, attrValue);
+          }
+        }
+
+        rangeResults.push({
+          range_id: rangeIdForLog,
+          status: 'success'
+        });
+        successCount++;
+        continue;
       }
+
+      // No text specified: apply formatting to all paragraphs from start to end (inclusive)
+      const rangeParagraphs = doc.getParagraphRange(start_id, end_id);
+
+      for (const para of rangeParagraphs) {
+        // Apply CSS styles
+        for (const [cssProp, cssValue] of Object.entries(styleProps)) {
+          para.$element.css(cssProp, cssValue);
+        }
+
+        // Apply Word-specific data attributes
+        for (const [attrName, attrValue] of Object.entries(dataAttrs)) {
+          para.$element.attr(attrName, attrValue);
+        }
+      }
+
+      rangeResults.push({
+        range_id: rangeIdForLog,
+        status: 'success'
+      });
+      successCount++;
     }
 
-    // Serialize the modified document back to HTML
-    const updatedHtml = render(document);
-
-    // Update the database with the formatted HTML
-    await database.updateHtmlPart(docid, '0', updatedHtml);
+    // Save all modified parts back to database
+    await doc.save(database);
 
     console.log(`✨ Formatted ${successCount}/${ranges.length} ranges in document ${docid}`);
 

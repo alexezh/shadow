@@ -265,7 +265,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     type: 'function' as const,
     function: {
       name: 'format_range',
-      description: 'Apply character-level formatting to one or more ranges in a document. Each range is identified by range_id from find_ranges. Properties are applied as an array of {prop, value} pairs supporting font, color, style, and Word-specific formatting options.',
+      description: 'Apply character-level formatting to one or more ranges in a document. Ranges can be specified using range_id from find_ranges OR by providing exact text boundaries with paragraph IDs. For single-paragraph selections use {start_id, end_id, text}. For multi-paragraph selections use {start_id, start_text, end_id, end_text}. Properties are applied as an array of {prop, value} pairs supporting font, color, style, and Word-specific formatting options.',
       parameters: {
         type: 'object',
         properties: {
@@ -275,7 +275,12 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
             items: {
               type: 'object',
               properties: {
-                range_id: { type: 'string', description: 'Unique range identifier from find_ranges result' },
+                range_id: { type: 'string', description: 'Unique range identifier from find_ranges result (optional if using text-based selection)' },
+                start_id: { type: 'string', description: 'ID of starting paragraph (required for text-based selection)' },
+                end_id: { type: 'string', description: 'ID of ending paragraph (required for text-based selection)' },
+                text: { type: 'string', description: 'Exact text to format within a single paragraph (use with start_id=end_id)' },
+                start_text: { type: 'string', description: 'Exact text at the start of a multi-paragraph selection (use with start_id)' },
+                end_text: { type: 'string', description: 'Exact text at the end of a multi-paragraph selection (use with end_id)' },
                 properties: {
                   type: 'array',
                   items: {
@@ -289,7 +294,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
                   description: 'Array of formatting properties to apply'
                 }
               },
-              required: ['range_id', 'properties']
+              required: ['properties']
             },
             description: 'Array of ranges with their formatting properties'
           }
