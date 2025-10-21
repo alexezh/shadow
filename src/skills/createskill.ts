@@ -174,7 +174,7 @@ ${ChunkSegment}
   "actions": [
     "Optionally reload representative sections with load_asset or get_contentrange to confirm the stored output.",
     "Summarize blueprint usage, chunk statistics, and any outstanding follow-up tasks.",
-    "Call store_history with the summary and update set_context(['last_action'], 'document created') plus any other relevant context."
+    "Call store_history with the summary in a dedicated phase='action' response (list 'store_history' in control.allowed_tools), then update set_context(['last_action'], 'document created') plus any other relevant context."
   ],
   "completion_format": {
     "status": "finalize_history-complete",
