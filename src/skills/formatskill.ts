@@ -1,7 +1,9 @@
 import { SkillDef } from "../skilldef";
 
 export const TEXT_PROPERTY_REFERENCE = `
-Supported formatting properties (use \`prop\` names exactly as listed):
+Supported formatting properties (use \`prop\` names exactly as listed).
+
+Character-level properties (map closely to Word font.* and CSS text attributes):
 - \`fontFamily\` — font family name (e.g., "Times New Roman"); maps to Word font.name.
 - \`fontSize\` — size in points (number or string like "12pt"); maps to Word font.size.
 - \`color\` — text color in hex (e.g., "#1a1a1a"); maps to CSS color / Word font.color.
@@ -23,6 +25,24 @@ Supported formatting properties (use \`prop\` names exactly as listed):
 - \`scaling\` — percentage scaling (number); maps to Word font.scaling.
 - \`kerning\` — kerning size in points (number); maps to Word font.kerning.
 - \`highlightPattern\` — Word-specific highlight pattern keywords when needed (e.g., "checkerboard").
+
+Paragraph layout properties (map to Word paragraph.* / paragraphFormat and CSS block attributes):
+- \`alignment\` — one of "left", "right", "center", "justify", "distribute"; maps to Word paragraph.alignment.
+- \`indentLeft\` — left indent in points; maps to paragraph.leftIndent.
+- \`indentRight\` — right indent in points; maps to paragraph.rightIndent.
+- \`indentFirstLine\` — first-line indent in points (negative for hanging); maps to paragraph.firstLineIndent.
+- \`spacingBefore\` — spacing before paragraph in points; maps to paragraph.spaceBefore.
+- \`spacingAfter\` — spacing after paragraph in points; maps to paragraph.spaceAfter.
+- \`lineSpacing\` — line spacing value (e.g., 1.0, 1.5, 2.0 or explicit points); maps to paragraph.lineSpacing.
+- \`lineSpacingRule\` — choose "single", "1.5", "double", "multiple", "atLeast", "exactly"; maps to paragraph.lineSpacingRule.
+- \`keepWithNext\` — true/false; keep paragraph with next.
+- \`keepLinesTogether\` — true/false; prevent widows/orphans.
+- \`pageBreakBefore\` — true/false; insert page break before paragraph.
+- \`widowControl\` — true/false; enable widow/orphan control.
+- \`outlineLevel\` — integer 0-9; maps to paragraph.outlineLevel.
+- \`tabStops\` — array of { position: number, alignment: "left"|"center"|"right"|"decimal" }. 
+- \`bidi\` — true/false; enable right-to-left paragraph order.
+- \`numbering\` — object describing list configuration (e.g., { level: 0, style: "decimal", restart: true }).
 `;
 
 export const formatSkill: SkillDef = {
@@ -111,6 +131,7 @@ export function applyFormatStep(completionFormat: string): string {
   "actions": [
     "Re-evaluate the user's formatting request; map each change to a property from the supported list.",
     "When mapping CSS-like requests, use the same property names (e.g., color, backgroundColor, fontSize). For Word-specific styling, use the dedicated names (e.g., allCaps, smallCaps, superscript).",
+    "Translate paragraph layout instructions (indentation, alignment, spacing, widows/orphans) into the paragraph-level properties listed in the reference and ensure they apply to the whole paragraph span.",
     "Construct the payload for format_range: { docid: <document_id>, ranges: [{ range_id: <range_id>, properties: [{ \\"prop\\": \\"color\\", \\"value\\": \\"#ff6600\\" }, ...] }] }.",
     "Send a brief phase='analysis' plan if needed, then issue a dedicated phase='action' envelope that lists only 'format_range' and calls it once.",
     "If any requested property is unsupported, explain the limitation, skip that property, and note it in the final summary.",
