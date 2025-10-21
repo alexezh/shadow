@@ -343,13 +343,11 @@ export class OpenAIClient {
         delete (assistantMessage as any).tool_calls;
       }
 
-      let elapsed = (options?.startAt) ? (performance.now() - options.startAt) / 1000 : 0;
+      const elapsed = (options?.startAt) ? (performance.now() - options.startAt) / 1000 : 0;
+      const responseText = (assistantMessage.content.length !== 0) ? assistantMessage.content.substring(0, 100) : JSON.stringify(assistantMessage).substring(0, 200);
 
-      if (assistantMessage.content.length !== 0) {
-        console.log(`assistant: elapsed: ${elapsed} ${assistantMessage.content.substring(0, 100)}`);
-      } else {
-        console.log(`assistant: elapsed: ${elapsed} ${JSON.stringify(assistantMessage).substring(0, 200)}`);
-      }
+      console.log(`assistant: [elapsed: ${elapsed}] [tt: ${totalPromptTokens}] ${responseText}`);
+
       // Add the complete assistant message
       messages.push(assistantMessage);
 
@@ -364,7 +362,7 @@ export class OpenAIClient {
             if (transitionIssue) {
               messages.push({
                 role: 'system',
-                content: `Phase transition error: ${transitionIssue} Respond again with a valid phase-gated control envelope JSON.`
+                content: `Phase transition error: ${transitionIssue} Respond again with a valid phase - gated control envelope JSON.`
               });
               invalidEnvelopeCount++;
               if (invalidEnvelopeCount > 5) {
@@ -382,14 +380,14 @@ export class OpenAIClient {
           if (requireEnvelope) {
             invalidEnvelopeCount++;
             if (invalidEnvelopeCount > 5) {
-              throw new Error(`Assistant failed to provide a valid phase-gated control envelope JSON after multiple attempts: ${error?.message || String(error)}`);
+              throw new Error(`Assistant failed to provide a valid phase - gated control envelope JSON after multiple attempts: ${error?.message || String(error)} `);
             }
 
-            respondToToolCallsWithError(toolCalls, `Rejected tool call: ${error?.message || String(error)}`);
+            respondToToolCallsWithError(toolCalls, `Rejected tool call: ${error?.message || String(error)} `);
 
             messages.push({
               role: 'system',
-              content: `Your previous reply was not valid phase-gated control envelope JSON. Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`
+              content: `Your previous reply was not valid phase - gated control envelope JSON.Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`
             });
             continue;
           } else {
@@ -461,7 +459,7 @@ export class OpenAIClient {
 
           messages.push({
             role: 'system',
-            content: `The tools ${disallowed.join(', ')} are not listed in control.allowed_tools. Update the envelope and resend.`
+            content: `The tools ${disallowed.join(', ')} are not listed in control.allowed_tools.Update the envelope and resend.`
           });
           invalidEnvelopeCount++;
           if (invalidEnvelopeCount > 5) {
@@ -560,7 +558,7 @@ export class OpenAIClient {
   private async executeTools(toolCalls: any, messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): Promise<void> {
     // Execute tool calls
     for (const toolCall of toolCalls) {
-      console.log("executeTools:" + toolCall.function.name);
+      const toolStartAt = performance.now();
 
       if (toolCall.type === 'function') {
         try {
@@ -579,11 +577,12 @@ export class OpenAIClient {
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: `Error executing ${toolCall.function.name}: ${error}`
+            content: `Error executing ${toolCall.function.name}: ${error} `
           });
         }
       }
-    }
 
+      console.log(`executeTools: ${toolCall.function.name} elapsed: ${(performance.now() - toolStartAt) / 1000}`);
+    }
   }
 }

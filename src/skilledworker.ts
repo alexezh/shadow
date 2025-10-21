@@ -51,7 +51,7 @@ export async function skilledWorker(
   mcpTools: Array<ChatCompletionTool>,
   systemPrompt: string,
   userMessage: string,
-  options?: { conversationId?: string }
+  options?: { conversationId?: string, startAt: number }
 ): Promise<{ response: string; conversationId: string; usage: TokenUsage }> {
   let conversationId = options?.conversationId;
   let currentPrompt = userMessage;
@@ -72,7 +72,8 @@ export async function skilledWorker(
       {
         conversationId,
         requireEnvelope: true,
-        skipCurrentPrompt: iteration > 0
+        skipCurrentPrompt: iteration > 0,
+        startAt: options?.startAt
       }
     );
 

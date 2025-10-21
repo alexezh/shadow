@@ -339,7 +339,7 @@ export class ConsoleApp {
         mcpTools,
         systemPrompt,
         message,
-        { conversationId: this.currentConversationId }
+        { conversationId: this.currentConversationId, startAt }
       );
 
       // Store conversation ID for continuation
