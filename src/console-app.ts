@@ -334,7 +334,8 @@ export class ConsoleApp {
 
       const startAt = performance.now();
       const systemPrompt = await getChatPrompt(this.database);
-      const result = await skilledWorker(this.openaiClient,
+      const result = await skilledWorker(
+        this.openaiClient,
         mcpTools,
         systemPrompt,
         message,
@@ -345,7 +346,9 @@ export class ConsoleApp {
       this.currentConversationId = result.conversationId;
 
       const endAt = performance.now();
-      console.log(`Shadow complete: elapsed: ${endAt - startAt} response:`, result.response);
+      const elapsedSeconds = (endAt - startAt) / 1000;
+      console.log(`Shadow complete: elapsed=${elapsedSeconds.toFixed(2)}s prompt=${result.usage.promptTokens} completion=${result.usage.completionTokens} total=${result.usage.totalTokens}`);
+      console.log('Response:', result.response);
 
     } catch (error) {
       console.error('❌ Error processing chat message:', error);

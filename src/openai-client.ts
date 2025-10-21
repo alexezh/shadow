@@ -79,6 +79,18 @@ interface ConversationState {
   createdAt: Date;
 }
 
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+export interface ChatResult {
+  response: string;
+  conversationId: string;
+  usage: TokenUsage;
+}
+
 export class OpenAIClient {
   private client: OpenAI;
   private mcpClient: MCPLocalClient;
@@ -192,8 +204,8 @@ export class OpenAIClient {
     mcpTools: Array<ChatCompletionTool>,
     systemPrompt: string,
     userMessage: string,
-    options?: { conversationId?: string; skipCurrentPrompt?: boolean, requireEnvelope?: boolean }
-  ): Promise<{ response: string; conversationId: string }> {
+    options?: { conversationId?: string; skipCurrentPrompt?: boolean, requireEnvelope?: boolean, startAt?: number }
+  ): Promise<ChatResult> {
 
     // Set the current prompt in the MCP client for history tracking
     if (options?.skipCurrentPrompt) {
@@ -240,6 +252,9 @@ export class OpenAIClient {
     let maxIterations = 100;
     let iteration = 0;
     let invalidEnvelopeCount = 0;
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
+    let totalTokens = 0;
 
     while (iteration < maxIterations) {
       const response = await retryWithBackoff(async () => {
@@ -248,12 +263,19 @@ export class OpenAIClient {
           messages,
           tools: mcpTools,
           stream: true,
+          stream_options: {
+            include_usage: true
+          },
           tool_choice: 'auto',
           max_tokens: 1500,
           //max_completion_tokens: 1500,
           temperature: 0.7
         });
       });
+
+      let iterationPromptTokens = 0;
+      let iterationCompletionTokens = 0;
+      let iterationTotalTokens = 0;
 
       let assistantMessage = {
         role: 'assistant' as const,
@@ -292,7 +314,26 @@ export class OpenAIClient {
             }
           }
         }
+
+        const streamingUsage = (chunk as any)?.usage;
+        if (streamingUsage) {
+          if (typeof streamingUsage.prompt_tokens === 'number') {
+            iterationPromptTokens = streamingUsage.prompt_tokens;
+          }
+          if (typeof streamingUsage.completion_tokens === 'number') {
+            iterationCompletionTokens = streamingUsage.completion_tokens;
+          }
+          if (typeof streamingUsage.total_tokens === 'number') {
+            iterationTotalTokens = streamingUsage.total_tokens;
+          } else if (iterationPromptTokens || iterationCompletionTokens) {
+            iterationTotalTokens = iterationPromptTokens + iterationCompletionTokens;
+          }
+        }
       }
+
+      totalPromptTokens += iterationPromptTokens;
+      totalCompletionTokens += iterationCompletionTokens;
+      totalTokens += iterationTotalTokens || (iterationPromptTokens + iterationCompletionTokens);
 
       const toolCalls = assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0
         ? assistantMessage.tool_calls
@@ -302,10 +343,12 @@ export class OpenAIClient {
         delete (assistantMessage as any).tool_calls;
       }
 
+      let elapsed = (options?.startAt) ? (performance.now() - options.startAt) / 1000 : 0;
+
       if (assistantMessage.content.length !== 0) {
-        console.log("assistant:" + assistantMessage.content.substring(0, 100));
+        console.log(`assistant: elapsed: ${elapsed} ${assistantMessage.content.substring(0, 100)}`);
       } else {
-        console.log("assistant:" + JSON.stringify(assistantMessage).substring(0, 200));
+        console.log(`assistant: elapsed: ${elapsed} ${JSON.stringify(assistantMessage).substring(0, 200)}`);
       }
       // Add the complete assistant message
       messages.push(assistantMessage);
@@ -471,7 +514,12 @@ export class OpenAIClient {
 
           return {
             response: JSON.stringify(controlEnvelope, null, 2),
-            conversationId: conv.conversationId
+            conversationId: conv.conversationId,
+            usage: {
+              promptTokens: totalPromptTokens,
+              completionTokens: totalCompletionTokens,
+              totalTokens: totalTokens || (totalPromptTokens + totalCompletionTokens)
+            }
           };
         } else {
           if (rawContent.length === 0) {
@@ -482,7 +530,12 @@ export class OpenAIClient {
 
           return {
             response: rawContent,
-            conversationId: conv.conversationId
+            conversationId: conv.conversationId,
+            usage: {
+              promptTokens: totalPromptTokens,
+              completionTokens: totalCompletionTokens,
+              totalTokens: totalTokens || (totalPromptTokens + totalCompletionTokens)
+            }
           };
         }
       }
@@ -495,7 +548,12 @@ export class OpenAIClient {
 
     return {
       response: 'Max iterations reached without final response',
-      conversationId: conv.conversationId
+      conversationId: conv.conversationId,
+      usage: {
+        promptTokens: totalPromptTokens,
+        completionTokens: totalCompletionTokens,
+        totalTokens: totalTokens || (totalPromptTokens + totalCompletionTokens)
+      }
     };
   }
 

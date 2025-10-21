@@ -1,5 +1,5 @@
 import { ChatCompletionTool } from "openai/resources/chat/completions";
-import { OpenAIClient } from "./openai-client.js";
+import { OpenAIClient, TokenUsage } from "./openai-client.js";
 import { PhaseGatedEnvelope } from "./phase-envelope.js";
 
 interface StepCompletion {
@@ -52,10 +52,15 @@ export async function skilledWorker(
   systemPrompt: string,
   userMessage: string,
   options?: { conversationId?: string }
-): Promise<{ response: string; conversationId: string }> {
+): Promise<{ response: string; conversationId: string; usage: TokenUsage }> {
   let conversationId = options?.conversationId;
   let currentPrompt = userMessage;
   let lastResponse = '';
+  const aggregateUsage: TokenUsage = {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0
+  };
 
   const maxFollowUps = 12;
 
@@ -73,6 +78,9 @@ export async function skilledWorker(
 
     lastResponse = result.response;
     conversationId = result.conversationId;
+    aggregateUsage.promptTokens += result.usage.promptTokens;
+    aggregateUsage.completionTokens += result.usage.completionTokens;
+    aggregateUsage.totalTokens += result.usage.totalTokens;
 
     const envelope = tryParseJson<PhaseGatedEnvelope>(lastResponse);
     if (!envelope) {
@@ -83,7 +91,8 @@ export async function skilledWorker(
     if (!nextPrompt) {
       return {
         response: lastResponse,
-        conversationId
+        conversationId,
+        usage: aggregateUsage
       };
     }
 
@@ -93,6 +102,7 @@ export async function skilledWorker(
 
   return {
     response: lastResponse,
-    conversationId: conversationId!
+    conversationId: conversationId!,
+    usage: aggregateUsage
   };
 }
