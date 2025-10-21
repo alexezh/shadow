@@ -51,8 +51,10 @@ export async function skilledWorker(
   mcpTools: Array<ChatCompletionTool>,
   systemPrompt: string,
   userMessage: string,
-  options?: { conversationId?: string, startAt: number }
+  options?: { conversationId?: string }
 ): Promise<{ response: string; conversationId: string; usage: TokenUsage }> {
+  const startAt = performance.now();
+
   let conversationId = options?.conversationId;
   let currentPrompt = userMessage;
   let lastResponse = '';
@@ -73,7 +75,7 @@ export async function skilledWorker(
         conversationId,
         requireEnvelope: true,
         skipCurrentPrompt: iteration > 0,
-        startAt: options?.startAt
+        startAt: startAt
       }
     );
 
@@ -100,6 +102,11 @@ export async function skilledWorker(
     console.log(`🔁 Continuing workflow with next prompt: ${nextPrompt}`);
     currentPrompt = nextPrompt;
   }
+
+  const endAt = performance.now();
+  const elapsedSeconds = (endAt - startAt) / 1000;
+  console.log(`skilledWorker: elapsed=${elapsedSeconds.toFixed(2)}s prompt=${aggregateUsage.promptTokens} completion=${aggregateUsage.completionTokens} total=${result.usage.totalTokens}`);
+  console.log('Response:', lastResponse);
 
   return {
     response: lastResponse,

@@ -4,6 +4,17 @@ import { Database } from './database.js';
 import { ChatCompletionTool } from 'openai/resources/index.js';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
 
+export class ContextTracker {
+  public allocations: { tag: string, pos: number, count: number }[] = []
+  public totalCount: number = 0;
+  public promptCount: number = 0;
+  public completionCount: number = 0;
+
+  public recordPrompt(tag: string) {
+
+  }
+}
+
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
