@@ -50,16 +50,14 @@ Represent the workflow with JSON step cards. Emit only the active card in envelo
 
 Pipeline order:
 1. select_range — lock the specific paragraphs or cells that require formatting
-2. apply_format — apply the requested formatting properties via the format_ranges tool
+2. apply_format — apply the requested formatting properties via the format_range tool
 
 Execution rules:
 - Start with the select_range step every time. Use the find_ranges tool to convert the user request into concrete start/end IDs.
 - After emitting a step completion JSON, remain in phase="analysis" and immediately follow the provided next_prompt.
-- The apply_format step must make exactly one call to format_ranges with properties expressed as an array of { "prop": "<name>", "value": <value> } using the reference list below.
+- The apply_format step must make exactly one call to format_range with properties expressed as an array of { "prop": "<name>", "value": <value> }.
 - Only send phase="final" once apply_format finishes and there are no further next steps.
 - Ask the user for clarification whenever the selection or desired style is ambiguous.
-
-${TEXT_PROPERTY_REFERENCE}
 `,
   childSkill: [
     {
@@ -117,6 +115,7 @@ export function applyFormatStep(completionFormat: string): string {
     "Invoke format_range exactly once per step and include the tool name in control.allowed_tools with phase='action'.",
     "If any requested property is unsupported, explain the limitation, skip that property, and note it in the final summary."
   ],
+  "property_reference": ${JSON.stringify(TEXT_PROPERTY_REFERENCE)},
   "completion_format": ${completionFormat}
 }
 `;

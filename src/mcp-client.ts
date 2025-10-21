@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import * as path from 'path';
 import { generateEmbedding } from './openai-client.js';
 import { findRanges as findRangesStandalone } from './findRange.js';
+import { formatRange as formatRangeStandalone, cacheRange } from './formatRange.js';
 import { getSkills } from "./skills/getSkills.js";
 import { getContext, setContext } from './context.js';
 import { getContentRange } from './contentrange.js';
@@ -45,6 +46,9 @@ export class MCPLocalClient {
 
       case 'find_ranges':
         return await this.findRanges(toolCall.arguments);
+
+      case 'format_range':
+        return await this.formatRanges(toolCall.arguments);
 
       case 'get_context':
         return await getContext(this.database, this.openaiClient, toolCall.arguments);
@@ -95,6 +99,14 @@ export class MCPLocalClient {
         match_type: args.match_type,
         context_lines: args.context_lines
       }, this.database, this.openaiClient);
+
+      // Cache each range_id with its start_id and end_id
+      for (const range of result.ranges) {
+        cacheRange(range.range_id, range.start_id, range.end_id);
+      }
+
+      console.log(`🔍 Found ${result.ranges_found} ranges, cached ${result.ranges.length} range IDs`);
+
       return JSON.stringify(result, null, 2);
     } catch (error: any) {
       return JSON.stringify({
@@ -102,6 +114,32 @@ export class MCPLocalClient {
         pattern: args.pattern,
         match_type: args.match_type,
         ranges_found: 0,
+        ranges: [],
+        error: error.message
+      }, null, 2);
+    }
+  }
+
+  private async formatRanges(args: {
+    docid: string;
+    ranges: Array<{
+      range_id: string;
+      properties: Array<{ prop: string; value: any }>;
+    }>;
+  }): Promise<string> {
+    try {
+      const result = await formatRangeStandalone({
+        docid: args.docid,
+        ranges: args.ranges
+      }, this.database);
+
+      return JSON.stringify(result, null, 2);
+    } catch (error: any) {
+      console.error('❌ Error formatting ranges:', error);
+      return JSON.stringify({
+        success: false,
+        docid: args.docid,
+        ranges_formatted: 0,
         ranges: [],
         error: error.message
       }, null, 2);

@@ -78,7 +78,7 @@ The instructions should explain:
 - how to compare the intent against the available skills
 - how to choose the most appropriate skill name (or decide that none apply)
 - that the assistant's response must be exactly the chosen skill name when a match exists, otherwise respond with "none"
-- ignore keyword field in JSON
+- ignore "keyword" and "text_keyword" fields in JSON
 
 Return only the instruction text.`;
 

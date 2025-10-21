@@ -126,6 +126,7 @@ Execution rules:
       step: 'format',
       text: applyFormatStep(`{
     "status": "apply_formatting-complete",
+    "allowed_tools": ["format_range"],
     "next_step": null,
     "next_prompt": "Summarize the edits for the user and record history with store_history.",
     "handoff": {
