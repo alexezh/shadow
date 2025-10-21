@@ -4,14 +4,57 @@ import { Database } from './database.js';
 import { ChatCompletionTool } from 'openai/resources/index.js';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
 
+type TrackerEntry =
+  | { kind: 'message'; role: string; tag?: string; length: number; timestamp: number }
+  | { kind: 'usage'; tag: string; promptTokens: number; completionTokens: number; totalTokens: number; timestamp: number };
+
 export class ContextTracker {
-  public allocations: { tag: string, pos: number, count: number }[] = []
-  public totalCount: number = 0;
-  public promptCount: number = 0;
-  public completionCount: number = 0;
+  public promptTokens: number = 0;
+  public completionTokens: number = 0;
+  public totalTokens: number = 0;
+  public messageChars: number = 0;
+  public messageCount: number = 0;
+  public entries: TrackerEntry[] = [];
 
-  public recordPrompt(tag: string) {
+  recordMessage(role: string, content: string, tag?: string): void {
+    const length = content ? content.length : 0;
+    this.messageChars += length;
+    this.messageCount += 1;
+    this.entries.push({
+      kind: 'message',
+      role,
+      tag,
+      length,
+      timestamp: Date.now()
+    });
+  }
 
+  recordUsage(tag: string, promptTokens: number, completionTokens: number, totalTokens?: number): void {
+    if (!promptTokens && !completionTokens && !totalTokens) {
+      return;
+    }
+    const resolvedTotal = totalTokens ?? (promptTokens + completionTokens);
+    this.promptTokens += promptTokens;
+    this.completionTokens += completionTokens;
+    this.totalTokens += resolvedTotal;
+    this.entries.push({
+      kind: 'usage',
+      tag,
+      promptTokens,
+      completionTokens,
+      totalTokens: resolvedTotal,
+      timestamp: Date.now()
+    });
+  }
+
+  getSummary(): TokenUsage & { messageChars: number; messageCount: number } {
+    return {
+      promptTokens: this.promptTokens,
+      completionTokens: this.completionTokens,
+      totalTokens: this.totalTokens,
+      messageChars: this.messageChars,
+      messageCount: this.messageCount
+    };
   }
 }
 
@@ -241,6 +284,26 @@ export class OpenAIClient {
       console.log(`💬 Continuing conversation: ${conv.conversationId} (${messages.length} messages)`);
     }
 
+    const tracker = options?.tracker;
+    if (conv.isNew) {
+      tracker?.recordMessage('system', systemPrompt, 'system');
+    }
+    tracker?.recordMessage('user', userMessage, 'user');
+
+    const pushSystemMessage = (content: string): void => {
+      messages.push({ role: 'system', content });
+      tracker?.recordMessage('system', content, 'system');
+    };
+
+    const pushToolMessage = (toolCallId: string, content: string, tag: string): void => {
+      messages.push({
+        role: 'tool',
+        tool_call_id: toolCallId,
+        content
+      });
+      tracker?.recordMessage('tool', content, tag);
+    };
+
     const respondToToolCallsWithError = (toolCalls: any[], reason: string) => {
       if (!toolCalls || toolCalls.length === 0) {
         return;
@@ -254,14 +317,14 @@ export class OpenAIClient {
 
         console.warn(`respondToToolCallsWithError: (tool=${toolCall?.function?.name || 'unknown'}) (reason=${reason})`);
 
-        messages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          content: JSON.stringify({
+        pushToolMessage(
+          toolCall.id,
+          JSON.stringify({
             success: false,
             error: reason
-          }, null, 2)
-        });
+          }, null, 2),
+          toolCall?.function?.name || 'tool-error'
+        );
       }
     };
 
@@ -351,6 +414,14 @@ export class OpenAIClient {
       totalPromptTokens += iterationPromptTokens;
       totalCompletionTokens += iterationCompletionTokens;
       totalTokens += iterationTotalTokens || (iterationPromptTokens + iterationCompletionTokens);
+      if (tracker) {
+        tracker.recordUsage(
+          `iteration-${iteration}`,
+          iterationPromptTokens,
+          iterationCompletionTokens,
+          iterationTotalTokens || (iterationPromptTokens + iterationCompletionTokens)
+        );
+      }
 
       const toolCalls = assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0
         ? assistantMessage.tool_calls
@@ -367,6 +438,7 @@ export class OpenAIClient {
 
       // Add the complete assistant message
       messages.push(assistantMessage);
+      tracker?.recordMessage('assistant', assistantMessage.content || '', 'assistant');
 
       const rawContent = (assistantMessage.content || '').trim();
       let controlEnvelope: PhaseGatedEnvelope | null = null;
@@ -377,10 +449,7 @@ export class OpenAIClient {
           if (requireEnvelope) {
             const transitionIssue = validatePhaseProgression(lastPhase, controlEnvelope.phase);
             if (transitionIssue) {
-              messages.push({
-                role: 'system',
-                content: `Phase transition error: ${transitionIssue} Respond again with a valid phase - gated control envelope JSON.`
-              });
+              pushSystemMessage(`Phase transition error: ${transitionIssue} Respond again with a valid phase-gated control envelope JSON.`);
               invalidEnvelopeCount++;
               if (invalidEnvelopeCount > 5) {
                 throw new Error('Exceeded maximum invalid phase transitions from the assistant.');
@@ -402,10 +471,7 @@ export class OpenAIClient {
 
             respondToToolCallsWithError(toolCalls, `Rejected tool call: ${error?.message || String(error)} `);
 
-            messages.push({
-              role: 'system',
-              content: `Your previous reply was not valid phase - gated control envelope JSON.Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`
-            });
+            pushSystemMessage(`Your previous reply was not valid phase-gated control envelope JSON. Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`);
             continue;
           } else {
             controlEnvelope = null;
@@ -460,10 +526,7 @@ export class OpenAIClient {
         if (allowToolUse === false) {
           respondToToolCallsWithError(toolCalls, 'Rejected tool call: control.allow_tool_use is false.');
 
-          messages.push({
-            role: 'system',
-            content: 'control.allow_tool_use is false; do not invoke tools in the same response. Provide a new envelope.'
-          });
+          pushSystemMessage('control.allow_tool_use is false; do not invoke tools in the same response. Provide a new envelope.');
           invalidEnvelopeCount++;
           if (invalidEnvelopeCount > 5) {
             throw new Error('Assistant attempted to invoke tools while explicitly disallowing them.');
@@ -474,10 +537,7 @@ export class OpenAIClient {
         if (disallowed.length > 0) {
           respondToToolCallsWithError(toolCalls, `Rejected tool call: ${disallowed.join(', ')} not listed in control.allowed_tools.`);
 
-          messages.push({
-            role: 'system',
-            content: `The tools ${disallowed.join(', ')} are not listed in control.allowed_tools.Update the envelope and resend.`
-          });
+          pushSystemMessage(`The tools ${disallowed.join(', ')} are not listed in control.allowed_tools. Update the envelope and resend.`);
           invalidEnvelopeCount++;
           if (invalidEnvelopeCount > 5) {
             throw new Error('Assistant repeatedly attempted to invoke tools not present in control.allowed_tools.');
@@ -485,13 +545,10 @@ export class OpenAIClient {
           continue;
         }
 
-        await this.executeTools(toolCalls, messages);
+        await this.executeTools(toolCalls, messages, tracker);
 
         if (pendingEnvelopeReminder) {
-          messages.push({
-            role: 'system',
-            content: 'Reminder: include the phase-gated control envelope JSON with phase="action" whenever you call tools.'
-          });
+          pushSystemMessage('Reminder: include the phase-gated control envelope JSON with phase="action" whenever you call tools.');
         }
 
         iteration++;
@@ -501,10 +558,7 @@ export class OpenAIClient {
       if (toolCalls.length === 0) {
         if (requireEnvelope) {
           if (!controlEnvelope) {
-            messages.push({
-              role: 'system',
-              content: 'All responses must include the control envelope JSON. Provide the envelope.'
-            });
+            pushSystemMessage('All responses must include the control envelope JSON. Provide the envelope.');
             invalidEnvelopeCount++;
             if (invalidEnvelopeCount > 5) {
               throw new Error('Assistant did not provide the control envelope JSON.');
@@ -513,10 +567,7 @@ export class OpenAIClient {
           }
 
           if (controlEnvelope.phase !== 'final') {
-            messages.push({
-              role: 'system',
-              content: 'Continue working until you can respond with a phase="final" control envelope JSON summarizing the outcome.'
-            });
+            pushSystemMessage('Continue working until you can respond with a phase="final" control envelope JSON summarizing the outcome.');
             invalidEnvelopeCount++;
             if (invalidEnvelopeCount > 5) {
               throw new Error('Assistant failed to reach the final phase with a valid envelope.');
@@ -572,7 +623,11 @@ export class OpenAIClient {
     };
   }
 
-  private async executeTools(toolCalls: any, messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): Promise<void> {
+  private async executeTools(
+    toolCalls: any,
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    tracker?: ContextTracker
+  ): Promise<void> {
     // Execute tool calls
     for (const toolCall of toolCalls) {
       const toolStartAt = performance.now();
@@ -590,12 +645,15 @@ export class OpenAIClient {
             tool_call_id: toolCall.id,
             content: result
           });
+          tracker?.recordMessage('tool', result, toolCall.function.name);
         } catch (error) {
+          const errText = `Error executing ${toolCall.function.name}: ${error}`;
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: `Error executing ${toolCall.function.name}: ${error} `
+            content: errText
           });
+          tracker?.recordMessage('tool', errText, `${toolCall.function.name}-error`);
         }
       }
 

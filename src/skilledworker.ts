@@ -1,5 +1,5 @@
 import { ChatCompletionTool } from "openai/resources/chat/completions";
-import { OpenAIClient, TokenUsage } from "./openai-client.js";
+import { ContextTracker, OpenAIClient, TokenUsage } from "./openai-client.js";
 import { PhaseGatedEnvelope } from "./phase-envelope.js";
 
 interface StepCompletion {
@@ -54,6 +54,7 @@ export async function skilledWorker(
   options?: { conversationId?: string }
 ): Promise<{ response: string; conversationId: string; usage: TokenUsage }> {
   const startAt = performance.now();
+  const tracker = new ContextTracker();
 
   let conversationId = options?.conversationId;
   let currentPrompt = userMessage;
@@ -75,7 +76,8 @@ export async function skilledWorker(
         conversationId,
         requireEnvelope: true,
         skipCurrentPrompt: iteration > 0,
-        startAt: startAt
+        startAt: startAt,
+        tracker
       }
     );
 
@@ -101,7 +103,9 @@ export async function skilledWorker(
 
   const endAt = performance.now();
   const elapsedSeconds = (endAt - startAt) / 1000;
+  const contextSummary = tracker.getSummary();
   console.log(`skilledWorker: elapsed=${elapsedSeconds.toFixed(2)}s prompt=${aggregateUsage.promptTokens} completion=${aggregateUsage.completionTokens} total=${aggregateUsage.totalTokens}`);
+  console.log(`Context usage: messages=${contextSummary.messageCount} chars=${contextSummary.messageChars} trackedPrompt=${contextSummary.promptTokens} trackedCompletion=${contextSummary.completionTokens}`);
   console.log('Response:', lastResponse);
 
   return {
