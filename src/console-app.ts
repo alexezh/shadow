@@ -331,18 +331,15 @@ export class ConsoleApp {
 
   private async handleChatMessage(message: string): Promise<void> {
     try {
-
       const systemPrompt = await getChatPrompt(this.database);
       const result = await skilledWorker(
         this.openaiClient,
         mcpTools,
         systemPrompt,
-        message,
-        { conversationId: this.currentConversationId }
+        message
       );
 
-      // Store conversation ID for continuation
-      this.currentConversationId = result.conversationId;
+      // Note: conversationState is now returned instead of conversationId
     } catch (error) {
       console.error('❌ Error processing chat message:', error);
     }

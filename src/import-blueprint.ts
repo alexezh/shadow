@@ -1,5 +1,5 @@
 import { mcpTools } from "./mcptools.js";
-import { OpenAIClient } from "./openai-client.js";
+import { OpenAIClient, ConversationState } from "./openai-client.js";
 import * as cheerio from 'cheerio';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -48,7 +48,8 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
 
     const userMessage = `Produce blueprint and semantic map for document "${filename}"`;
 
-    const result = await openaiClient.chatWithMCPTools(mcpTools, systemPrompt, userMessage);
+    const conversationState = new ConversationState(systemPrompt, userMessage);
+    const result = await openaiClient.chatWithMCPTools(mcpTools, conversationState, userMessage);
     const response = result.response;
     console.log('🤖 Shadow:', response);
 

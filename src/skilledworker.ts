@@ -1,5 +1,5 @@
 import { ChatCompletionTool } from "openai/resources/chat/completions";
-import { ContextTracker, OpenAIClient, TokenUsage } from "./openai-client.js";
+import { ConversationState, OpenAIClient, TokenUsage } from "./openai-client.js";
 import { PhaseGatedEnvelope } from "./phase-envelope.js";
 
 interface StepCompletion {
@@ -50,13 +50,11 @@ export async function skilledWorker(
   openaiClient: OpenAIClient,
   mcpTools: Array<ChatCompletionTool>,
   systemPrompt: string,
-  userMessage: string,
-  options?: { conversationId?: string }
-): Promise<{ response: string; conversationId: string; usage: TokenUsage }> {
+  userMessage: string
+): Promise<{ response: string; conversationState: ConversationState; usage: TokenUsage }> {
   const startAt = performance.now();
-  const tracker = new ContextTracker();
+  const conversationState = new ConversationState(systemPrompt, userMessage);
 
-  let conversationId = options?.conversationId;
   let currentPrompt = userMessage;
   let lastResponse = '';
   const aggregateUsage: TokenUsage = {
@@ -70,19 +68,16 @@ export async function skilledWorker(
   for (let iteration = 0; iteration < maxFollowUps; iteration++) {
     const result = await openaiClient.chatWithMCPTools(
       mcpTools,
-      systemPrompt,
+      conversationState,
       currentPrompt,
       {
-        conversationId,
         requireEnvelope: true,
         skipCurrentPrompt: iteration > 0,
-        startAt: startAt,
-        tracker
+        startAt: startAt
       }
     );
 
     lastResponse = result.response;
-    conversationId = result.conversationId;
     aggregateUsage.promptTokens += result.usage.promptTokens;
     aggregateUsage.completionTokens += result.usage.completionTokens;
     aggregateUsage.totalTokens += result.usage.totalTokens;
@@ -103,14 +98,14 @@ export async function skilledWorker(
 
   const endAt = performance.now();
   const elapsedSeconds = (endAt - startAt) / 1000;
-  const contextSummary = tracker.getSummary();
+  const contextSummary = conversationState.getSummary();
   console.log(`skilledWorker: elapsed=${elapsedSeconds.toFixed(2)}s prompt=${aggregateUsage.promptTokens} completion=${aggregateUsage.completionTokens} total=${aggregateUsage.totalTokens}`);
   console.log(`Context usage: messages=${contextSummary.messageCount} chars=${contextSummary.messageChars} trackedPrompt=${contextSummary.promptTokens} trackedCompletion=${contextSummary.completionTokens}`);
   console.log('Response:', lastResponse);
 
   return {
     response: lastResponse,
-    conversationId: conversationId!,
+    conversationState,
     usage: aggregateUsage
   };
 }

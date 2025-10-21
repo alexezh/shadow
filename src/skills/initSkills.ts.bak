@@ -1,6 +1,6 @@
 import { youAreShadow } from "../chatprompt.js";
 import { Database } from "../database.js";
-import { OpenAIClient, ConversationState } from "../openai-client.js";
+import { OpenAIClient } from "../openai-client.js";
 import { CORE_SKILLS } from "./coreskills.js";
 import { initRuleModel } from "../initRuleModel.js";
 
@@ -82,10 +82,10 @@ The instructions should explain:
 
 Return only the instruction text.`;
 
-  const conversationState = new ConversationState(systemPrompt, userPrompt);
-  const { response } = await openaiClient.chatWithMCPTools([], conversationState, userPrompt, {
+  const { response, conversationId } = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt, {
     requireEnvelope: false
   });
+  openaiClient.clearConversation(conversationId);
 
   return response.trim();
 }
@@ -110,10 +110,10 @@ Examples:
 
 Return only the task - oriented terms as a comma - separated list, no explanations.`;
 
-    const conversationState = new ConversationState(systemPrompt, userPrompt);
-    const { response } = await openaiClient.chatWithMCPTools([], conversationState, userPrompt, {
+    const { response, conversationId } = await openaiClient.chatWithMCPTools([], systemPrompt, userPrompt, {
       requireEnvelope: false
     });
+    openaiClient.clearConversation(conversationId);
 
     // Parse the response to extract terms
     const additionalTerms = response
