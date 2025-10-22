@@ -293,58 +293,79 @@ export class OpenAIClient {
       let iterationCompletionTokens = 0;
       let iterationTotalTokens = 0;
 
-      let assistantMessage = {
-        role: 'assistant' as const,
+      let assistantMessage: OpenAI.Chat.Completions.ChatCompletionMessage = {
+        role: 'assistant',
         content: '',
-        tool_calls: [] as any[]
+        refusal: null
       };
+
+      const toolCallsMap = new Map<number, OpenAI.Chat.Completions.ChatCompletionMessageToolCall>();
 
       // Collect all streaming chunks
       for await (const chunk of response) {
-        const delta = chunk.choices[0]?.delta;
+        const choice = chunk.choices[0];
+        if (!choice) continue;
 
-        if (delta?.content) {
-          assistantMessage.content += delta.content;
+        const delta = choice.delta;
+
+        // Accumulate content
+        if (delta.content) {
+          assistantMessage.content = (assistantMessage.content || '') + delta.content;
         }
 
-        if (delta?.tool_calls) {
-          // Handle streaming tool calls
-          for (const toolCall of delta.tool_calls) {
-            if (toolCall.index !== undefined) {
-              // Initialize tool call if it doesn't exist
-              if (!assistantMessage.tool_calls[toolCall.index]) {
-                assistantMessage.tool_calls[toolCall.index] = {
-                  id: toolCall.id || '',
-                  type: 'function' as const,
-                  function: {
-                    name: toolCall.function?.name || '',
-                    arguments: ''
-                  }
-                };
-              }
+        // Handle refusal
+        if (delta.refusal) {
+          assistantMessage.refusal = (assistantMessage.refusal || '') + delta.refusal;
+        }
 
-              // Accumulate the function arguments
-              if (toolCall.function?.arguments) {
-                assistantMessage.tool_calls[toolCall.index].function.arguments += toolCall.function.arguments;
-              }
+        // Handle streaming tool calls
+        if (delta.tool_calls) {
+          for (const toolCallDelta of delta.tool_calls) {
+            const index = toolCallDelta.index;
+            if (index === undefined) continue;
+
+            // Initialize tool call if it doesn't exist
+            if (!toolCallsMap.has(index)) {
+              toolCallsMap.set(index, {
+                id: toolCallDelta.id || '',
+                type: 'function',
+                function: {
+                  name: toolCallDelta.function?.name || '',
+                  arguments: ''
+                }
+              });
+            }
+
+            const toolCall = toolCallsMap.get(index)!;
+
+            // Update ID if provided
+            if (toolCallDelta.id) {
+              toolCall.id = toolCallDelta.id;
+            }
+
+            // Update function name if provided
+            if (toolCallDelta.function?.name) {
+              toolCall.function.name = toolCallDelta.function.name;
+            }
+
+            // Accumulate function arguments
+            if (toolCallDelta.function?.arguments) {
+              toolCall.function.arguments += toolCallDelta.function.arguments;
             }
           }
         }
 
-        const streamingUsage = (chunk as any)?.usage;
-        if (streamingUsage) {
-          if (typeof streamingUsage.prompt_tokens === 'number') {
-            iterationPromptTokens = streamingUsage.prompt_tokens;
-          }
-          if (typeof streamingUsage.completion_tokens === 'number') {
-            iterationCompletionTokens = streamingUsage.completion_tokens;
-          }
-          if (typeof streamingUsage.total_tokens === 'number') {
-            iterationTotalTokens = streamingUsage.total_tokens;
-          } else if (iterationPromptTokens || iterationCompletionTokens) {
-            iterationTotalTokens = iterationPromptTokens + iterationCompletionTokens;
-          }
+        // Extract usage information from the final chunk
+        if (chunk.usage) {
+          iterationPromptTokens = chunk.usage.prompt_tokens || 0;
+          iterationCompletionTokens = chunk.usage.completion_tokens || 0;
+          iterationTotalTokens = chunk.usage.total_tokens || (iterationPromptTokens + iterationCompletionTokens);
         }
+      }
+
+      // Convert tool calls map to array if any tool calls exist
+      if (toolCallsMap.size > 0) {
+        assistantMessage.tool_calls = Array.from(toolCallsMap.values());
       }
 
       totalPromptTokens += iterationPromptTokens;
@@ -357,22 +378,24 @@ export class OpenAIClient {
         iterationTotalTokens || (iterationPromptTokens + iterationCompletionTokens)
       );
 
-      const toolCalls = assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0
-        ? assistantMessage.tool_calls
-        : [];
+      const toolCalls = assistantMessage.tool_calls ?? [];
 
-      if (toolCalls.length === 0) {
-        delete (assistantMessage as any).tool_calls;
-      }
+      // Clean up the message for adding to conversation
+      const messageToAdd: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
+        role: 'assistant',
+        content: assistantMessage.content || null,
+        ...(toolCalls.length > 0 && { tool_calls: toolCalls })
+      };
 
       const elapsed = (options?.startAt) ? (performance.now() - options.startAt) / 1000 : 0;
-      const responseText = (assistantMessage.content.length !== 0) ? assistantMessage.content.substring(0, 100) : JSON.stringify(assistantMessage).substring(0, 200);
+      const contentStr = assistantMessage.content || '';
+      const responseText = contentStr.length !== 0 ? contentStr.substring(0, 100) : JSON.stringify(messageToAdd).substring(0, 200);
 
       console.log(`assistant: [elapsed: ${elapsed}] [tt: ${totalPromptTokens}] ${responseText}`);
 
       // Add the complete assistant message
-      messages.push(assistantMessage);
-      conversationState.recordMessage('assistant', assistantMessage.content || '', 'assistant');
+      messages.push(messageToAdd);
+      conversationState.recordMessage('assistant', contentStr, 'assistant');
 
       const rawContent = (assistantMessage.content || '').trim();
       let controlEnvelope: PhaseGatedEnvelope | null = null;
