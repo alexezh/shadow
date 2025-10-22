@@ -6,16 +6,7 @@ import { TrainedModel, Literal, Rule, RuleSet, TrainingExamples, Example, trainR
 import { SkillDef } from "./skilldef.js";
 import { editSkill } from "./editskill.js";
 import { createSkill } from "./createskill.js";
-
-const ChunkSegment = `
-ATTENTION: When producing large markdown or html, NEVER write placeholders like "[continued]".
-Instead, you MUST call the tool store_asset repeatedly using chunk encoding:
-- Max 1000 tokens in content per call.
-- Use the same "chunkId" for the whole document.
-- Start with "chunkIndex = 0", then increment by 1 each call.
-- Set eos on the last chunk.
-
-`;
+import { createBlueprintSkill, useBlueprintSkill } from "./blueprintskill.js";
 
 const MarkdownSegment = `
 ATTENTION: When producing markdown".
@@ -54,54 +45,8 @@ ATTENTION: When producing markdown".
 export const CORE_SKILLS: SkillDef[] = [
   editSkill,
   createSkill,
-
-  {
-    name: "create_blueprint",
-    keywords: ['create blueprint'],
-    test_keywords: [
-      'create blueprint',
-      'extract formatting',
-      'analyze document style',
-      'capture layout'
-    ],
-    text: `
-**to create a blueprint**
--compute semantical structure of the document
-   * Example. If document is a resume which contains person name, address and other info, output as 
-        document type - resume, person: tonnie, address: xyz, content and other semantical blocks 
-   * include start and stop paragraph id in markdown at the end of semantic block name using {startId:<id>, endId:<id>} syntax
-   * store semantical structure as markdown using store_asset(kind="semantic")
-   
--compute layout and formatting of the document as markdown focusing how different semantic elements are formatted
-  * output your data in chunks of max 1500 tokens
-  * store each chunk store_asset(kind="blueprint", chunkId=N).
-  * include both formatting and layout information; such as title: orginized in table with top row containing xyz
-  * example. if text is section header and formatted as 24Pt font, output section.header - font: 24Pt, textcolor: blue.
-  * when storing blueprint, add terms describing type of documents this blueprint can be used for. Include short description of layout as one of terms.
-
-${ChunkSegment}
-`
-  },
-  {
-    name: "use_blueprint",
-    keywords: ['use blueprint'],
-    test_keywords: [
-      'use blueprint',
-      'apply formatting',
-      'apply style template',
-      'format with blueprint'
-    ],
-    text: `
-  ** to use blueprint:**
-  blueprint is a description(guidelines) for formatting the document.It describes what formatting such as colors
-to apply to different parts of the document
-produce a keyword set from the user prompt and current content that summarizes the desired styling.
-Call load_asset(kind = "blueprint") with those keywords to retrieve the closest existing blueprint.
-If the returned blueprint needs adjustments, update it to match the document and persist the revision with store_asset(kind = "blueprint") using the same keywords.
-- create an HTML version of the document using formatting described in the blueprint once it aligns with the draft.
-- store HTML version using store_asset(kind: "html") API
-`
-  },
+  createBlueprintSkill,
+  useBlueprintSkill,
   {
     name: "edit_image",
     keywords: ['image', 'add'],

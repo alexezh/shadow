@@ -112,7 +112,7 @@ Execution rules:
       text: applyFormatStep(`{
     "status": "apply_format-complete",
     "next_step": null,
-    "next_prompt": "Summarize the formatting changes, confirm any exclusions, and close with phase=\\"final\\".",
+    "next_prompt": "Confirm any exclusions, and close with phase=\\"final\\".",
     "handoff": {
       "applied_properties": [{"prop": "<prop>", "value": "<value>"}],
       "notes": "list unsupported instructions or 'none'"
