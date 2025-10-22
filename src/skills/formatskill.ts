@@ -89,7 +89,9 @@ Execution rules:
   "actions": [
     "Ensure the document name is available via set_context(['document_name'], value) or get_context.",
     "Derive search keywords from the user request (topic, section name, distinctive phrases).",
-    "Call find_ranges with { name: <document>, format: 'text', keywords: [...], context_lines: 2 } to locate candidate ranges.",
+    "If the user asks to find or format specific words by criteria (e.g., 'format all words ending in -ing', 'highlight words starting with capital letters', 'format technical terms'), first call get_dictionary({ docid: <document_id> }) to get the complete word list, then analyze it to identify matching words.",
+    "After identifying target words from the dictionary, search for each word using find_ranges with exact match_type to locate all instances.",
+    "For standard range selection, call find_ranges with { docid: <document>, pattern: '<search_pattern>', match_type: 'exact|regex|semantic', context_lines: 2 } to locate candidate ranges.",
     "If multiple matches exist, summarize the options and ask the user to disambiguate before proceeding.",
     "Persist the resolved range via set_context(['selection'], '<range_id>: <start_id> <end_id>')."
   ],

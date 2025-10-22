@@ -50,6 +50,9 @@ export class MCPLocalClient {
       case 'format_range':
         return await this.formatRanges(toolCall.arguments);
 
+      case 'get_dictionary':
+        return await this.getDictionary(toolCall.arguments);
+
       case 'get_context':
         return await getContext(this.database, this.openaiClient, toolCall.arguments);
 
@@ -141,6 +144,64 @@ export class MCPLocalClient {
         docid: args.docid,
         ranges_formatted: 0,
         ranges: [],
+        error: error.message
+      }, null, 2);
+    }
+  }
+
+  private async getDictionary(args: { docid: string }): Promise<string> {
+    try {
+      // Get all HTML parts for the document
+      const parts = await this.database.getAllHtmlParts(args.docid);
+
+      if (parts.length === 0) {
+        return JSON.stringify({
+          success: false,
+          docid: args.docid,
+          word_count: 0,
+          words: [],
+          error: 'No HTML parts found for document'
+        }, null, 2);
+      }
+
+      // Extract all words from all parts
+      const wordSet = new Set<string>();
+
+      for (const part of parts) {
+        // Remove HTML tags and extract text
+        const text = part.html.replace(/<[^>]*>/g, ' ');
+
+        // Extract words (alphanumeric sequences)
+        const words = text.match(/\b[a-zA-Z]+\b/g);
+
+        if (words) {
+          // Add each word to the set (lowercase for uniqueness)
+          words.forEach(word => {
+            if (word.length > 0) {
+              wordSet.add(word.toLowerCase());
+            }
+          });
+        }
+      }
+
+      // Convert set to sorted array
+      const uniqueWords = Array.from(wordSet).sort();
+
+      console.log(`📖 Extracted ${uniqueWords.length} unique words from document ${args.docid}`);
+
+      return JSON.stringify({
+        success: true,
+        docid: args.docid,
+        word_count: uniqueWords.length,
+        words: uniqueWords
+      }, null, 2);
+    } catch (error: any) {
+      console.error('❌ Error getting dictionary:', error);
+      return JSON.stringify({
+        success: false,
+        docid: args.docid,
+        word_count: 0,
+        words: [],
         error: error.message
       }, null, 2);
     }

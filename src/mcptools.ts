@@ -264,6 +264,20 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
   {
     type: 'function' as const,
     function: {
+      name: 'get_dictionary',
+      description: 'Get a unique list of all words in a document. Returns array of words sorted alphabetically. Useful for finding specific words, analyzing vocabulary, or identifying terms that match user criteria.',
+      parameters: {
+        type: 'object',
+        properties: {
+          docid: { type: 'string', description: 'Document ID to extract words from' }
+        },
+        required: ['docid']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'format_range',
       description: 'Apply character-level formatting to one or more ranges in a document. Ranges can be specified using range_id from find_ranges OR by providing exact text boundaries with paragraph IDs. For single-paragraph selections use {start_id, end_id, text}. For multi-paragraph selections use {start_id, start_text, end_id, end_text}. Properties are applied as an array of {prop, value} pairs supporting font, color, style, and Word-specific formatting options.',
       parameters: {
