@@ -3,7 +3,7 @@ import { youAreShadow } from "../chatprompt.js";
 import { Database } from "../database.js";
 import { generateEmbedding, OpenAIClient } from "../openai-client.js";
 import { TrainedModel, Literal, Rule, RuleSet, TrainingExamples, Example, trainRuleReliabilities, predictLabel, forwardPass } from "../factmodel.js";
-import { SkillDef } from "../skilldef.js";
+import { SkillDef } from "./skilldef.js";
 import { editSkill } from "./editskill.js";
 import { createSkill } from "./createskill.js";
 

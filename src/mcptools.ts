@@ -304,3 +304,8 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   }
 ];
+
+// Create a map of tools by name for efficient lookup
+export const mcpToolsMap = new Map<string, ChatCompletionTool>(
+  mcpTools.map(tool => [tool.function.name, tool])
+);

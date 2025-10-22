@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { Database } from "../database.js";
-import { SkillDef } from "../skilldef.js";
+import { SkillDef } from "./skilldef.js";
 import { CORE_SKILLS } from "./coreskills.js";
 
 

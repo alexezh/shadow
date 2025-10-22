@@ -1,6 +1,6 @@
 import sqlite3 from 'sqlite3';
 import { promisify } from 'util';
-import { SkillDef } from './skilldef';
+import { SkillDef } from './skills/skilldef';
 
 export class Database {
   private db: sqlite3.Database;

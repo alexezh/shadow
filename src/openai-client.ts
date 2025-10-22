@@ -216,8 +216,10 @@ export class OpenAIClient {
       this.mcpClient.setCurrentPrompt(userMessage);
     }
 
-    // Add user message to conversation state
-    conversationState.addUserMessage(userMessage);
+    // Add user message to conversation state (only for subsequent messages, not the initial one)
+    if (options?.skipCurrentPrompt) {
+      conversationState.addUserMessage(userMessage);
+    }
 
     // Get or create conversation
     const requireEnvelope = options?.requireEnvelope ?? false;
@@ -453,7 +455,8 @@ export class OpenAIClient {
       // }
 
       if (toolCalls.length > 0) {
-        let pendingEnvelopeReminder = false;
+        let synthesizedEnvelope = false;
+        let coercedPhase = false;
 
         if (!controlEnvelope) {
           console.warn('⚠️ Assistant invoked tools without providing a control envelope; synthesizing one with phase="action".');
@@ -463,13 +466,14 @@ export class OpenAIClient {
             envelope: { type: 'text', content: '' }
           } as PhaseGatedEnvelope;
           lastPhase = 'action';
-          pendingEnvelopeReminder = true;
+          synthesizedEnvelope = true;
         }
 
         if (controlEnvelope.phase !== 'action') {
-          console.warn('⚠️ Assistant invoked tools while in phase="' + controlEnvelope.phase + '". Coercing to phase="action" for execution.');
+          console.warn(`⚠️ Assistant invoked tools while in phase="${controlEnvelope.phase}". Coercing to phase="action" for execution.`);
           controlEnvelope.phase = 'action';
           lastPhase = 'action';
+          coercedPhase = true;
         }
 
         const allowedTools = controlEnvelope.control.allowed_tools ?? [];
@@ -504,8 +508,10 @@ export class OpenAIClient {
 
         await this.executeTools(toolCalls, messages, conversationState);
 
-        if (pendingEnvelopeReminder) {
-          pushSystemMessage('Reminder: include the phase-gated control envelope JSON with phase="action" whenever you call tools.');
+        if (synthesizedEnvelope) {
+          pushSystemMessage('Reminder: include a phase="action" envelope that lists your tools before invoking them.');
+        } else if (coercedPhase) {
+          pushSystemMessage('Reminder: set phase="action" whenever you invoke tools.');
         }
 
         iteration++;

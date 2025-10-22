@@ -1,4 +1,4 @@
-import { SkillDef } from "../skilldef";
+import { SkillDef } from "./skilldef";
 import { applyFormatStep } from "./formatskill.js";
 
 export const editSkill: SkillDef =

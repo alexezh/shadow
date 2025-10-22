@@ -1,4 +1,4 @@
-import { SkillDef } from "../skilldef";
+import { SkillDef } from "./skilldef";
 
 export const TEXT_PROPERTY_REFERENCE = `
 Supported formatting properties (use \`prop\` names exactly as listed).
@@ -58,9 +58,9 @@ export const formatSkill: SkillDef = {
   text: `
 **format text · two-step pipeline**
 
-Goal: identify the exact range to format, then apply character-level formatting properties in a single, auditable call.
+Purpose: capture the precise range the user wants styled, then apply all character and paragraph formatting in one deterministic call to \`format_range\`.
 
-Represent the workflow with JSON step cards. Emit only the active card in envelope.metadata.step_card using:
+Emit only the active step card in \`envelope.metadata.step_card\`:
 {
   "step": "<current step>",
   "goal": "<target outcome>",
@@ -68,16 +68,15 @@ Represent the workflow with JSON step cards. Emit only the active card in envelo
   "done_when": "<exit condition>"
 }
 
-Pipeline order:
-1. select_range — lock the specific paragraphs or cells that require formatting
-2. apply_format — apply the requested formatting properties via the format_range tool
+Steps:
+1. select_range — resolve the exact start/end IDs for the span to format
+2. apply_format — call \`format_range\` once with the requested properties
 
 Execution rules:
-- Start with the select_range step every time. Use the find_ranges tool to convert the user request into concrete start/end IDs.
-- After emitting a step completion JSON, remain in phase="analysis" and immediately follow the provided next_prompt.
-- The apply_format step must make exactly one call to format_range with properties expressed as an array of { "prop": "<name>", "value": <value> }.
-- Only send phase="final" once apply_format finishes and there are no further next steps.
-- Ask the user for clarification whenever the selection or desired style is ambiguous.
+- Always begin with select_range. Use \`find_ranges\` (exact → regex → semantic) until you have a reliable span.
+- After any completion JSON, stay in phase="analysis" and immediately follow the provided \`next_prompt\`.
+- The apply_format step must translate every user instruction into the property reference table and send exactly one \`format_range\` call.
+- Do not finalize until the formatting is confirmed and any follow-up bookkeeping (e.g., history storage) is complete.
 `,
   childSkill: [
     {
@@ -134,8 +133,7 @@ export function applyFormatStep(completionFormat: string): string {
     "Translate paragraph layout instructions (indentation, alignment, spacing, widows/orphans) into the paragraph-level properties listed in the reference and ensure they apply to the whole paragraph span.",
     "Construct the payload for format_range: { docid: <document_id>, ranges: [{ range_id: <range_id>, properties: [{ \\"prop\\": \\"color\\", \\"value\\": \\"#ff6600\\" }, ...] }] }.",
     "Send a brief phase='analysis' plan if needed, then issue a dedicated phase='action' envelope that lists only 'format_range' and calls it once.",
-    "If any requested property is unsupported, explain the limitation, skip that property, and note it in the final summary.",
-    "When the upcoming next_prompt instructs you to call store_history, issue that call in a dedicated phase='action' response that lists 'store_history' before delivering the final summary."
+    "If any requested property is unsupported, explain the limitation, skip that property, and note it in the final summary."
   ],
   "property_reference": ${JSON.stringify(TEXT_PROPERTY_REFERENCE)},
   "completion_format": ${completionFormat}

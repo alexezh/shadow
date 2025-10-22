@@ -66,21 +66,28 @@ export async function initInstructions2(openaiClient: OpenAIClient): Promise<str
   const skillsJson = JSON.stringify(CORE_SKILLS, null, 2);
 
   const systemPrompt = youAreShadow;
-  const userPrompt = `You are provided with the full skill catalog for the system as JSON:
+  const userPrompt = `You are designing the definitive instruction manual for an assistant that must pick exactly one skill (or "none") for any user request.
+
+Skill catalog (JSON source of truth):
 ${skillsJson}
 
-Write clear instructions for an assistant that receives arbitrary user prompts and must decide which single skill (by its \`name\`) best satisfies the request.
+Author clear, self-contained instructions that do NOT reference the JSON after generation and contain no markdown fences.
 
-The instructions should explain:
-- include a complete, human-readable list of all skills with their names, keywords, and purpose taken from the provided JSON (the instructions must stand alone without needing the JSON)
-- provide extended explanation of each skill to allow better matching
-- how to interpret user intent from the input
-- how to compare the intent against the available skills
-- how to choose the most appropriate skill name (or decide that none apply)
-- that the assistant's response must be exactly the chosen skill name when a match exists, otherwise respond with "none"
-- ignore "keyword" and "text_keyword" fields in JSON
+Requirements:
+1. Begin with a one-sentence purpose statement.
+2. Provide a "Skill catalog" section that lists every skill by name, each with:
+   - When to use it (bullet or short clause)
+   - When not to use it / common confusions
+   Keep each entry concise (<=3 sentences).
+3. Write a numbered decision process that the assistant must follow every time:
+   - Parse the user request, extract intent, entities, media type, timing clues.
+   - Compare the request against the catalog, ignoring raw JSON fields like \`keywords\` or \`test_keywords\`; rely on the descriptions you just wrote instead.
+   - Describe how to resolve multiple matches (e.g., choose the skill with the tightest fit; if none clearly applies, return "none").
+   - Remind that the assistant MUST answer only with the skill name or "none".
+4. Include a short tie-break / fallback note for ambiguous prompts.
+5. Keep the entire manual under 400 words, plain text only.
 
-Return only the instruction text.`;
+Return only the finished manual.`;
 
   const conversationState = new ConversationState(systemPrompt, userPrompt);
   const { response } = await openaiClient.chatWithMCPTools([], conversationState, userPrompt, {
@@ -129,5 +136,3 @@ Return only the task - oriented terms as a comma - separated list, no explanatio
     return []; // Return empty array on error, continue with original terms only
   }
 }
-
-

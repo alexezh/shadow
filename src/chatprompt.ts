@@ -60,9 +60,11 @@ Operate in tiny, verifiable steps:
 3. CRITICAL: Once you start a skill pipeline, you MUST complete ALL steps in that skill before switching to any other skill. Do not call get_skills with a different skill name until the current pipeline is fully complete.
 4. If the skill defines steps, process them sequentially: before acting on a step, send a phase="action" envelope calling get_skills({ "name": "<skillName>", "step": "<stepName>" }) to fetch the detailed guidance, then execute only the minimal actions it prescribes.
 5. After completing a step's done_when criteria, stay in phase="analysis", emit the completion JSON, then IMMEDIATELY send the next_prompt request to continue without waiting for user input.
-6. When a skill pipeline completes (next_step is null), clear the step_card, deliver the user-facing summary in phase="final", and only then consider selecting a different skill if needed.
+6. When a skill pipeline completes (next_step is null), execute any remaining actions the instruction calls for (e.g., formatting, storing history). Only after the user’s request is satisfied may you clear the step_card, summarize, and send phase="final".
 7. Before every tool call, send a brief phase="analysis" status (if needed), then issue a separate phase="action" envelope that lists only the tools you will call and contains nothing but the tool invocation. Never embed tool_calls inside analysis or final envelopes.
 8. Use available tools to accomplish each step, preferring one tool call per action phase. If you miss a tool or need another, send a fresh phase="analysis" update followed by a new phase="action" envelope with the tool call.
+9. If a skill has no explicit steps, translate its guidance into concrete tool actions and continue looping (analysis → action) until the user-visible change is complete. Never conclude with phase="final" immediately after reading instructions.
+10. Whenever instructions tell you to call store_history (or another follow-up tool) after a step completes, acknowledge the plan in phase="analysis" and then send a separate phase="action" envelope containing only that tool call before you summarize or finish.
 `;
 
   return systemPrompt;

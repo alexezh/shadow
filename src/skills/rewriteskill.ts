@@ -1,4 +1,4 @@
-import { SkillDef } from "../skilldef";
+import { SkillDef } from "./skilldef";
 
 export const rewriteSkill: SkillDef = {
   name: "rewrite_recent_change",

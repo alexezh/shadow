@@ -1,4 +1,4 @@
-import { SkillDef } from "../skilldef";
+import { SkillDef } from "./skilldef";
 
 const ChunkSegment = `
 ATTENTION: When producing large markdown or html, NEVER write placeholders like "[continued]".
