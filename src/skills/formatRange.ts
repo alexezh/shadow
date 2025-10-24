@@ -1,6 +1,6 @@
-import { Database } from './database.js';
+import { Database } from '../database.js';
 import * as cheerio from 'cheerio';
-import { ChunkedDoc } from './chunkedDoc.js';
+import { ChunkedDoc } from '../chunkedDoc.js';
 
 export interface FormatProperty {
   prop: string;

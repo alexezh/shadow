@@ -1,7 +1,7 @@
 //import { MCPServer } from './mcp-server.js';
 import { ConsoleApp } from './console-app.js';
 import { Database } from './database.js';
-import { HttpServer } from './http-server.js';
+import { HttpServer } from './clippy/http-server.js';
 
 async function main() {
   const args = process.argv.slice(2);

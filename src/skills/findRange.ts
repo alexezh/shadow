@@ -1,9 +1,9 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { Database } from './database.js';
+import { Database } from '../database.js';
 import { parseDocument } from 'htmlparser2';
 import OpenAI from 'openai';
-import { make31BitId } from './make31bitid.js';
+import { make31BitId } from '../make31bitid.js';
 
 export interface FindRangeResult {
   range_id: string;

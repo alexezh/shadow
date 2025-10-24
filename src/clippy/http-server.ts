@@ -1,23 +1,23 @@
 import * as http from 'http';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { Database } from './database.js';
-
-interface Session {
-  id: string;
-  createdAt: Date;
-  pendingChanges: Array<{ id: string; html: string }>;
-  changeResolvers: Array<(changes: any[]) => void>;
-}
+import { Database } from '../database.js';
+import { WDoc } from '../om/WDoc.js';
+import { executeCommand } from '../executecommand.js';
+import { OpenAIClient } from '../openai-client.js';
+import { handleRunAction, RunActionRequest } from './handleRunAcrtion.js';
+import { Session } from './session.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
   private database: Database;
   private port: number;
   private sessions: Map<string, Session>;
+  private openaiClient: OpenAIClient;
 
   constructor(database: Database, port: number = 3000) {
     this.database = database;
+    this.openaiClient = new OpenAIClient(database);
     this.port = port;
     this.sessions = new Map();
   }
@@ -105,8 +105,14 @@ export class HttpServer {
     }
 
     // API endpoint to run command
-    if (url === '/api/runcommand' && req.method === 'POST') {
-      await this.handleRunCommand(req, res);
+    if (url === '/api/runaction' && req.method === 'POST') {
+      await this.handleRunAction(req, res);
+      return;
+    }
+
+    // API endpoint to execute command (from Clippy)
+    if (url === '/api/executecommand' && req.method === 'POST') {
+      await this.handleExecuteCommand(req, res);
       return;
     }
 
@@ -127,14 +133,15 @@ export class HttpServer {
       id: sessionId,
       createdAt: new Date(),
       pendingChanges: [],
-      changeResolvers: []
+      changeResolvers: [],
+      doc: new WDoc()
     };
     this.sessions.set(sessionId, session);
     console.log(`Created session: ${sessionId}`);
     return sessionId;
   }
 
-  private async handleRunCommand(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  private async handleRunAction(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     let body = '';
     req.on('data', chunk => {
       body += chunk.toString();
@@ -142,7 +149,39 @@ export class HttpServer {
 
     req.on('end', () => {
       try {
-        const { sessionId, action, range } = JSON.parse(body);
+        const req = JSON.parse(body) as RunActionRequest;
+
+        const session = this.sessions.get(req.sessionId);
+        if (!session) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Session not found' }));
+          return;
+        }
+
+        handleRunAction(session, req);
+
+        // Notify any waiting getchanges requests
+        this.notifyChangeListeners(req.sessionId);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (error) {
+        console.error('Error handling runaction:', error);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid request' }));
+      }
+    });
+  }
+
+  private async handleExecuteCommand(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+
+    req.on('end', async () => {
+      try {
+        const { sessionId, prompt } = JSON.parse(body);
 
         const session = this.sessions.get(sessionId);
         if (!session) {
@@ -151,56 +190,74 @@ export class HttpServer {
           return;
         }
 
-        console.log(`Command: ${action}, session: ${sessionId}, range:`, range);
+        console.log(`Execute command: session=${sessionId}, prompt="${prompt}"`);
 
-        // Process command and generate changes
-        // For now, just acknowledge the command
-        // In a real implementation, this would:
-        // 1. Find the element by range.startElement
-        // 2. Apply the formatting (bold, italic, etc.) or split paragraph
-        // 3. Generate new HTML
-        // 4. Queue the change for this session
-
-        let changes = [];
-
-        if (action === 'split') {
-          // Split paragraph at cursor position
-          // For now, create two paragraphs
-          const newId = `p_${Date.now()}`;
-          changes = [
-            {
-              id: range.startElement,
-              html: `<p id="${range.startElement}">First part</p>`
-            },
-            {
-              id: newId,
-              html: `<p id="${newId}">Second part</p>`
-            }
-          ];
-        } else {
-          // Other formatting commands
-          changes = [
-            {
-              id: range.startElement,
-              html: `<p id="${range.startElement}">Modified content (${action})</p>`
-            }
-          ];
-        }
-
-        // Queue changes for this session
-        session.pendingChanges.push(...changes);
-
-        // Notify any waiting getchanges requests
-        this.notifyChangeListeners(sessionId);
+        // Execute the command
+        const result = await this.executeCommand(session, prompt);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true }));
+        res.end(JSON.stringify({ success: true, result }));
       } catch (error) {
-        console.error('Error handling runcommand:', error);
+        console.error('Error handling executecommand:', error);
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid request' }));
       }
     });
+  }
+
+  private async executeCommand(session: Session, prompt: string): Promise<string> {
+    executeCommand(this.database, this.openaiClient, prompt);
+    return "success";
+  }
+
+  private async executeLoadDoc(session: Session, htmlContent: string): Promise<string> {
+    try {
+      // Import loadHtml dynamically
+      const { loadHtml } = await import('../om/loadHtml.js');
+      const { makeHtml } = await import('../om/makeHtml.js');
+
+      // Parse HTML and load into document
+      const rootNode = loadHtml(htmlContent, session.doc.getPropStore());
+
+      // Clear existing body and add new content
+      const body = session.doc.getBody();
+      const children = body.getChildren();
+      while (children.length > 0) {
+        body.removeChild(0);
+      }
+
+      // Add the loaded node as a child
+      let nodeCount = 0;
+      if (rootNode.hasChildren()) {
+        const loadedChildren = rootNode.getChildren();
+        if (loadedChildren) {
+          for (const child of loadedChildren) {
+            body.addChild(child);
+            nodeCount++;
+          }
+        }
+      } else {
+        body.addChild(rootNode);
+        nodeCount = 1;
+      }
+
+      // Generate HTML for the entire document
+      const newHtml = makeHtml(body, session.doc.getPropStore());
+
+      // Create a change to update the entire document
+      session.pendingChanges.push({
+        id: 'doc-content',
+        html: newHtml
+      });
+
+      // Notify waiting clients
+      this.notifyChangeListeners(session.id);
+
+      return `Document loaded successfully. ${nodeCount} nodes added.`;
+    } catch (error) {
+      console.error('Error loading document:', error);
+      return `Error loading document: ${error instanceof Error ? error.message : String(error)}`;
+    }
   }
 
   private async handleGetChanges(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {

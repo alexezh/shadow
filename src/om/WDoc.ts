@@ -7,9 +7,9 @@ export class WDoc {
   private propStore: WPropStore;
   private nodeMap: Map<string, WNode>;
 
-  constructor(propStore: WPropStore) {
+  constructor() {
     this.body = new WBody();
-    this.propStore = propStore;
+    this.propStore = new WPropStore();
     this.nodeMap = new Map();
     this.rebuildNodeMap();
   }

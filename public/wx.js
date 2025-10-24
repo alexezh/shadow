@@ -21,14 +21,14 @@ const buttons = {
 let sessionId = null;
 
 // Command runner
-async function runCommand(action, range) {
+async function runAction(action, range) {
   if (!sessionId) {
     logToConsole('No session ID available', 'error');
     return;
   }
 
   try {
-    const response = await fetch('/api/runcommand', {
+    const response = await fetch('/api/runAction', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -87,7 +87,7 @@ buttons.bold.addEventListener('click', async () => {
   buttons.bold.classList.toggle('active');
   const range = getSelectionRange();
   if (range) {
-    await runCommand('bold', range);
+    await runAction('bold', range);
   }
   logToConsole('Bold toggled');
 });
@@ -96,7 +96,7 @@ buttons.italic.addEventListener('click', async () => {
   buttons.italic.classList.toggle('active');
   const range = getSelectionRange();
   if (range) {
-    await runCommand('italic', range);
+    await runAction('italic', range);
   }
   logToConsole('Italic toggled');
 });
@@ -104,7 +104,7 @@ buttons.italic.addEventListener('click', async () => {
 buttons.bullet.addEventListener('click', async () => {
   const range = getSelectionRange();
   if (range) {
-    await runCommand('bullet', range);
+    await runAction('bullet', range);
   }
   logToConsole('Bullet list clicked');
 });
@@ -112,7 +112,7 @@ buttons.bullet.addEventListener('click', async () => {
 buttons.number.addEventListener('click', async () => {
   const range = getSelectionRange();
   if (range) {
-    await runCommand('number', range);
+    await runAction('number', range);
   }
   logToConsole('Numbered list clicked');
 });
@@ -304,7 +304,7 @@ class IPCursor {
     // Get the range for the split action
     const range = getSelectionRange();
     if (range) {
-      await runCommand('split', range);
+      await runAction('split', range);
       logToConsole('Enter pressed - split paragraph');
     }
   }
@@ -525,8 +525,14 @@ function applyChanges(changes) {
   for (const change of changes) {
     const element = document.getElementById(change.id);
     if (element) {
-      element.outerHTML = change.html;
-      logToConsole(`Updated element ${change.id}`);
+      // Special case: replacing entire doc-content
+      if (change.id === 'doc-content') {
+        element.innerHTML = change.html;
+        logToConsole(`Replaced document content`);
+      } else {
+        element.outerHTML = change.html;
+        logToConsole(`Updated element ${change.id}`);
+      }
     }
   }
 
@@ -700,10 +706,32 @@ class ClippyFloat {
     const question = this.textboxEl.value.trim();
     if (!question) return;
 
-    logToConsole(`Clippy question: ${question}`);
+    logToConsole(`Clippy: ${question}`);
 
-    // TODO: Send question to server or process it
-    // For now, just log it
+    try {
+      // Send command to server
+      const response = await fetch('/api/executecommand', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          prompt: question
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (result.result) {
+        logToConsole(`Response: ${result.result}`, 'info');
+      }
+    } catch (error) {
+      logToConsole(`Error: ${error.message}`, 'error');
+    }
 
     this.textboxEl.value = '';
     this.sendBtn.disabled = true;
