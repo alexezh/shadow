@@ -8,5 +8,7 @@ export { WBody } from './WBody.js';
 export { WTable } from './WTable.js';
 export { WRow } from './WRow.js';
 export { WCell } from './WCell.js';
+export { WDoc } from './WDoc.js';
 export { HtmlWriter } from './HtmlWriter.js';
 export { makeHtml } from './makeHtml.js';
+export { loadHtml } from './loadHtml.js';

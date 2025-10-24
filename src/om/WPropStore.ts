@@ -48,4 +48,23 @@ export class WPropStore {
   delete(id: number): boolean {
     return this.store.delete(id);
   }
+
+  /**
+   * Get or create ID for a property set
+   * Finds existing property set with same hash, or creates new one
+   */
+  getOrCreateId(propSet: WPropSet): number {
+    const hash = propSet.getHash();
+
+    // Search for existing property set with same hash
+    for (const [id, existingPropSet] of this.store.entries()) {
+      if (existingPropSet.getHash() === hash) {
+        // Found matching property set
+        return id;
+      }
+    }
+
+    // No match found, create new entry
+    return this.create(propSet);
+  }
 }

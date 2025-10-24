@@ -4,10 +4,15 @@
 export class WStr {
   private text: string;
   private propIds: number[]; // Array of property set IDs, one per character
+  private cachedHash: number | null = null;
 
   constructor(text: string = '', propIds?: number[]) {
     this.text = text;
     this.propIds = propIds || new Array(text.length).fill(0);
+  }
+
+  private invalidateHash(): void {
+    this.cachedHash = null;
   }
 
   /**
@@ -40,6 +45,7 @@ export class WStr {
   setPropIdAt(index: number, propId: number): void {
     if (index >= 0 && index < this.propIds.length) {
       this.propIds[index] = propId;
+      this.invalidateHash();
     }
   }
 
@@ -50,6 +56,7 @@ export class WStr {
     for (let i = start; i < end && i < this.propIds.length; i++) {
       this.propIds[i] = propId;
     }
+    this.invalidateHash();
   }
 
   /**
@@ -60,6 +67,7 @@ export class WStr {
     for (let i = 0; i < text.length; i++) {
       this.propIds.push(propId);
     }
+    this.invalidateHash();
   }
 
   /**
@@ -69,6 +77,7 @@ export class WStr {
     this.text = this.text.slice(0, index) + text + this.text.slice(index);
     const newPropIds = new Array(text.length).fill(propId);
     this.propIds.splice(index, 0, ...newPropIds);
+    this.invalidateHash();
   }
 
   /**
@@ -77,28 +86,33 @@ export class WStr {
   delete(start: number, end: number): void {
     this.text = this.text.slice(0, start) + this.text.slice(end);
     this.propIds.splice(start, end - start);
+    this.invalidateHash();
   }
 
   /**
-   * Returns a 32-bit hash value for this string
+   * Returns a 32-bit hash value for this string (cached)
    */
   getHash(): number {
-    let hash = 0;
+    if (this.cachedHash === null) {
+      let hash = 0;
 
-    // Hash the text content
-    for (let i = 0; i < this.text.length; i++) {
-      const char = this.text.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & 0x7FFFFFFF; // Keep it 31-bit positive
+      // Hash the text content
+      for (let i = 0; i < this.text.length; i++) {
+        const char = this.text.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & 0x7FFFFFFF; // Keep it 31-bit positive
+      }
+
+      // Hash the property IDs
+      for (let i = 0; i < this.propIds.length; i++) {
+        hash = ((hash << 5) - hash) + this.propIds[i];
+        hash = hash & 0x7FFFFFFF;
+      }
+
+      this.cachedHash = hash;
     }
 
-    // Hash the property IDs
-    for (let i = 0; i < this.propIds.length; i++) {
-      hash = ((hash << 5) - hash) + this.propIds[i];
-      hash = hash & 0x7FFFFFFF;
-    }
-
-    return hash;
+    return this.cachedHash;
   }
 
   /**

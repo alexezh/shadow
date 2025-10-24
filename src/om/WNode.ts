@@ -3,6 +3,7 @@
  */
 export abstract class WNode {
   protected id: string;
+  protected cachedHash: number | null = null;
 
   constructor(id: string) {
     this.id = id;
@@ -14,12 +15,30 @@ export abstract class WNode {
 
   setId(id: string): void {
     this.id = id;
+    this.invalidateHash();
   }
 
   /**
-   * Returns a 32-bit hash value for this node
+   * Returns a 32-bit hash value for this node (cached)
    */
-  abstract getHash(): number;
+  getHash(): number {
+    if (this.cachedHash === null) {
+      this.cachedHash = this.computeHash();
+    }
+    return this.cachedHash;
+  }
+
+  /**
+   * Invalidate cached hash (call when node changes)
+   */
+  protected invalidateHash(): void {
+    this.cachedHash = null;
+  }
+
+  /**
+   * Compute the hash value (implemented by subclasses)
+   */
+  protected abstract computeHash(): number;
 
   /**
    * Check if this node has children

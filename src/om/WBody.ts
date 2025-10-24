@@ -6,7 +6,7 @@ import { WNode } from './WNode.js';
 export class WBody extends WNode {
   private children: WNode[];
 
-  constructor(id: string, children?: WNode[]) {
+  constructor(id: string = 'body', children?: WNode[]) {
     super(id);
     this.children = children || [];
   }
@@ -21,20 +21,24 @@ export class WBody extends WNode {
 
   addChild(node: WNode): void {
     this.children.push(node);
+    this.invalidateHash();
   }
 
   insertChild(index: number, node: WNode): void {
     this.children.splice(index, 0, node);
+    this.invalidateHash();
   }
 
   removeChild(index: number): WNode | undefined {
-    return this.children.splice(index, 1)[0];
+    const result = this.children.splice(index, 1)[0];
+    this.invalidateHash();
+    return result;
   }
 
   /**
-   * Returns a 32-bit hash value for this body
+   * Compute a 32-bit hash value for this body
    */
-  getHash(): number {
+  protected computeHash(): number {
     let hash = 0;
 
     // Hash the ID

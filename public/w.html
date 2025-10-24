@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -98,8 +99,106 @@
     .console-line.info {
       color: #1976d2;
     }
+
+    /* Clippy floating area */
+    #clippy-float {
+      position: absolute;
+      z-index: 2000;
+      display: none;
+      background: white;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      padding: 8px;
+    }
+
+    #clippy-float.collapsed {
+      width: 50px;
+      height: 50px;
+      cursor: pointer;
+    }
+
+    #clippy-float.expanded {
+      width: 300px;
+      padding: 12px;
+    }
+
+    #clippy-icon {
+      width: 40px;
+      height: 40px;
+      display: block;
+    }
+
+    #clippy-float.expanded #clippy-icon {
+      display: none;
+    }
+
+    #clippy-prompt {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #clippy-float.expanded #clippy-prompt {
+      display: flex;
+    }
+
+    #clippy-prompt-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+
+    #clippy-input-container {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    #clippy-textbox {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      overflow-y: auto;
+      min-height: 32px;
+      max-height: 200px;
+      line-height: 20px;
+    }
+
+    #clippy-send {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background-color: #e0e0e0;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      transition: background-color 0.2s;
+    }
+
+    #clippy-send:hover:not(:disabled) {
+      background-color: #d0d0d0;
+    }
+
+    #clippy-send:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    #clippy-send img {
+      width: 20px;
+      height: 20px;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <!-- Console on the left -->
@@ -114,8 +213,10 @@
       <div class="toolbar">
         <button id="btn-bold" title="Bold">B</button>
         <button id="btn-italic" title="Italic"><i>I</i></button>
-        <button id="btn-bullet" title="Bullet List">• List</button>
-        <button id="btn-number" title="Numbered List">1. List</button>
+        <button id="btn-bullet" title="Bullet List"><img src="/bullet.png" alt="Bullet"
+            style="width: 20px; height: 20px; vertical-align: middle;"></button>
+        <button id="btn-number" title="Numbered List"><img src="/numbered.png" alt="Numbered"
+            style="width: 20px; height: 20px; vertical-align: middle;"></button>
       </div>
 
       <!-- Document display area -->
@@ -127,65 +228,21 @@
     </div>
   </div>
 
-  <script>
-    // Console logging
-    const consoleEl = document.getElementById('console');
-    function logToConsole(message, type = 'info') {
-      const line = document.createElement('div');
-      line.className = `console-line ${type}`;
-      line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-      consoleEl.appendChild(line);
-      consoleEl.scrollTop = consoleEl.scrollHeight;
-    }
+  <!-- Clippy floating assistant -->
+  <div id="clippy-float" class="collapsed">
+    <img id="clippy-icon" src="/clippy.png" alt="Clippy">
+    <div id="clippy-prompt">
+      <div id="clippy-prompt-label">Ask anything</div>
+      <div id="clippy-input-container">
+        <textarea id="clippy-textbox" placeholder="ask anything" rows="1"></textarea>
+        <button id="clippy-send" disabled>
+          <img src="/uparrow.png" alt="Send">
+        </button>
+      </div>
+    </div>
+  </div>
 
-    // Toolbar button handlers
-    const buttons = {
-      bold: document.getElementById('btn-bold'),
-      italic: document.getElementById('btn-italic'),
-      bullet: document.getElementById('btn-bullet'),
-      number: document.getElementById('btn-number')
-    };
-
-    buttons.bold.addEventListener('click', () => {
-      buttons.bold.classList.toggle('active');
-      logToConsole('Bold toggled');
-    });
-
-    buttons.italic.addEventListener('click', () => {
-      buttons.italic.classList.toggle('active');
-      logToConsole('Italic toggled');
-    });
-
-    buttons.bullet.addEventListener('click', () => {
-      logToConsole('Bullet list clicked');
-    });
-
-    buttons.number.addEventListener('click', () => {
-      logToConsole('Numbered list clicked');
-    });
-
-    // Load document from server
-    async function loadDocument() {
-      try {
-        logToConsole('Fetching document from server...');
-        const response = await fetch('/api/getdoc');
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const html = await response.text();
-        document.getElementById('doc-content').innerHTML = html;
-        logToConsole('Document loaded successfully', 'info');
-      } catch (error) {
-        logToConsole(`Error loading document: ${error.message}`, 'error');
-        document.getElementById('doc-content').innerHTML =
-          '<div style="color: #d32f2f;">Failed to load document</div>';
-      }
-    }
-
-    // Load document on page load
-    window.addEventListener('DOMContentLoaded', loadDocument);
-  </script>
+  <script src="/wx.js"></script>
 </body>
+
 </html>

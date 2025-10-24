@@ -18,6 +18,7 @@ export class WPara extends WNode {
 
   setStr(str: WStr): void {
     this.str = str;
+    this.invalidateHash();
   }
 
   hasChildren(): boolean {
@@ -29,9 +30,9 @@ export class WPara extends WNode {
   }
 
   /**
-   * Returns a 32-bit hash value for this paragraph
+   * Compute a 32-bit hash value for this paragraph
    */
-  getHash(): number {
+  protected computeHash(): number {
     let hash = 0;
 
     // Hash the ID
