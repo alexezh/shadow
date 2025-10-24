@@ -1,16 +1,42 @@
 //import { MCPServer } from './mcp-server.js';
 import { ConsoleApp } from './console-app.js';
 import { Database } from './database.js';
+import { HttpServer } from './http-server.js';
 
 async function main() {
   const args = process.argv.slice(2);
   const isConsoleMode = args.includes('--console') || args.includes('-c');
+  const isServerMode = args.includes('--server') || args.includes('-s');
 
   // Create shared database instance
   const database = new Database();
   await database.initialize();
 
-  if (isConsoleMode) {
+  if (isServerMode) {
+    // Run HTTP server
+    const httpServer = new HttpServer(database, 3000);
+
+    process.on('SIGINT', async () => {
+      console.error('\nShutting down...');
+      await httpServer.stop();
+      await database.close();
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', async () => {
+      console.error('\nShutting down...');
+      await httpServer.stop();
+      await database.close();
+      process.exit(0);
+    });
+
+    try {
+      await httpServer.start();
+    } catch (error) {
+      console.error('Failed to start HTTP server:', error);
+      process.exit(1);
+    }
+  } else if (isConsoleMode) {
     // Run both ConsoleApp and MCPServer in parallel
     const consoleApp = new ConsoleApp(database);
     //const server = new MCPServer(database);

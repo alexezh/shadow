@@ -57,13 +57,14 @@ export const useBlueprintSkill: SkillDef =
   text: `
 **use blueprint · execution checklist**
 
+Use this skill only when the user wants to change document-wide style, layout, or apply a saved template—not for isolated word/phrase formatting.
+
 1. Interpret the user’s styling intent. Combine prompt cues and existing context to derive keywords (document type, tone, color scheme, layout hints).
 2. Call load_asset(kind="blueprint", keywords=<derived keywords>). If nothing matches, report the miss and stop.
 3. Review the returned blueprint. If adjustments are required, revise the Markdown/HTML and persist it with store_asset(kind="blueprint", keywords=<same set>) using chunking rules.
 4. Apply the blueprint:
    - Generate or update the document draft as HTML, respecting blueprint directives (ids, sections, table structures).
    - Store the rendered HTML via store_asset(kind="html", chunkId, chunkIndex, eos) in 1000-token chunks.
-5. Summarize the outcome and note remaining gaps (if any).
 
 Notes:
 - Never guess at formatting beyond what the blueprint specifies; ask the user for clarification if the style is incomplete.

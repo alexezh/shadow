@@ -94,16 +94,12 @@ Execution rules:
   "done_when": "Summary is prepared, history/context are updated, and no further rewrite steps remain.",
   "actions": [
     "Restate what changed and why (tone shift, length change, emphasis).",
-    "Record the update with store_history summarizing the rewrite and any open questions—issue the call in a phase='action' response that lists 'store_history' in control.allowed_tools.",
-    "Offer the user options for additional tweaks or reverting the edit.",
-    "Clear or update set_context(['selection']) if the range no longer needs pinning."
   ],
   "completion_format": {
     "status": "finalize_rewrite-complete",
     "next_step": null,
     "next_prompt": "Present the summary to the user in phase=\\"final\\" and note any follow-up suggestions.",
     "handoff": {
-      "history_entry": "<store_history payload>",
       "follow_up": "list of outstanding considerations or 'none'"
     }
   }

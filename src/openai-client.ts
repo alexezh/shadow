@@ -151,6 +151,111 @@ export class ConversationState {
   }
 }
 
+type ResponsesInputMessage = {
+  role: string;
+  content: Array<
+    | { type: 'input_text'; text: string }
+    | { type: 'output_text'; text: string }
+  >;
+  // Note: tool_calls and tool_results are NOT supported in Responses API input
+  // Tool results must be sent as input_text with the result embedded in the text
+};
+
+function toResponseInput(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): ResponsesInputMessage[] {
+  const result: ResponsesInputMessage[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    const blocks: ResponsesInputMessage['content'] = [];
+
+    // Handle tool messages - merge with preceding assistant message's tool call
+    if (msg.role === 'tool') {
+      // Find the preceding assistant message with tool_calls
+      let assistantMsg = null;
+      for (let j = i - 1; j >= 0; j--) {
+        if (messages[j].role === 'assistant' && (messages[j] as any).tool_calls) {
+          assistantMsg = messages[j];
+          break;
+        }
+      }
+
+      const toolCallId = (msg as any).tool_call_id ?? '';
+      const output = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content ?? '');
+
+      // Find which tool call this result is for
+      let toolName = 'unknown';
+      if (assistantMsg) {
+        const toolCalls = (assistantMsg as any).tool_calls || [];
+        const matchingCall = toolCalls.find((tc: any) => tc.id === toolCallId);
+        if (matchingCall) {
+          toolName = matchingCall.function?.name || 'unknown';
+        }
+      }
+
+      // Format as user message with context about what tool was called
+      blocks.push({
+        type: 'input_text',
+        text: `Result from ${toolName}:\n${output}`
+      });
+
+      result.push({
+        role: 'user',
+        content: blocks
+      });
+      continue;
+    }
+
+    // Skip assistant messages that only contain tool_calls without content
+    if (msg.role === 'assistant' && (msg as any).tool_calls) {
+      const hasContent = typeof msg.content === 'string' && msg.content !== null && msg.content.length > 0;
+
+      if (!hasContent) {
+        // Skip - tool results will reference the tool name
+        continue;
+      }
+
+      // If there is content, include it but ignore the tool_calls
+      blocks.push({ type: 'output_text', text: msg.content as string });
+      result.push({
+        role: msg.role,
+        content: blocks
+      });
+      continue;
+    }
+
+    // Handle regular messages
+    if (typeof msg.content === 'string' && msg.content !== null) {
+      if (msg.content.length > 0) {
+        const type = msg.role === 'assistant' ? 'output_text' : 'input_text';
+        blocks.push({ type, text: msg.content });
+      }
+    } else if (Array.isArray(msg.content)) {
+      for (const entry of msg.content) {
+        const entryAny = entry as any;
+        if (typeof entryAny === 'string') {
+          if (entryAny.length > 0) {
+            const type = msg.role === 'assistant' ? 'output_text' : 'input_text';
+            blocks.push({ type, text: entryAny });
+          }
+        } else if (entryAny && typeof entryAny === 'object' && 'text' in entryAny) {
+          const text = entryAny.text ?? '';
+          const type = msg.role === 'assistant' ? 'output_text' : 'input_text';
+          blocks.push({ type, text: String(text) });
+        }
+      }
+    }
+
+    if (blocks.length > 0) {
+      result.push({
+        role: msg.role,
+        content: blocks
+      });
+    }
+  }
+
+  return result;
+}
+
 export interface TokenUsage {
   promptTokens: number;
   completionTokens: number;
@@ -270,23 +375,43 @@ export class OpenAIClient {
     let maxIterations = 100;
     let iteration = 0;
     let invalidEnvelopeCount = 0;
+    let emptyResponseCount = 0;
     let totalPromptTokens = 0;
     let totalCompletionTokens = 0;
     let totalTokens = 0;
 
+    // Track recent tool calls to detect infinite loops
+    const recentToolCalls: string[] = [];
+    const MAX_SAME_TOOL_CALLS = 3;
+
     while (iteration < maxIterations) {
-      const response = await retryWithBackoff(async () => {
-        return this.client.chat.completions.create({
+      const responsesInput = toResponseInput(messages);
+
+      // Debug: log the last few messages to see what's being sent
+      if (iteration > 0) {
+        console.log(`\n🔍 DEBUG - Messages being sent (iteration ${iteration}):`);
+        const lastMessages = responsesInput.slice(-3);
+        for (const msg of lastMessages) {
+          console.log(`  Role: ${msg.role}`);
+          for (const block of msg.content) {
+            console.log(`    Type: ${block.type}, Text: ${block.text.substring(0, 100)}...`);
+          }
+        }
+        console.log('');
+      }
+
+      const responsesTools = mcpTools.map(tool => ({
+        type: 'function' as const,
+        name: tool.function.name,
+        description: tool.function.description,
+        parameters: tool.function.parameters
+      }));
+
+      const stream = await retryWithBackoff(async () => {
+        return this.client.responses.stream({
           model: 'gpt-4.1',
-          messages,
-          tools: mcpTools,
-          stream: true,
-          stream_options: {
-            include_usage: true
-          },
-          tool_choice: 'auto',
-          max_tokens: 1500,
-          //max_completion_tokens: 1500,
+          input: responsesInput as any,
+          tools: responsesTools as any,
           temperature: 0.7
         });
       });
@@ -295,80 +420,189 @@ export class OpenAIClient {
       let iterationCompletionTokens = 0;
       let iterationTotalTokens = 0;
 
-      let assistantMessage: OpenAI.Chat.Completions.ChatCompletionMessage = {
-        role: 'assistant',
-        content: '',
-        refusal: null
-      };
+      let assistantContent = '';
+      let refusalContent = '';
+      const toolCallsMap = new Map<string, OpenAI.Chat.Completions.ChatCompletionMessageToolCall>();
 
-      const toolCallsMap = new Map<number, OpenAI.Chat.Completions.ChatCompletionMessageToolCall>();
+      try {
+        for await (const event of stream as any) {
+          if (!event || typeof event !== 'object') {
+            continue;
+          }
 
-      // Collect all streaming chunks
-      for await (const chunk of response) {
-        const choice = chunk.choices[0];
-        if (!choice) continue;
+          const type = event.type as string | undefined;
 
-        const delta = choice.delta;
+          // Log function call creation events specifically
+          if (type === 'response.function_call.created') {
+            console.log(`\n🎯 FUNCTION CALL CREATED EVENT:`);
+            console.log(JSON.stringify(event, null, 2));
+          }
 
-        // Accumulate content
-        if (delta.content) {
-          assistantMessage.content = (assistantMessage.content || '') + delta.content;
-        }
+          if (type === 'response.output_text.delta') {
+            assistantContent += event.delta ?? '';
+            continue;
+          }
 
-        // Handle refusal
-        if (delta.refusal) {
-          assistantMessage.refusal = (assistantMessage.refusal || '') + delta.refusal;
-        }
+          if (type === 'response.refusal.delta') {
+            refusalContent += event.delta ?? '';
+            continue;
+          }
 
-        // Handle streaming tool calls
-        if (delta.tool_calls) {
-          for (const toolCallDelta of delta.tool_calls) {
-            const index = toolCallDelta.index;
-            if (index === undefined) continue;
-
-            // Initialize tool call if it doesn't exist
-            if (!toolCallsMap.has(index)) {
-              toolCallsMap.set(index, {
-                id: toolCallDelta.id || '',
+          if (type === 'response.tool_calls.created') {
+            const call = event.tool_call;
+            console.log(`🔧 Tool call created event:`, JSON.stringify(event).substring(0, 500));
+            if (call && call.id) {
+              const funcName = call.function?.name ?? call.name ?? '';
+              console.log(`🔧 Creating tool call with ID: ${call.id}, name: ${funcName}`);
+              toolCallsMap.set(call.id, {
+                id: call.id,
                 type: 'function',
                 function: {
-                  name: toolCallDelta.function?.name || '',
+                  name: funcName,
                   arguments: ''
                 }
               });
             }
+            continue;
+          }
 
-            const toolCall = toolCallsMap.get(index)!;
+          if (type === 'response.tool_calls.arguments.delta') {
+            const callId = event.tool_call_id ?? event.tool_call?.id ?? event.call_id ?? event.id;
+            if (!callId) {
+              console.warn('⚠️ response.tool_calls.arguments.delta event missing ID:', JSON.stringify(event).substring(0, 300));
+              continue;
+            }
+            if (!toolCallsMap.has(callId)) {
+              const funcName = event.tool_call?.function?.name ?? event.tool_call?.name ?? event.name ?? '';
+              console.log(`📝 Creating new tool call entry for ID: ${callId}, name: ${funcName}`, JSON.stringify(event).substring(0, 300));
+              toolCallsMap.set(callId, {
+                id: callId,
+                type: 'function',
+                function: {
+                  name: funcName,
+                  arguments: ''
+                }
+              });
+            }
+            const toolCall = toolCallsMap.get(callId)!;
+            toolCall.function.arguments += event.delta ?? '';
+            continue;
+          }
 
-            // Update ID if provided
-            if (toolCallDelta.id) {
-              toolCall.id = toolCallDelta.id;
+          if (type === 'response.usage.delta') {
+            const delta = event.delta ?? {};
+            const promptDelta = delta.prompt_tokens ?? 0;
+            const completionDelta = delta.completion_tokens ?? 0;
+            const totalDelta = delta.total_tokens ?? (promptDelta + completionDelta);
+            iterationPromptTokens += promptDelta;
+            iterationCompletionTokens += completionDelta;
+            iterationTotalTokens += totalDelta;
+            continue;
+          }
+
+          if (type === 'response.completed' || type === 'response.done') {
+            const usage = event.response?.usage ?? event.usage;
+            if (usage) {
+              iterationPromptTokens = usage.prompt_tokens ?? iterationPromptTokens;
+              iterationCompletionTokens = usage.completion_tokens ?? iterationCompletionTokens;
+              iterationTotalTokens = usage.total_tokens ?? iterationTotalTokens;
+            }
+            continue;
+          }
+
+          if (type === 'response.function_call.created') {
+            // This event contains the function name!
+            const itemId = event.item_id ?? event.call_id ?? event.id;
+            const funcName = event.name ?? event.function?.name ?? '';
+            console.log(`🔧 Function call created: ID=${itemId}, name=${funcName}`);
+
+            if (itemId && funcName) {
+              toolCallsMap.set(itemId, {
+                id: itemId,
+                type: 'function',
+                function: {
+                  name: funcName,
+                  arguments: ''
+                }
+              });
+            }
+            continue;
+          }
+
+          // Handle various metadata and status events
+          if (type === 'response.created' ||
+            type === 'response.started' ||
+            type === 'response.in_progress' ||
+            type === 'response.output_item.added' ||
+            type === 'response.output_item.done' ||
+            type === 'response.content_part.added' ||
+            type === 'response.content_part.done' ||
+            type === 'response.output_text.created' ||
+            type === 'response.output_text.done' ||
+            type === 'response.tool_calls.done' ||
+            type === 'response.function_call.done') {
+            // These are informational events, just continue
+            continue;
+          }
+
+          if (type === 'response.function_call_arguments.delta') {
+            // Handle function call arguments delta
+            const callId = event.item_id ?? event.call_id ?? event.id;
+            if (!callId) {
+              console.warn('⚠️ response.function_call_arguments.delta event missing item_id:', JSON.stringify(event).substring(0, 300));
+              continue;
             }
 
-            // Update function name if provided
-            if (toolCallDelta.function?.name) {
-              toolCall.function.name = toolCallDelta.function.name;
+            if (!toolCallsMap.has(callId)) {
+              console.warn(`⚠️ Received arguments delta for unknown call ID: ${callId}. This should not happen - function_call.created event should come first.`);
+              // Create entry anyway with empty name - it will fail later
+              toolCallsMap.set(callId, {
+                id: callId,
+                type: 'function',
+                function: {
+                  name: '',
+                  arguments: ''
+                }
+              });
             }
+            const toolCall = toolCallsMap.get(callId)!;
+            toolCall.function.arguments += event.delta ?? '';
+            continue;
+          }
 
-            // Accumulate function arguments
-            if (toolCallDelta.function?.arguments) {
-              toolCall.function.arguments += toolCallDelta.function.arguments;
-            }
+          if (type === 'response.error') {
+            const errMessage = event.error?.message ?? 'Unknown response stream error';
+            throw new Error(errMessage);
+          }
+
+          // Log unhandled event types for debugging
+          if (type &&
+            !type.startsWith('response.output_text') &&
+            !type.startsWith('response.output_item') &&
+            !type.startsWith('response.content_part') &&
+            !type.startsWith('response.refusal') &&
+            !type.startsWith('response.tool_calls') &&
+            !type.startsWith('response.function_call') &&
+            !type.startsWith('response.usage') &&
+            !type.startsWith('response.completed') &&
+            !type.startsWith('response.done') &&
+            !type.startsWith('response.created') &&
+            !type.startsWith('response.started') &&
+            !type.startsWith('response.in_progress') &&
+            !type.startsWith('response.error')) {
+            console.warn(`⚠️ Unhandled response event type: ${type}`, JSON.stringify(event).substring(0, 200));
           }
         }
-
-        // Extract usage information from the final chunk
-        if (chunk.usage) {
-          iterationPromptTokens = chunk.usage.prompt_tokens || 0;
-          iterationCompletionTokens = chunk.usage.completion_tokens || 0;
-          iterationTotalTokens = chunk.usage.total_tokens || (iterationPromptTokens + iterationCompletionTokens);
-        }
+      } finally {
+        // New Responses streams close automatically; no finalize hook needed.
       }
 
-      // Convert tool calls map to array if any tool calls exist
-      if (toolCallsMap.size > 0) {
-        assistantMessage.tool_calls = Array.from(toolCallsMap.values());
-      }
+      const assistantMessage: OpenAI.Chat.Completions.ChatCompletionMessage = {
+        role: 'assistant',
+        content: assistantContent,
+        refusal: refusalContent || null,
+        ...(toolCallsMap.size > 0 && { tool_calls: Array.from(toolCallsMap.values()) })
+      };
 
       totalPromptTokens += iterationPromptTokens;
       totalCompletionTokens += iterationCompletionTokens;
@@ -455,6 +689,28 @@ export class OpenAIClient {
       // }
 
       if (toolCalls.length > 0) {
+        // Check for infinite loop - same tool called multiple times in a row
+        const toolCallSignature = toolCalls.map(tc => `${tc.function?.name}:${tc.function?.arguments}`).join('|');
+        recentToolCalls.push(toolCallSignature);
+
+        // Keep only the last MAX_SAME_TOOL_CALLS entries
+        if (recentToolCalls.length > MAX_SAME_TOOL_CALLS) {
+          recentToolCalls.shift();
+        }
+
+        // Check if all recent calls are identical
+        if (recentToolCalls.length === MAX_SAME_TOOL_CALLS &&
+          recentToolCalls.every(sig => sig === toolCallSignature)) {
+          console.error(`❌ Detected infinite loop: ${toolCalls[0].function?.name} called ${MAX_SAME_TOOL_CALLS} times with same arguments`);
+          pushSystemMessage(`You have called ${toolCalls[0].function?.name} ${MAX_SAME_TOOL_CALLS} times with the same arguments. The tool results are being provided, but you keep making the same call. Please process the tool results and proceed with the next step instead of repeating the same tool call.`);
+          respondToToolCallsWithError(toolCalls, 'Infinite loop detected - same tool called repeatedly');
+          invalidEnvelopeCount++;
+          if (invalidEnvelopeCount > 5) {
+            throw new Error(`Assistant stuck in infinite loop calling ${toolCalls[0].function?.name} repeatedly`);
+          }
+          continue;
+        }
+
         let synthesizedEnvelope = false;
         let coercedPhase = false;
 
@@ -552,8 +808,26 @@ export class OpenAIClient {
           };
         } else {
           if (rawContent.length === 0) {
+            emptyResponseCount++;
+            if (emptyResponseCount > 3) {
+              console.warn('⚠️ Received multiple consecutive empty responses from the model. Breaking loop.');
+              conversationState.lastPhase = lastPhase;
+              return {
+                response: 'Error: Model returned multiple empty responses',
+                conversationId: '',
+                usage: {
+                  promptTokens: totalPromptTokens,
+                  completionTokens: totalCompletionTokens,
+                  totalTokens: totalTokens || (totalPromptTokens + totalCompletionTokens)
+                }
+              };
+            }
+            console.warn(`⚠️ Received empty response from model (count: ${emptyResponseCount}). Continuing...`);
             continue;
           }
+
+          // Reset empty response counter on successful response
+          emptyResponseCount = 0;
 
           conversationState.lastPhase = lastPhase;
 
