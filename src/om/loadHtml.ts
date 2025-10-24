@@ -1,13 +1,13 @@
 import * as cheerio from 'cheerio';
-import { WNode } from './WNode.js';
-import { WPara } from './WPara.js';
-import { WBody } from './WBody.js';
-import { WTable } from './WTable.js';
-import { WRow } from './WRow.js';
-import { WCell } from './WCell.js';
-import { WStr } from './WStr.js';
-import { WPropStore } from './WPropStore.js';
-import { WPropSet } from './WPropSet.js';
+import { YNode } from './YNode.js';
+import { YPara } from './YPara.js';
+import { YBody } from './YBody.js';
+import { YTable } from './YTable.js';
+import { YRow } from './YRow.js';
+import { YCell } from './YCell.js';
+import { YStr } from './YStr.js';
+import { YPropStore } from './YPropStore.js';
+import { YPropSet } from './YPropSet.js';
 
 /**
  * Load HTML and return root WNode
@@ -15,20 +15,33 @@ import { WPropSet } from './WPropSet.js';
  * @param propStore Property store to use for parsing styles
  * @returns Root WNode (typically WBody)
  */
-export function loadHtml(html: string, propStore: WPropStore): WNode {
+export function loadHtml(html: string, propStore: YPropStore): YNode {
   const $ = cheerio.load(html);
-  const body = $('body');
 
-  if (body.length === 0) {
-    // No body tag, treat the entire HTML as body content
-    const bodyNode = new WBody('body');
-    parseChildren($, $.root(), bodyNode, propStore);
+  // Try to find explicit body tag
+  let body = $('body');
+
+  // If body exists and has attributes/children that are not auto-generated
+  if (body.length > 0 && body.children().length > 0) {
+    const bodyId = body.attr('id') || 'body';
+    const bodyNode = new YBody(bodyId);
+    parseChildren($, body, bodyNode, propStore);
     return bodyNode;
   }
 
-  const bodyId = body.attr('id') || 'body';
-  const bodyNode = new WBody(bodyId);
-  parseChildren($, body, bodyNode, propStore);
+  // No meaningful body tag, parse root content directly
+  // This handles cases like: <p>text</p> or <div><p>text</p></div>
+  const bodyNode = new YBody('body');
+
+  // Cheerio automatically wraps content in html/body
+  // So we look for the auto-generated body's children
+  const autoBody = $('body');
+  if (autoBody.length > 0 && autoBody.children().length > 0) {
+    parseChildren($, autoBody, bodyNode, propStore);
+  } else {
+    // Fallback: parse root children
+    parseChildren($, $.root(), bodyNode, propStore);
+  }
 
   return bodyNode;
 }
@@ -39,15 +52,16 @@ export function loadHtml(html: string, propStore: WPropStore): WNode {
 function parseChildren(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
-  parent: WNode,
-  propStore: WPropStore
+  parent: YNode,
+  propStore: YPropStore
 ): void {
   element.children().each((_index, child) => {
     const node = parseElement($, $(child), propStore);
     if (node) {
-      const children = parent.getChildren();
-      if (children) {
-        children.push(node);
+      // Use addChild method if parent is a container type
+      if (parent instanceof YBody || parent instanceof YTable ||
+        parent instanceof YRow || parent instanceof YCell) {
+        (parent as any).addChild(node);
       }
     }
   });
@@ -59,8 +73,8 @@ function parseChildren(
 function parseElement(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
-  propStore: WPropStore
-): WNode | null {
+  propStore: YPropStore
+): YNode | null {
   const tagName = element.prop('tagName')?.toLowerCase();
   const id = element.attr('id') || generateId(tagName || 'node');
 
@@ -80,7 +94,7 @@ function parseElement(
 
     case 'div':
       // Treat div as body-like container
-      const divNode = new WBody(id);
+      const divNode = new YBody(id);
       parseChildren($, element, divNode, propStore);
       return divNode;
 
@@ -97,11 +111,11 @@ function parseParagraph(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
   id: string,
-  propStore: WPropStore
-): WPara {
-  const str = new WStr();
+  propStore: YPropStore
+): YPara {
+  const str = new YStr();
   parseTextContent($, element, str, propStore);
-  return new WPara(id, str);
+  return new YPara(id, str);
 }
 
 /**
@@ -110,8 +124,8 @@ function parseParagraph(
 function parseTextContent(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
-  str: WStr,
-  propStore: WPropStore,
+  str: YStr,
+  propStore: YPropStore,
   basePropId: number = 0
 ): void {
   element.contents().each((_index, node) => {
@@ -125,7 +139,7 @@ function parseTextContent(
       const tagName = $node.prop('tagName')?.toLowerCase();
 
       // Extract style from tag
-      const propSet = new WPropSet();
+      const propSet = new YPropSet();
       const styleAttr = $node.attr('style');
       if (styleAttr) {
         parseInlineStyle(styleAttr, propSet);
@@ -147,10 +161,10 @@ function parseTextContent(
       }
 
       // Get or create property ID
-      const propId = propStore.getOrCreateId(propSet);
+      const prop = propStore.getOrCreate(propSet);
 
       // Recursively parse content
-      parseTextContent($, $node, str, propStore, propId);
+      parseTextContent($, $node, str, propStore, prop.getHash());
     }
   });
 }
@@ -158,7 +172,7 @@ function parseTextContent(
 /**
  * Parse inline CSS style attribute
  */
-function parseInlineStyle(styleAttr: string, propSet: WPropSet): void {
+function parseInlineStyle(styleAttr: string, propSet: YPropSet): void {
   const styles = styleAttr.split(';');
   for (const style of styles) {
     const [key, value] = style.split(':').map(s => s.trim());
@@ -175,9 +189,9 @@ function parseTable(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
   id: string,
-  propStore: WPropStore
-): WTable {
-  const table = new WTable(id);
+  propStore: YPropStore
+): YTable {
+  const table = new YTable(id);
   parseChildren($, element, table, propStore);
   return table;
 }
@@ -189,9 +203,9 @@ function parseRow(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
   id: string,
-  propStore: WPropStore
-): WRow {
-  const row = new WRow(id);
+  propStore: YPropStore
+): YRow {
+  const row = new YRow(id);
   parseChildren($, element, row, propStore);
   return row;
 }
@@ -203,9 +217,9 @@ function parseCell(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
   id: string,
-  propStore: WPropStore
-): WCell {
-  const cell = new WCell(id);
+  propStore: YPropStore
+): YCell {
+  const cell = new YCell(id);
   parseChildren($, element, cell, propStore);
   return cell;
 }

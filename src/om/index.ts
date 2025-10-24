@@ -1,14 +1,14 @@
 // Export all classes and functions
-export { WPropSet } from './WPropSet.js';
-export { WPropStore } from './WPropStore.js';
-export { WStr } from './WStr.js';
-export { WNode } from './WNode.js';
-export { WPara } from './WPara.js';
-export { WBody } from './WBody.js';
-export { WTable } from './WTable.js';
-export { WRow } from './WRow.js';
-export { WCell } from './WCell.js';
-export { WDoc } from './WDoc.js';
+export { YPropSet as WPropSet } from './YPropSet.js';
+export { YPropStore as WPropStore } from './YPropStore.js';
+export { YStr as WStr } from './YStr.js';
+export { YNode as WNode } from './YNode.js';
+export { YPara as WPara } from './YPara.js';
+export { YBody as WBody } from './YBody.js';
+export { YTable as WTable } from './YTable.js';
+export { YRow as WRow } from './YRow.js';
+export { YCell as WCell } from './YCell.js';
+export { YDoc as WDoc } from './YDoc.js';
 export { HtmlWriter } from './HtmlWriter.js';
 export { makeHtml } from './makeHtml.js';
 export { loadHtml } from './loadHtml.js';

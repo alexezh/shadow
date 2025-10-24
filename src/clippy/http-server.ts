@@ -2,10 +2,10 @@ import * as http from 'http';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Database } from '../database.js';
-import { WDoc } from '../om/WDoc.js';
+import { YDoc } from '../om/YDoc.js';
 import { executeCommand } from '../executecommand.js';
 import { OpenAIClient } from '../openai-client.js';
-import { handleRunAction, RunActionRequest } from './handleRunAcrtion.js';
+import { handleRunAction, RunActionRequest } from './handleRunAction.js';
 import { Session } from './session.js';
 
 export class HttpServer {
@@ -62,14 +62,14 @@ export class HttpServer {
     const url = req.url || '/';
 
     // Serve w.html at root
-    if (url === '/' || url === '/w.html') {
-      await this.serveFile(res, 'w.html', 'text/html');
+    if (url === '/' || url === '/clippy.html') {
+      await this.serveFile(res, 'clippy.html', 'text/html');
       return;
     }
 
     // Serve wx.js
     if (url === '/wx.js') {
-      await this.serveFile(res, 'wx.js', 'application/javascript');
+      await this.serveFile(res, 'clippy.js', 'application/javascript');
       return;
     }
 
@@ -134,7 +134,7 @@ export class HttpServer {
       createdAt: new Date(),
       pendingChanges: [],
       changeResolvers: [],
-      doc: new WDoc()
+      doc: new YDoc()
     };
     this.sessions.set(sessionId, session);
     console.log(`Created session: ${sessionId}`);
@@ -149,22 +149,26 @@ export class HttpServer {
 
     req.on('end', () => {
       try {
-        const req = JSON.parse(body) as RunActionRequest;
+        const request = JSON.parse(body) as RunActionRequest;
 
-        const session = this.sessions.get(req.sessionId);
+        const session = this.sessions.get(request.sessionId);
         if (!session) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Session not found' }));
           return;
         }
 
-        handleRunAction(session, req);
+        // Execute action and get result
+        const result = handleRunAction(session, request);
+
+        // Add result to pending changes
+        session.pendingChanges.push(result);
 
         // Notify any waiting getchanges requests
-        this.notifyChangeListeners(req.sessionId);
+        this.notifyChangeListeners(request.sessionId);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true }));
+        res.end(JSON.stringify({ success: true, result }));
       } catch (error) {
         console.error('Error handling runaction:', error);
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -206,58 +210,10 @@ export class HttpServer {
   }
 
   private async executeCommand(session: Session, prompt: string): Promise<string> {
-    executeCommand(this.database, this.openaiClient, prompt);
+    executeCommand(session, this.database, this.openaiClient, prompt);
+    // Notify waiting clients
+    this.notifyChangeListeners(session.id);
     return "success";
-  }
-
-  private async executeLoadDoc(session: Session, htmlContent: string): Promise<string> {
-    try {
-      // Import loadHtml dynamically
-      const { loadHtml } = await import('../om/loadHtml.js');
-      const { makeHtml } = await import('../om/makeHtml.js');
-
-      // Parse HTML and load into document
-      const rootNode = loadHtml(htmlContent, session.doc.getPropStore());
-
-      // Clear existing body and add new content
-      const body = session.doc.getBody();
-      const children = body.getChildren();
-      while (children.length > 0) {
-        body.removeChild(0);
-      }
-
-      // Add the loaded node as a child
-      let nodeCount = 0;
-      if (rootNode.hasChildren()) {
-        const loadedChildren = rootNode.getChildren();
-        if (loadedChildren) {
-          for (const child of loadedChildren) {
-            body.addChild(child);
-            nodeCount++;
-          }
-        }
-      } else {
-        body.addChild(rootNode);
-        nodeCount = 1;
-      }
-
-      // Generate HTML for the entire document
-      const newHtml = makeHtml(body, session.doc.getPropStore());
-
-      // Create a change to update the entire document
-      session.pendingChanges.push({
-        id: 'doc-content',
-        html: newHtml
-      });
-
-      // Notify waiting clients
-      this.notifyChangeListeners(session.id);
-
-      return `Document loaded successfully. ${nodeCount} nodes added.`;
-    } catch (error) {
-      console.error('Error loading document:', error);
-      return `Error loading document: ${error instanceof Error ? error.message : String(error)}`;
-    }
   }
 
   private async handleGetChanges(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {

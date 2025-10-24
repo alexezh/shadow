@@ -1,7 +1,7 @@
 /**
  * WStr - Maintains string content with newlines and array of int IDs to property sets
  */
-export class WStr {
+export class YStr {
   private text: string;
   private propIds: number[]; // Array of property set IDs, one per character
   private cachedHash: number | null = null;

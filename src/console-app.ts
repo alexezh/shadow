@@ -117,7 +117,7 @@ export class ConsoleApp {
       }
 
       try {
-        await executeCommand(this.database, this.openaiClient, trimmed);
+        await executeCommand(undefined, this.database, this.openaiClient, trimmed);
       } catch (error) {
         console.error(`Error: ${error}`);
       }

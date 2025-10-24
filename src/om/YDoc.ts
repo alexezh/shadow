@@ -1,39 +1,55 @@
-import { WNode } from './WNode.js';
-import { WBody } from './WBody.js';
-import { WPropStore } from './WPropStore.js';
+import { YNode } from './YNode.js';
+import { YBody } from './YBody.js';
+import { YPropStore } from './YPropStore.js';
 
-export class WDoc {
-  private body: WBody;
-  private propStore: WPropStore;
-  private nodeMap: Map<string, WNode>;
+export class YDoc {
+  private body: YBody;
+  private propStore: YPropStore;
+  private nodeMap: Map<string, YNode>;
 
   constructor() {
-    this.body = new WBody();
-    this.propStore = new WPropStore();
+    this.body = new YBody();
+    this.propStore = new YPropStore();
     this.nodeMap = new Map();
     this.rebuildNodeMap();
+    this.setDocOnAllNodes();
   }
 
-  getBody(): WBody {
+  // Set doc reference on all nodes in the tree
+  private setDocOnAllNodes(): void {
+    this.setDocOnNode(this.body);
+  }
+
+  private setDocOnNode(node: YNode): void {
+    node.setDoc(this);
+    const children = node.getChildren();
+    if (children) {
+      for (const child of children) {
+        this.setDocOnNode(child);
+      }
+    }
+  }
+
+  getBody(): YBody {
     return this.body;
   }
 
-  getPropStore(): WPropStore {
+  getPropStore(): YPropStore {
     return this.propStore;
   }
 
-  getNodeById(id: string): WNode | undefined {
+  getNodeById(id: string): YNode | undefined {
     return this.nodeMap.get(id);
   }
 
   // Rebuild the entire node map by traversing the tree
-  private rebuildNodeMap(): void {
+  rebuildNodeMap(): void {
     this.nodeMap.clear();
     this.addNodeToMap(this.body);
   }
 
   // Recursively add node and its descendants to map
-  private addNodeToMap(node: WNode): void {
+  private addNodeToMap(node: YNode): void {
     const id = node.getId();
     if (id) {
       this.nodeMap.set(id, node);
@@ -48,7 +64,7 @@ export class WDoc {
   }
 
   // Remove node and its descendants from map
-  private removeNodeFromMap(node: WNode): void {
+  private removeNodeFromMap(node: YNode): void {
     const id = node.getId();
     if (id) {
       this.nodeMap.delete(id);
@@ -62,8 +78,19 @@ export class WDoc {
     }
   }
 
+  // Public method for adding node to map (called by WBody/WTable/etc when adding children)
+  addNodeToMapPublic(node: YNode): void {
+    node.setDoc(this);
+    this.addNodeToMap(node);
+  }
+
+  // Public method for removing node from map (called by WBody/WTable/etc when removing children)
+  removeNodeFromMapPublic(node: YNode): void {
+    this.removeNodeFromMap(node);
+  }
+
   // Update a subtree by replacing a node with a new node
-  updateTree(nodeId: string, newNode: WNode): boolean {
+  updateTree(nodeId: string, newNode: YNode): boolean {
     const oldNode = this.nodeMap.get(nodeId);
     if (!oldNode) {
       return false;
@@ -73,7 +100,7 @@ export class WDoc {
     const parent = this.findParent(this.body, oldNode);
     if (!parent) {
       // Node is the root body itself
-      if (oldNode === this.body && newNode instanceof WBody) {
+      if (oldNode === this.body && newNode instanceof YBody) {
         // Remove old body from map
         this.removeNodeFromMap(this.body);
 
@@ -112,7 +139,7 @@ export class WDoc {
   }
 
   // Find the parent of a given node
-  private findParent(root: WNode, target: WNode): WNode | null {
+  private findParent(root: YNode, target: YNode): YNode | null {
     const children = root.getChildren();
     if (!children) {
       return null;

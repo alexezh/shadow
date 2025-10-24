@@ -1,22 +1,22 @@
-import { WNode } from './WNode.js';
-import { WStr } from './WStr.js';
+import { YNode } from './YNode.js';
+import { YStr } from './YStr.js';
 
 /**
  * WPara - Paragraph node that points to WStr
  */
-export class WPara extends WNode {
-  private str: WStr;
+export class YPara extends YNode {
+  private str: YStr;
 
-  constructor(id: string, str?: WStr) {
+  constructor(id: string, str?: YStr) {
     super(id);
-    this.str = str || new WStr();
+    this.str = str || new YStr();
   }
 
-  getStr(): WStr {
+  getStr(): YStr {
     return this.str;
   }
 
-  setStr(str: WStr): void {
+  setStr(str: YStr): void {
     this.str = str;
     this.invalidateHash();
   }
@@ -25,7 +25,7 @@ export class WPara extends WNode {
     return false;
   }
 
-  getChildren(): WNode[] | null {
+  getChildren(): YNode[] | null {
     return null;
   }
 

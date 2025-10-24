@@ -1,22 +1,24 @@
-import { Database } from "./database";
-import { assembleHtml, handleEditPart, handleListParts } from "./htmlparts";
-import { importBlueprint } from "./import-blueprint";
-import { importDoc } from "./import-doc";
-import { initRuleModel, testRuleModel } from "./initRuleModel";
-import { makeHtml } from "./makeHtml";
-import { makeSample } from "./makeSample";
-import { OpenAIClient } from "./openai-client";
-import { initContextMap } from "./skills/context";
-import { initInstructions } from "./skills/initSkills";
+import { Database } from "./database.js";
+import { assembleHtml, handleEditPart, handleListParts } from "./htmlparts.js";
+import { importBlueprint } from "./import-blueprint.js";
+import { importDoc } from "./import-doc.js";
+import { initRuleModel, testRuleModel } from "./initRuleModel.js";
+import { makeHtml } from "./makeHtml.js";
+import { makeSample } from "./makeSample.js";
+import { OpenAIClient } from "./openai-client.js";
+import { initContextMap } from "./skills/context.js";
+import { initInstructions } from "./skills/initSkills.js";
 import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getChatPrompt } from "./chatprompt";
-import { skilledWorker } from "./skilledworker";
-import { mcpTools } from "./mcptools";
+import { getChatPrompt } from "./chatprompt.js";
+import { skilledWorker } from "./skilledworker.js";
+import { mcpTools } from "./mcptools.js";
+import { Session } from "./clippy/session.js";
+import { loadDoc } from "./clippy/loaddoc.js";
 
-export async function executeCommand(database: Database, openaiClient: OpenAIClient, command: string): Promise<void> {
+export async function executeCommand(session: Session | undefined, database: Database, openaiClient: OpenAIClient, command: string): Promise<void> {
   const parts = command.split(' ');
   const cmd = parts[0];
 
@@ -55,6 +57,14 @@ export async function executeCommand(database: Database, openaiClient: OpenAICli
         return;
       }
       await importDoc(parts[1], openaiClient);
+      break;
+
+    case '!load-doc':
+      if (parts.length < 2) {
+        console.log('Usage: !load-doc <filename>');
+        return;
+      }
+      await loadDoc(session, parts[1]);
       break;
 
     case '!import-blueprint':

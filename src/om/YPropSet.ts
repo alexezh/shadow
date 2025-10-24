@@ -1,12 +1,12 @@
 /**
  * WPropSet - Set of CSS properties stored as key-value pairs
  */
-export class WPropSet {
-  private props: Map<string, any>;
+export class YPropSet {
+  private props: { [key: string]: any };
   private cachedHash: number | null = null;
 
-  constructor(props?: Map<string, any>) {
-    this.props = props || new Map();
+  constructor() {
+    this.props = {};
   }
 
   private invalidateHash(): void {
@@ -14,28 +14,29 @@ export class WPropSet {
   }
 
   set(key: string, value: any): void {
-    this.props.set(key, value);
+    this.props[key] = value;
     this.invalidateHash();
   }
 
   get(key: string): any {
-    return this.props.get(key);
+    return this.props[key];
   }
 
   has(key: string): boolean {
-    return this.props.has(key);
+    return key in this.props;
   }
 
   delete(key: string): boolean {
-    const result = this.props.delete(key);
-    if (result) {
+    if (key in this.props) {
+      delete this.props[key];
       this.invalidateHash();
+      return true;
     }
-    return result;
+    return false;
   }
 
-  entries(): IterableIterator<[string, any]> {
-    return this.props.entries();
+  entries(): Array<[string, any]> {
+    return Object.entries(this.props);
   }
 
   /**
@@ -44,7 +45,7 @@ export class WPropSet {
   getHash(): number {
     if (this.cachedHash === null) {
       let hash = 0;
-      const entries = Array.from(this.props.entries()).sort(([a], [b]) => a.localeCompare(b));
+      const entries = Object.entries(this.props).sort(([a], [b]) => a.localeCompare(b));
 
       for (const [key, value] of entries) {
         const str = `${key}:${JSON.stringify(value)}`;

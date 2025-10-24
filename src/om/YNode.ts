@@ -1,12 +1,34 @@
+export type WRange = {
+  startElement: string;
+  startOffset: number;
+  endElement: string;
+  endOffset: number;
+}
+
 /**
  * WNode - Root type for document tree
  */
-export abstract class WNode {
+export abstract class YNode {
   protected id: string;
   protected cachedHash: number | null = null;
+  protected doc: any | null = null; // Reference to parent WDoc
 
   constructor(id: string) {
     this.id = id;
+  }
+
+  /**
+   * Set the parent document reference
+   */
+  setDoc(doc: any): void {
+    this.doc = doc;
+  }
+
+  /**
+   * Get the parent document reference
+   */
+  getDoc(): any | null {
+    return this.doc;
   }
 
   getId(): string {
@@ -48,5 +70,5 @@ export abstract class WNode {
   /**
    * Get children if this node supports them
    */
-  abstract getChildren(): WNode[] | null;
+  abstract getChildren(): YNode[] | null;
 }

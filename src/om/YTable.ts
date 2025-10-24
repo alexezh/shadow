@@ -1,12 +1,12 @@
-import { WNode } from './WNode.js';
+import { YNode } from './YNode.js';
 
 /**
- * WCell - Table cell containing content nodes
+ * WTable - Table element containing rows
  */
-export class WCell extends WNode {
-  private children: WNode[];
+export class YTable extends YNode {
+  private children: YNode[];
 
-  constructor(id: string, children?: WNode[]) {
+  constructor(id: string, children?: YNode[]) {
     super(id);
     this.children = children || [];
   }
@@ -15,28 +15,47 @@ export class WCell extends WNode {
     return true;
   }
 
-  getChildren(): WNode[] {
+  getChildren(): YNode[] {
     return this.children;
   }
 
-  addChild(node: WNode): void {
+  addChild(node: YNode): void {
     this.children.push(node);
     this.invalidateHash();
+
+    // Update node map if doc is set
+    const doc = this.getDoc();
+    if (doc) {
+      doc.addNodeToMapPublic(node);
+    }
   }
 
-  insertChild(index: number, node: WNode): void {
+  insertChild(index: number, node: YNode): void {
     this.children.splice(index, 0, node);
     this.invalidateHash();
+
+    // Update node map if doc is set
+    const doc = this.getDoc();
+    if (doc) {
+      doc.addNodeToMapPublic(node);
+    }
   }
 
-  removeChild(index: number): WNode | undefined {
+  removeChild(index: number): YNode | undefined {
     const result = this.children.splice(index, 1)[0];
     this.invalidateHash();
+
+    // Update node map if doc is set
+    const doc = this.getDoc();
+    if (doc && result) {
+      doc.removeNodeFromMapPublic(result);
+    }
+
     return result;
   }
 
   /**
-   * Compute a 32-bit hash value for this cell
+   * Compute a 32-bit hash value for this table
    */
   protected computeHash(): number {
     let hash = 0;

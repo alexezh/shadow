@@ -1,9 +1,21 @@
-import type { WDoc } from "../om/WDoc";
+import type { YDoc } from "../om/YDoc";
+import type { WRange } from "../om/YNode";
 
 export interface Session {
   id: string;
   createdAt: Date;
-  pendingChanges: Array<{ id: string; html: string }>;
+  pendingChanges: Array<ActionResult>;
   changeResolvers: Array<(changes: any[]) => void>;
-  doc: WDoc;
+  doc: YDoc;
+}
+
+export interface ChangeRecord {
+  id: string;
+  html: string;
+}
+
+export interface ActionResult {
+  changes: ChangeRecord[];
+  newPosition?: { element: string; offset: number };
+  newRange?: WRange;
 }
