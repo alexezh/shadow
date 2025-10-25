@@ -1,19 +1,15 @@
 import { YNode, YTextContainer } from './YNode.js';
 import { YBody } from './YBody.js';
-import { YPropStore } from './YPropStore.js';
 import { YStyleStore } from './YStyleStore.js';
 import { YPropSet } from './YPropSet.js';
 
 export class YDoc {
   private body: YBody;
-  private propStore: YPropStore;
   private styleStore: YStyleStore;
   private nodeMap: Map<string, YNode>;
 
   constructor() {
-    const propStore = new YPropStore();
-    this.body = new YBody('body', YPropSet.create(propStore, {}));
-    this.propStore = propStore;
+    this.body = new YBody('body', YPropSet.create({}));
     this.styleStore = new YStyleStore();
     this.nodeMap = new Map();
     this.linkTree();
@@ -59,10 +55,6 @@ export class YDoc {
 
   getBody(): YBody {
     return this.body;
-  }
-
-  getPropStore(): YPropStore {
-    return this.propStore;
   }
 
   getStyleStore(): YStyleStore {

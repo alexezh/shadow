@@ -1,6 +1,6 @@
 import { make31BitId } from '../make31bitid.js';
 import { YNode } from './YNode.js';
-import { YPropSet } from './YPropSet.js';
+import { YPropCache, YPropSet } from './YPropSet.js';
 import { YStr } from './YStr.js';
 
 const paraProp = "--data-para";
@@ -11,19 +11,22 @@ const paraProp = "--data-para";
 export class YPara extends YNode {
   private _str: YStr;
 
+  public get length(): number {
+    return this._str.length;
+  }
+
   constructor(id: string, props: YPropSet, str?: YStr) {
     super(id, props);
     this._str = str || new YStr("\n");
     if (this._str.getCharAt(-1) !== "\n") {
-      this._str.append("\n", )
-    } else if (paraPropId) {
-      this._str.setPropIdAt(-1)
+      this._str.append("\n", YPropSet.create({}))
     }
+    this.updateEopProps(props);
   }
 
   override setProps(props: YPropSet): void {
     super.setProps(props);
-    this.
+    this.updateEopProps(props)
   }
 
   hasChildren(): boolean {
@@ -37,11 +40,11 @@ export class YPara extends YNode {
   public splitParagraph(pos: number): YPara {
     const newStr = this._str.split(pos);
 
-    this._str.append("\n", newStr.getPropIdAt(-1));
+    this._str.append("\n", newStr.getPropsAt(-1));
 
     // Create new paragraph for second part
     const newId = make31BitId();
-    const newPara = new YPara(newId, newStr);
+    const newPara = new YPara(newId, this.props, newStr);
 
     return newPara;
   }
@@ -51,9 +54,11 @@ export class YPara extends YNode {
     this.invalidateHash();
   }
 
-  private updateEopProps(props: YPropSet): void {
+  private updateEopProps(paraProps: YPropSet): void {
     const eopProps = this._str.getPropsAt(-1);
-    this._doc.
+    this._str.setPropAt(-1, YPropCache.instance.update(eopProps, (props: { [key: string]: any }) => {
+      props[paraProp] = paraProps;
+    }));
   }
 
   /**

@@ -1,6 +1,6 @@
 // Export all classes and functions
 export { YPropSet as WPropSet } from './YPropSet.js';
-export { YPropStore as WPropStore } from './YPropStore.js';
+export { YPropCache as WPropStore } from './YPropCache.js';
 export { YStr as WStr } from './YStr.js';
 export { YNode as WNode } from './YNode.js';
 export { YPara as WPara } from './YPara.js';

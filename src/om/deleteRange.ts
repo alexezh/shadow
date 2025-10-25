@@ -30,8 +30,8 @@ function handleBackspace(doc: any, range: WRange): YNode[] {
       const prevNode = children[nodeIndex - 1];
 
       if (prevNode instanceof YPara) {
-        const prevStr = prevNode.getStr();
-        const prevLength = prevStr.getLength();
+        const prevStr = prevNode as YPara;
+        const prevLength = prevStr.length;
 
         // Append current paragraph's text to previous
         prevStr.append(str.getText(), 0);

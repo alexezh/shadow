@@ -6,7 +6,7 @@ import { YTable } from './YTable.js';
 import { YRow } from './YRow.js';
 import { YCell } from './YCell.js';
 import { YStr } from './YStr.js';
-import { YPropStore } from './YPropStore.js';
+import { YPropCache } from './YPropCache.js';
 import { YPropSet } from './YPropSet.js';
 import { YStyleStore } from './YStyleStore.js';
 import { make31BitId } from '../make31bitid.js';
@@ -18,7 +18,7 @@ import { make31BitId } from '../make31bitid.js';
  * @param styleStore Optional style store to populate with CSS styles
  * @returns Root WNode (typically WBody)
  */
-export function loadHtml(html: string, propStore: YPropStore, styleStore?: YStyleStore): YNode {
+export function loadHtml(html: string, propStore: YPropCache, styleStore?: YStyleStore): YNode {
   const $ = cheerio.load(html);
 
   // Extract and parse CSS from <style> tags
@@ -67,7 +67,7 @@ function parseChildren(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
   parent: YNode,
-  propStore: YPropStore,
+  propStore: YPropCache,
   parentPropSet: YPropSet = new YPropSet()
 ): void {
   const parentPropId = propStore.getOrCreate(parentPropSet).getHash();
@@ -158,7 +158,7 @@ function extractElementProps(
 function parseElement(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
-  propStore: YPropStore,
+  propStore: YPropCache,
   parentPropSet: YPropSet = new YPropSet()
 ): YNode[] | null {
   const tagName = element.prop('tagName')?.toLowerCase();
@@ -286,7 +286,7 @@ function parseParagraph(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
   id: string,
-  propStore: YPropStore
+  propStore: YPropCache
 ): YPara {
   // Capture paragraph-level properties
   const paraPropSet = extractElementProps(element);
@@ -305,7 +305,7 @@ function parseTextContent(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
   str: YStr,
-  propStore: YPropStore,
+  propStore: YPropCache,
   basePropId: number = 0
 ): void {
   element.contents().each((_index, node) => {

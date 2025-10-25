@@ -4,13 +4,13 @@ import { YBody } from './YBody.js';
 import { YTable } from './YTable.js';
 import { YRow } from './YRow.js';
 import { YCell } from './YCell.js';
-import { YPropStore } from './YPropStore.js';
+import { YPropCache } from './YPropCache.js';
 import { HtmlWriter } from './HtmlWriter.js';
 
 /**
  * Convert CSS property set to inline style string
  */
-function propSetToStyle(propStore: YPropStore, propId: number): string {
+function propSetToStyle(propStore: YPropCache, propId: number): string {
   if (propId === 0) {
     return '';
   }
@@ -31,7 +31,7 @@ function propSetToStyle(propStore: YPropStore, propId: number): string {
 /**
  * Make HTML for a paragraph node
  */
-function makeParaHtml(node: YPara, propStore: YPropStore, writer: HtmlWriter): void {
+function makeParaHtml(node: YPara, propStore: YPropCache, writer: HtmlWriter): void {
   writer.writeOpenTag('p', { id: node.getId() });
 
   const str = node.getStr();
@@ -121,7 +121,7 @@ function makeParaHtml(node: YPara, propStore: YPropStore, writer: HtmlWriter): v
 /**
  * Make HTML for a node recursively
  */
-export function makeHtml(node: YNode, propStore: YPropStore): string {
+export function makeHtml(node: YNode, propStore: YPropCache): string {
   const writer = new HtmlWriter();
   makeHtmlRecursive(node, propStore, writer);
   return writer.toString();
@@ -130,7 +130,7 @@ export function makeHtml(node: YNode, propStore: YPropStore): string {
 /**
  * Make HTML recursively
  */
-function makeHtmlRecursive(node: YNode, propStore: YPropStore, writer: HtmlWriter): void {
+function makeHtmlRecursive(node: YNode, propStore: YPropCache, writer: HtmlWriter): void {
   if (node instanceof YPara) {
     makeParaHtml(node, propStore, writer);
   } else if (node instanceof YBody) {

@@ -54,7 +54,7 @@ function handleBackspace(doc: any, range: WRange): ActionResult {
     return { changes: [] };
   }
 
-  const str = node.getStr();
+  const str = node as YPara;
   const offset = range.startOffset;
 
   // Check if there's a selection (range spans multiple characters)
@@ -63,7 +63,7 @@ function handleBackspace(doc: any, range: WRange): ActionResult {
     const start = Math.min(range.startOffset, range.endOffset);
     const end = Math.max(range.startOffset, range.endOffset);
 
-    str.delete(start, end);
+    str.deleteRange(start, end);
 
     // Regenerate HTML
     const html = makeHtml(node, propStore);
@@ -85,8 +85,8 @@ function handleBackspace(doc: any, range: WRange): ActionResult {
       const prevNode = children[nodeIndex - 1];
 
       if (prevNode instanceof YPara) {
-        const prevStr = prevNode.getStr();
-        const prevLength = prevStr.getLength();
+        const prevStr = prevNode as YPara;
+        const prevLength = prevStr.length;
 
         // Append current paragraph's text to previous
         prevStr.append(str.getText(), 0);
