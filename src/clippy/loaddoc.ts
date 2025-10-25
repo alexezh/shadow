@@ -1,5 +1,9 @@
+import { make31BitId } from "../make31bitid.js";
 import { loadHtml } from "../om/loadHtml.js";
 import { makeHtml } from "../om/makeHtml.js";
+import { YDoc } from "../om/YDoc.js";
+import { YPara } from "../om/YPara.js";
+import { YStr } from "../om/YStr.js";
 import { ChangeRecord, Session } from "./session.js";
 
 export function loadDoc(session: Session | undefined, htmlContent: string): string {
@@ -44,4 +48,14 @@ export function loadDoc(session: Session | undefined, htmlContent: string): stri
   });
 
   return `Document loaded successfully. ${nodeCount} nodes added.`;
+}
+
+export function makeDefaultDoc(): YDoc {
+  const doc = new YDoc();
+
+  // Create default document with placeholder paragraph
+  const body = doc.getBody();
+  const para = new YPara(make31BitId(), new YStr('Document content will appear here. Click to position cursor.\n'))
+  body.addChild(para);
+  return doc;
 }

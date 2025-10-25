@@ -258,6 +258,12 @@ class Selection {
     this.startOffset = 0;
     this.endNode = null;
     this.endOffset = 0;
+
+    // Clear browser selection
+    const browserSel = window.getSelection();
+    if (browserSel) {
+      browserSel.removeAllRanges();
+    }
   }
 
   getRange() {
@@ -335,8 +341,12 @@ class IPCursor {
       }
     });
 
-    // Disable context menu
+    // Disable context menu and double-click menu
     this.documentEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+    });
+
+    this.documentEl.addEventListener('dblclick', (e) => {
       e.preventDefault();
     });
 
@@ -519,6 +529,10 @@ class IPCursor {
       );
     }
 
+    // Save old position
+    const oldNode = this.position.node;
+    const oldOffset = this.position.offset;
+
     // Move cursor left
     this.moveLeft();
 
@@ -526,7 +540,10 @@ class IPCursor {
     this.selection.endNode = this.position.node;
     this.selection.endOffset = this.position.offset;
 
-    logToConsole('Extended selection left');
+    // Highlight the selection visually
+    this.highlightSelection();
+
+    logToConsole(`Extended selection left: ${this.selection.startOffset}-${this.selection.endOffset}`);
   }
 
   extendSelectionRight() {
@@ -540,6 +557,10 @@ class IPCursor {
       );
     }
 
+    // Save old position
+    const oldNode = this.position.node;
+    const oldOffset = this.position.offset;
+
     // Move cursor right
     this.moveRight();
 
@@ -547,7 +568,10 @@ class IPCursor {
     this.selection.endNode = this.position.node;
     this.selection.endOffset = this.position.offset;
 
-    logToConsole('Extended selection right');
+    // Highlight the selection visually
+    this.highlightSelection();
+
+    logToConsole(`Extended selection right: ${this.selection.startOffset}-${this.selection.endOffset}`);
   }
 
   extendSelectionUp() {
@@ -563,6 +587,9 @@ class IPCursor {
     this.moveUp();
     this.selection.endNode = this.position.node;
     this.selection.endOffset = this.position.offset;
+
+    // Highlight the selection visually
+    this.highlightSelection();
 
     logToConsole('Extended selection up');
   }
@@ -581,7 +608,28 @@ class IPCursor {
     this.selection.endNode = this.position.node;
     this.selection.endOffset = this.position.offset;
 
+    // Highlight the selection visually
+    this.highlightSelection();
+
     logToConsole('Extended selection down');
+  }
+
+  highlightSelection() {
+    if (!this.selection.active) return;
+
+    try {
+      // Use browser's native selection to highlight
+      const browserSel = window.getSelection();
+      browserSel.removeAllRanges();
+
+      const range = document.createRange();
+      range.setStart(this.selection.startNode, this.selection.startOffset);
+      range.setEnd(this.selection.endNode, this.selection.endOffset);
+
+      browserSel.addRange(range);
+    } catch (e) {
+      logToConsole(`Error highlighting selection: ${e.message}`, 'error');
+    }
   }
 
   deleteSelection(callback) {
@@ -906,17 +954,15 @@ class ClippyFloat {
       }
     });
 
-    // Enable/disable send button based on text input and auto-expand height
+    // Enable/disable send button based on text input
     this.textboxEl.addEventListener('input', () => {
       const hasText = this.textboxEl.value.trim().length > 0;
       this.sendBtn.disabled = !hasText;
-
-      // Auto-expand textarea height
-      this.autoExpandTextarea();
     });
 
     // Send on button click
-    this.sendBtn.addEventListener('click', () => {
+    this.sendBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       this.sendQuestion();
     });
 
@@ -934,19 +980,20 @@ class ClippyFloat {
         this.collapse();
       }
     });
-  }
 
-  autoExpandTextarea() {
-    // Reset height to auto to get the correct scrollHeight
-    this.textboxEl.style.height = 'auto';
+    // Click outside to collapse
+    document.addEventListener('click', (e) => {
+      if (this.isExpanded && !this.floatEl.contains(e.target)) {
+        this.collapse();
+      }
+    });
 
-    // Calculate number of lines (max 10)
-    const lineHeight = 20; // matches CSS line-height
-    const maxLines = 10;
-    const maxHeight = lineHeight * maxLines;
-
-    const newHeight = Math.min(this.textboxEl.scrollHeight, maxHeight);
-    this.textboxEl.style.height = `${newHeight}px`;
+    // Prevent clicks inside the prompt from closing
+    this.floatEl.addEventListener('click', (e) => {
+      if (this.isExpanded) {
+        e.stopPropagation();
+      }
+    });
   }
 
   positionBelowCursor() {
@@ -955,16 +1002,24 @@ class ClippyFloat {
 
     const cursorRect = cursor.cursorEl.getBoundingClientRect();
 
-    // Position below and slightly to the right of cursor
-    this.floatEl.style.left = `${cursorRect.left + 10}px`;
-    this.floatEl.style.top = `${cursorRect.bottom + 10}px`;
+    // Position very close to cursor - just 2px below and 2px to the right
+    this.floatEl.style.left = `${cursorRect.left + 2}px`;
+    this.floatEl.style.top = `${cursorRect.bottom + 2}px`;
   }
 
   expand() {
     this.isExpanded = true;
     this.floatEl.classList.remove('collapsed');
     this.floatEl.classList.add('expanded');
-    this.textboxEl.focus();
+
+    // Reposition close to cursor when expanded
+    this.positionBelowCursor();
+
+    // Focus the textbox after a short delay to ensure it's visible
+    setTimeout(() => {
+      this.textboxEl.focus();
+    }, 50);
+
     logToConsole('Clippy expanded');
   }
 
@@ -973,8 +1028,11 @@ class ClippyFloat {
     this.floatEl.classList.remove('expanded');
     this.floatEl.classList.add('collapsed');
     this.textboxEl.value = '';
-    this.textboxEl.style.height = 'auto';
     this.sendBtn.disabled = true;
+
+    // Reposition and show the icon
+    this.show();
+
     logToConsole('Clippy collapsed');
   }
 
@@ -1015,14 +1073,20 @@ class ClippyFloat {
   }
 
   show() {
-    this.isVisible = true;
-    this.floatEl.style.display = 'block';
-    this.positionBelowCursor();
+    if (!this.isExpanded) {
+      // Only show collapsed icon when not expanded
+      this.isVisible = true;
+      this.floatEl.style.display = 'block';
+      this.positionBelowCursor();
+    }
   }
 
   hide() {
-    this.isVisible = false;
-    this.floatEl.style.display = 'none';
+    if (!this.isExpanded) {
+      // Only hide when collapsed
+      this.isVisible = false;
+      this.floatEl.style.display = 'none';
+    }
   }
 }
 

@@ -52,6 +52,25 @@ function handleBackspace(doc: any, range: WRange): ActionResult {
   const str = node.getStr();
   const offset = range.startOffset;
 
+  // Check if there's a selection (range spans multiple characters)
+  if (range.startElement === range.endElement && range.startOffset !== range.endOffset) {
+    // Delete the selected range
+    const start = Math.min(range.startOffset, range.endOffset);
+    const end = Math.max(range.startOffset, range.endOffset);
+
+    str.delete(start, end);
+
+    // Regenerate HTML
+    const html = makeHtml(node, propStore);
+
+    return {
+      changes: [
+        { id: node.getId(), html }
+      ],
+      newPosition: { element: node.getId(), offset: start }
+    };
+  }
+
   // If at start of paragraph, merge with previous
   if (offset === 0) {
     const children = body.getChildren();
@@ -115,6 +134,25 @@ function handleDelete(doc: any, range: WRange): ActionResult {
 
   const str = node.getStr();
   const offset = range.startOffset;
+
+  // Check if there's a selection (range spans multiple characters)
+  if (range.startElement === range.endElement && range.startOffset !== range.endOffset) {
+    // Delete the selected range
+    const start = Math.min(range.startOffset, range.endOffset);
+    const end = Math.max(range.startOffset, range.endOffset);
+
+    str.delete(start, end);
+
+    // Regenerate HTML
+    const html = makeHtml(node, propStore);
+
+    return {
+      changes: [
+        { id: node.getId(), html }
+      ],
+      newPosition: { element: node.getId(), offset: start }
+    };
+  }
 
   // If at end of paragraph, merge with next
   if (offset >= str.getLength()) {

@@ -7,6 +7,8 @@ import { executeCommand } from '../executecommand.js';
 import { OpenAIClient } from '../openai-client.js';
 import { handleRunAction, RunActionRequest } from './handleRunAction.js';
 import { Session } from './session.js';
+import { makeDefaultDoc } from './loaddoc.js';
+import { makeHtml } from '../om/makeHtml.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -135,15 +137,7 @@ export class HttpServer {
 
     // Create new session
     const newSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const doc = new YDoc();
-
-    // Create default document with placeholder paragraph
-    const body = doc.getBody();
-    const para = new (require('../om/YPara.js').YPara)(
-      'p1',
-      new (require('../om/YStr.js').YStr)('Document content will appear here. Click to position cursor.\n')
-    );
-    body.addChild(para);
+    const doc = makeDefaultDoc();
 
     const session: Session = {
       id: newSessionId,
@@ -166,7 +160,6 @@ export class HttpServer {
       const session = this.getOrCreateSession(headerSessionId);
 
       // Generate HTML from document
-      const makeHtml = require('../om/makeHtml.js').makeHtml;
       const html = makeHtml(session.doc.getBody(), session.doc.getPropStore());
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
