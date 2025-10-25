@@ -377,6 +377,24 @@ class IPCursor {
   positionAtClick(e) {
     // Get the clicked position
     const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    const clickedParagraph = e.target && e.target.closest ? e.target.closest('p[id]') : null;
+
+    const hasValidRange = !!(range && range.startContainer);
+    const rangeElementId = hasValidRange ? findElementId(range.startContainer) : null;
+    const rangeElement = rangeElementId ? document.getElementById(rangeElementId) : null;
+    const rangeIsParagraph = rangeElement && rangeElement.tagName === 'P';
+
+    if ((!hasValidRange || !rangeIsParagraph) && clickedParagraph) {
+      const eosMarker = clickedParagraph.querySelector('span[data-marker="eos"]');
+      const markerTextNode = eosMarker && eosMarker.firstChild ? eosMarker.firstChild : null;
+      this.position.node = markerTextNode || clickedParagraph;
+      this.position.offset = 0;
+      this.selection.clear();
+      this.updateCursorPosition();
+      this.show();
+      return;
+    }
+
     if (!range) return;
 
     this.position.node = range.startContainer;
@@ -656,7 +674,18 @@ class IPCursor {
     if (!this.position.node) return;
 
     // Get the range for the split action
-    const range = getSelectionRange();
+    let range = getSelectionRange();
+    if (!range) {
+      const elementId = findElementId(this.position.node);
+      if (elementId) {
+        range = {
+          startElement: elementId,
+          startOffset: this.position.offset,
+          endElement: elementId,
+          endOffset: this.position.offset
+        };
+      }
+    }
     if (range) {
       queueCommand('split', range);
       //logToConsole('Enter pressed - split paragraph');

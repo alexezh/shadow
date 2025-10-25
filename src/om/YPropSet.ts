@@ -1,21 +1,22 @@
+import { fnv1aSeed, fnv1aStep, hashString, hashValue } from "./fnv1a.js";
+import type { YPropStore } from "./YPropStore.js";
+
 /**
  * WPropSet - Set of CSS properties stored as key-value pairs
  */
 export class YPropSet {
+  private _store: YPropStore;
   private props: { [key: string]: any };
   private cachedHash: number | null = null;
 
-  constructor() {
-    this.props = {};
+  private constructor(propStore: YPropStore, props: { [key: string]: any }) {
+    this._store = propStore;
+    this.props = props;
   }
 
-  private invalidateHash(): void {
-    this.cachedHash = null;
-  }
-
-  set(key: string, value: any): void {
-    this.props[key] = value;
-    this.invalidateHash();
+  public static create(propStore: YPropStore, props: { [key: string]: any }): YPropSet {
+    let s = new YPropSet(propStore, props);
+    return propStore.getOrCreate(s);
   }
 
   get(key: string): any {
@@ -26,15 +27,6 @@ export class YPropSet {
     return key in this.props;
   }
 
-  delete(key: string): boolean {
-    if (key in this.props) {
-      delete this.props[key];
-      this.invalidateHash();
-      return true;
-    }
-    return false;
-  }
-
   entries(): Array<[string, any]> {
     return Object.entries(this.props);
   }
@@ -43,22 +35,25 @@ export class YPropSet {
    * Returns a 32-bit hash value for this property set (cached)
    */
   getHash(): number {
-    if (this.cachedHash === null) {
-      let hash = 0;
-      const entries = Object.entries(this.props).sort(([a], [b]) => a.localeCompare(b));
+    if (this.cachedHash != null) return this.cachedHash;
 
-      for (const [key, value] of entries) {
-        const str = `${key}:${JSON.stringify(value)}`;
-        for (let i = 0; i < str.length; i++) {
-          const char = str.charCodeAt(i);
-          hash = ((hash << 5) - hash) + char;
-          hash = hash & 0x7FFFFFFF; // Keep it 31-bit positive
-        }
-      }
+    // 1) Collect keys (CSS-like ASCII), 2) sort with default lex order (faster than localeCompare),
+    // 3) stream hash: key + ':' + value (typed hashing, no JSON stringify).
+    const props = this.props as Record<string, unknown>;
+    const keys = Object.keys(props);
+    keys.sort(); // simple, fast, deterministic
 
-      this.cachedHash = hash;
+    let h = fnv1aSeed(); // FNV-1a 32-bit offset basis
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      h = hashString(h, k);
+      h = fnv1aStep(h, 0x3A); // ':'
+      h = hashValue(h, props[k]);
+      h = fnv1aStep(h, 0x7C); // '|' field sep
     }
 
+    // keep it positive 31-bit if you specifically need that
+    this.cachedHash = h & 0x7fffffff;
     return this.cachedHash;
   }
 }

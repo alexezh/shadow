@@ -1,9 +1,11 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2024",
     "module": "ES2020",
     "moduleResolution": "node",
-    "lib": ["ES2020"],
+    "lib": [
+      "ES2024"
+    ],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -14,6 +16,11 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

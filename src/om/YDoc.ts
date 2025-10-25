@@ -1,7 +1,8 @@
-import { YNode } from './YNode.js';
+import { YNode, YTextContainer } from './YNode.js';
 import { YBody } from './YBody.js';
 import { YPropStore } from './YPropStore.js';
 import { YStyleStore } from './YStyleStore.js';
+import { YPropSet } from './YPropSet.js';
 
 export class YDoc {
   private body: YBody;
@@ -10,27 +11,50 @@ export class YDoc {
   private nodeMap: Map<string, YNode>;
 
   constructor() {
-    this.body = new YBody();
-    this.propStore = new YPropStore();
+    const propStore = new YPropStore();
+    this.body = new YBody('body', YPropSet.create(propStore, {}));
+    this.propStore = propStore;
     this.styleStore = new YStyleStore();
     this.nodeMap = new Map();
-    this.rebuildNodeMap();
-    this.setDocOnAllNodes();
+    this.linkTree();
   }
 
   // Set doc reference on all nodes in the tree
-  private setDocOnAllNodes(): void {
-    this.setDocOnNode(this.body);
+  private linkTree(): void {
+    this.linkNodeInternal(null, this.body);
   }
 
-  private setDocOnNode(node: YNode): void {
-    node.setDoc(this);
+  public linkNodeInternal(parent: YTextContainer | null, node: YNode): void {
+    const id = node.id;
+    if (id) {
+      this.nodeMap.set(id, node);
+    }
+    node.setParent(this, parent);
     const children = node.getChildren();
     if (children) {
       for (const child of children) {
-        this.setDocOnNode(child);
+        // TODO: remove getChildren from node
+        this.linkNodeInternal(node as YTextContainer, child);
       }
     }
+  }
+
+  // Public method for removing node from map (called by WBody/WTable/etc when removing children)
+  unlinkNodeInternal(node: YNode): void {
+    const id = node.id;
+    if (id) {
+      this.nodeMap.delete(id);
+    }
+
+    node.setParent(null, null);
+
+    const children = node.getChildren();
+    if (children) {
+      for (const child of children) {
+        this.unlinkNodeInternal(child);
+      }
+    }
+
   }
 
   getBody(): YBody {
@@ -49,53 +73,6 @@ export class YDoc {
     return this.nodeMap.get(id);
   }
 
-  // Rebuild the entire node map by traversing the tree
-  rebuildNodeMap(): void {
-    this.nodeMap.clear();
-    this.addNodeToMap(this.body);
-  }
-
-  // Recursively add node and its descendants to map
-  private addNodeToMap(node: YNode): void {
-    const id = node.getId();
-    if (id) {
-      this.nodeMap.set(id, node);
-    }
-
-    const children = node.getChildren();
-    if (children) {
-      for (const child of children) {
-        this.addNodeToMap(child);
-      }
-    }
-  }
-
-  // Remove node and its descendants from map
-  private removeNodeFromMap(node: YNode): void {
-    const id = node.getId();
-    if (id) {
-      this.nodeMap.delete(id);
-    }
-
-    const children = node.getChildren();
-    if (children) {
-      for (const child of children) {
-        this.removeNodeFromMap(child);
-      }
-    }
-  }
-
-  // Public method for adding node to map (called by WBody/WTable/etc when adding children)
-  addNodeToMapPublic(node: YNode): void {
-    node.setDoc(this);
-    this.addNodeToMap(node);
-  }
-
-  // Public method for removing node from map (called by WBody/WTable/etc when removing children)
-  removeNodeFromMapPublic(node: YNode): void {
-    this.removeNodeFromMap(node);
-  }
-
   // Update a subtree by replacing a node with a new node
   updateTree(nodeId: string, newNode: YNode): boolean {
     const oldNode = this.nodeMap.get(nodeId);
@@ -109,44 +86,32 @@ export class YDoc {
       // Node is the root body itself
       if (oldNode === this.body && newNode instanceof YBody) {
         // Remove old body from map
-        this.removeNodeFromMap(this.body);
+        this.unlinkNodeInternal(this.body);
 
         // Replace body
         this.body = newNode;
 
         // Add new body to map
-        this.addNodeToMap(this.body);
+        this.linkNodeInternal(null, this.body);
         return true;
       }
       return false;
     }
 
-    // Get parent's children
-    const children = parent.getChildren();
-    if (!children) {
-      return false;
-    }
-
     // Find index of old node in parent's children
-    const index = children.indexOf(oldNode);
+    const index = parent.indexOf(oldNode);
     if (index === -1) {
       return false;
     }
 
-    // Remove old node and its descendants from map
-    this.removeNodeFromMap(oldNode);
-
     // Replace in parent's children array
-    children[index] = newNode;
-
-    // Add new node and its descendants to map
-    this.addNodeToMap(newNode);
+    parent.spliceChildren(index, 1, newNode);
 
     return true;
   }
 
   // Find the parent of a given node
-  private findParent(root: YNode, target: YNode): YNode | null {
+  private findParent(root: YNode, target: YNode): YTextContainer | null {
     const children = root.getChildren();
     if (!children) {
       return null;
@@ -154,7 +119,7 @@ export class YDoc {
 
     // Check if target is a direct child
     if (children.includes(target)) {
-      return root;
+      return root as YTextContainer;
     }
 
     // Recursively search in children

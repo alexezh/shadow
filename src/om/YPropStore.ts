@@ -4,10 +4,14 @@ import { YPropSet } from './YPropSet.js';
  * WPropStore - Maintains a map of int ID to WPropSet
  */
 export class YPropStore {
-  private store: Map<number, YPropSet>;
+  private store: Map<number, WeakRef< YPropSet>;
 
   constructor() {
     this.store = new Map();
+  }
+
+  update(set: YPropSet, func: () => void) {
+
   }
 
   /**
@@ -15,7 +19,7 @@ export class YPropStore {
    */
   add(propSet: YPropSet): number {
     let id = propSet.getHash();
-    this.store.set(id, propSet || new YPropSet());
+    this.store.set(id, propSet);
     return id;
   }
 
