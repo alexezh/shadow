@@ -160,7 +160,7 @@ export class HttpServer {
       const session = this.getOrCreateSession(headerSessionId);
 
       // Generate HTML from document
-      const html = makeHtml(session.doc.getBody(), session.doc.getPropStore());
+      const html = makeHtml(session.doc.getBody());
 
       // Get styles as JSON array
       const styles = session.doc.getStyleStore().toJson();

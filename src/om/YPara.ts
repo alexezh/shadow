@@ -3,7 +3,7 @@ import { YNode } from './YNode.js';
 import { YPropCache, YPropSet } from './YPropSet.js';
 import { YStr } from './YStr.js';
 
-const paraProp = "--data-para";
+export const paraProp = "--data-para";
 
 /**
  * WPara - Paragraph node that points to WStr
@@ -29,6 +29,14 @@ export class YPara extends YNode {
     this.updateEopProps(props)
   }
 
+  getText(): string {
+    return this._str.text;
+  }
+
+  getTextAttrs(): ReadonlyArray<YPropSet> {
+    return this._str.getProps();
+  }
+
   hasChildren(): boolean {
     return false;
   }
@@ -49,9 +57,27 @@ export class YPara extends YNode {
     return newPara;
   }
 
-  public deleteRange(startAt: number, deleteCount: number): void {
+  public deleteRange(startAt: number, deleteCount: number = -1): void {
+    deleteCount = (deleteCount > 0) ? deleteCount : this._str.length - startAt;
+    // keep EOP
+    if (startAt + deleteCount >= this._str.length - 1) {
+      deleteCount = this._str.length - 1 - startAt;
+    }
+
     this._str.delete(startAt, deleteCount);
     this.invalidateHash();
+  }
+
+  public mergeParagraph(right: YPara): void {
+    // delete EOP
+    this._str.delete(this._str.length - 1, 1);
+    this._str.appendY(right._str);
+    this.updateEopProps(right.props);
+    this.invalidateHash();
+  }
+
+  public insertTextAt(pos: number, text: string, props: YPropSet): void {
+    this._str.insertAt(pos, text, props);
   }
 
   private updateEopProps(paraProps: YPropSet): void {

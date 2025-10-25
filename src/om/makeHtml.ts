@@ -1,28 +1,22 @@
 import { YNode } from './YNode.js';
-import { YPara } from './YPara.js';
+import { paraProp, YPara } from './YPara.js';
 import { YBody } from './YBody.js';
 import { YTable } from './YTable.js';
 import { YRow } from './YRow.js';
 import { YCell } from './YCell.js';
-import { YPropCache } from './YPropCache.js';
 import { HtmlWriter } from './HtmlWriter.js';
+import { YPropSet } from './YPropSet.js';
 
 /**
  * Convert CSS property set to inline style string
  */
-function propSetToStyle(propStore: YPropCache, propId: number): string {
-  if (propId === 0) {
-    return '';
-  }
-
-  const propSet = propStore.get(propId);
-  if (!propSet) {
-    return '';
-  }
+function propSetToStyle(props: YPropSet): string {
 
   const styles: string[] = [];
-  for (const [key, value] of propSet.entries()) {
-    styles.push(`${key}:${value}`);
+  for (const [key, value] of props.entries()) {
+    if (key !== paraProp) {
+      styles.push(`${key}:${value}`);
+    }
   }
 
   return styles.join(';');
@@ -31,12 +25,12 @@ function propSetToStyle(propStore: YPropCache, propId: number): string {
 /**
  * Make HTML for a paragraph node
  */
-function makeParaHtml(node: YPara, propStore: YPropCache, writer: HtmlWriter): void {
-  writer.writeOpenTag('p', { id: node.getId() });
+function makeParaHtml(node: YPara, writer: HtmlWriter): void {
+  writer.writeOpenTag('p', { id: node.id });
 
-  const str = node.getStr();
+  const str = node as YPara;
   const text = str.getText();
-  const propIds = str.getPropIds();
+  const propIds = str.getTextAttrs();
 
   // Group consecutive characters with the same property ID
   let currentPropId = propIds[0] || 0;
@@ -53,7 +47,7 @@ function makeParaHtml(node: YPara, propStore: YPropCache, writer: HtmlWriter): v
     if (isNewline || isMarker) {
       // Flush current span if any
       if (currentText.length > 0) {
-        const style = propSetToStyle(propStore, currentPropId);
+        const style = propSetToStyle(currentPropId);
         if (style) {
           writer.writeOpenTag('span', { style });
           writer.writeText(currentText);
@@ -88,7 +82,7 @@ function makeParaHtml(node: YPara, propStore: YPropCache, writer: HtmlWriter): v
     } else {
       // Property changed, flush previous span
       if (currentText.length > 0) {
-        const style = propSetToStyle(propStore, currentPropId);
+        const style = propSetToStyle(currentPropId);
         if (style) {
           writer.writeOpenTag('span', { style });
           writer.writeText(currentText);
@@ -105,7 +99,7 @@ function makeParaHtml(node: YPara, propStore: YPropCache, writer: HtmlWriter): v
 
   // Flush remaining text
   if (currentText.length > 0) {
-    const style = propSetToStyle(propStore, currentPropId);
+    const style = propSetToStyle(currentPropId);
     if (style) {
       writer.writeOpenTag('span', { style });
       writer.writeText(currentText);
@@ -121,40 +115,40 @@ function makeParaHtml(node: YPara, propStore: YPropCache, writer: HtmlWriter): v
 /**
  * Make HTML for a node recursively
  */
-export function makeHtml(node: YNode, propStore: YPropCache): string {
+export function makeHtml(node: YNode): string {
   const writer = new HtmlWriter();
-  makeHtmlRecursive(node, propStore, writer);
+  makeHtmlRecursive(node, writer);
   return writer.toString();
 }
 
 /**
  * Make HTML recursively
  */
-function makeHtmlRecursive(node: YNode, propStore: YPropCache, writer: HtmlWriter): void {
+function makeHtmlRecursive(node: YNode, writer: HtmlWriter): void {
   if (node instanceof YPara) {
-    makeParaHtml(node, propStore, writer);
+    makeParaHtml(node, writer);
   } else if (node instanceof YBody) {
-    writer.writeOpenTag('div', { id: node.getId() });
+    writer.writeOpenTag('div', { id: node.id });
     for (const child of node.getChildren()) {
-      makeHtmlRecursive(child, propStore, writer);
+      makeHtmlRecursive(child, writer);
     }
     writer.writeCloseTag('div');
   } else if (node instanceof YTable) {
-    writer.writeOpenTag('table', { id: node.getId() });
+    writer.writeOpenTag('table', { id: node.id });
     for (const child of node.getChildren()) {
-      makeHtmlRecursive(child, propStore, writer);
+      makeHtmlRecursive(child, writer);
     }
     writer.writeCloseTag('table');
   } else if (node instanceof YRow) {
-    writer.writeOpenTag('tr', { id: node.getId() });
+    writer.writeOpenTag('tr', { id: node.id });
     for (const child of node.getChildren()) {
-      makeHtmlRecursive(child, propStore, writer);
+      makeHtmlRecursive(child, writer);
     }
     writer.writeCloseTag('tr');
   } else if (node instanceof YCell) {
-    writer.writeOpenTag('td', { id: node.getId() });
+    writer.writeOpenTag('td', { id: node.id });
     for (const child of node.getChildren()) {
-      makeHtmlRecursive(child, propStore, writer);
+      makeHtmlRecursive(child, writer);
     }
     writer.writeCloseTag('td');
   }

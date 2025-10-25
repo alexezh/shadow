@@ -3,8 +3,9 @@ import { loadHtml } from "../om/loadHtml.js";
 import { makeHtml } from "../om/makeHtml.js";
 import { YDoc } from "../om/YDoc.js";
 import { YPara } from "../om/YPara.js";
+import { YPropSet } from "../om/YPropSet.js";
 import { YStr } from "../om/YStr.js";
-import { ChangeRecord, Session } from "./session.js";
+import { Session } from "./session.js";
 
 export function loadDoc(session: Session | undefined, htmlContent: string): string {
   if (!session) {
@@ -12,7 +13,7 @@ export function loadDoc(session: Session | undefined, htmlContent: string): stri
   }
 
   // Parse HTML and load into document
-  const rootNode = loadHtml(htmlContent, session.doc.getPropStore());
+  const rootNode = loadHtml(htmlContent);
 
   // Clear existing body and add new content
   const body = session.doc.getBody();
@@ -37,13 +38,14 @@ export function loadDoc(session: Session | undefined, htmlContent: string): stri
   }
 
   // Generate HTML for the entire document
-  const newHtml = makeHtml(body, session.doc.getPropStore());
+  const newHtml = makeHtml(body);
 
   // Create a change to update the entire document
   session.pendingChanges.push({
     changes: [{
       id: 'doc-content',
-      html: newHtml
+      html: newHtml,
+      op: "inserted"
     }]
   });
 
@@ -55,7 +57,7 @@ export function makeDefaultDoc(): YDoc {
 
   // Create default document with placeholder paragraph
   const body = doc.getBody();
-  const para = new YPara(make31BitId(), new YStr('Document content will appear here. Click to position cursor.\n'))
+  const para = new YPara(make31BitId(), YPropSet.create({}), new YStr('Document content will appear here. Click to position cursor.\n'))
   body.addChild(para);
   return doc;
 }

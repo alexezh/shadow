@@ -10,87 +10,108 @@ The Object Model provides a structured representation of rich text documents wit
 
 **YStr** - String engine with formatting
 - Maintains text content with embedded `\n` characters
-- Array of int property IDs, one per character
-- Methods: `getText()`, `append()`, `insert()`, `delete()`, `setPropIdRange()`
+- Array of `YPropSet` references, one per character
+- Methods: `text` (getter), `length` (getter), `append(text, props)`, `insert()`, `delete()`, `getPropsAt()`, `setPropsRange()`
 - Hash caching for change detection
+- Hash combines text content + all property set hashes
 
-**YPropSet** - CSS property set
-- Plain object storage of `string -> any` for CSS properties
-- Example: `{'font-weight': 'bold', 'font-style': 'italic'}`
-- Hash caching based on sorted key-value pairs
-- Methods: `get()`, `set()`, `has()`, `delete()`, `entries()`
+**YPropSet** - Immutable CSS property set
+- Immutable plain object storage of `string -> any` for CSS properties
+- Example: `YPropSet.create({'font-weight': 'bold', 'font-style': 'italic'})`
+- Private constructor - created only via `YPropSet.create(props)`
+- `YPropSet.create()` automatically deduplicates via YPropCache singleton
+- Hash caching based on sorted key-value pairs using FNV-1a algorithm
+- Methods: `get(key)`, `has(key)`, `entries()`, `getHash()`
+- No mutation methods - create new YPropSet for modifications
 
-**YPropStore** - Property storage and deduplication
-- Map of `int ID -> YPropSet`
-- `getOrCreateId(propSet)` - finds existing or creates new entry based on hash
+**YPropCache** - Global property set cache (singleton)
+- Singleton instance: `YPropCache.instance`
+- Stores `Map<number, WeakRef<YPropSet>>` for automatic garbage collection
+- `getOrCreate(propSet)` - finds existing or creates new entry based on hash
+- `update(set, func)` - creates new YPropSet by copying and modifying properties
+- `add(propSet)` - manually adds propSet to cache
 - Enables property sharing across multiple characters
+- WeakRef allows unused property sets to be garbage collected
 
 ### Document Tree
 
 **YNode** - Abstract base class for all tree nodes
-- Every node has a unique ID
+- Every node has a unique ID string
+- Stores `YPropSet` for element-level properties (e.g., table cell width, alignment)
 - Parent document reference: `doc` field set automatically
-- Methods: `setDoc()`, `getDoc()` - manage parent document reference
+- Parent container reference: `parent` field points to parent YTextContainer
+- Getters: `id`, `doc`, `parent`, `props`
+- Methods: `setParent()`, `setProps()`
 - Abstract methods: `computeHash()`, `hasChildren()`, `getChildren()`
 - Hash caching: `getHash()` returns cached value, `invalidateHash()` clears cache
 - Hash invalidated automatically on any structural change
 
+**YTextContainer** - Base class for container nodes (extends YNode)
+- Array of child `YNode`s
+- Methods: `addChild()`, `insertChild()`, `removeChild()`, `spliceChildren()`, `insertAfter()`, `indexOf()`
+- Automatically updates parent document's node map on add/remove via `doc.linkNodeInternal()` and `doc.unlinkNodeInternal()`
+- Supports range queries: `getChildrenRange(range, shallow)` returns iterator
+- Hash combines ID + all children hashes + props hash
+
 **Node Types:**
 
-- **YPara** - Paragraph (leaf node)
+- **YPara** - Paragraph (leaf node, extends YNode)
+  - Constructor: `new YPara(id, props, str?)`
   - Points to `YStr` for content
+  - Stores paragraph-level properties in `props` (e.g., text-align, margin)
+  - Last character in YStr is always `\n` (end-of-paragraph marker)
+  - EOP marker stores paragraph props in special `--data-para` property
+  - Methods: `splitParagraph(pos)`, `deleteRange(startAt, count)`
+  - Getter: `length` returns YStr length
   - No children
-  - Hash combines ID + YStr hash
+  - Hash combines ID + YStr hash + props hash
 
-- **YBody** - Document body (container)
-  - Array of child `YNode`s
-  - Methods: `addChild()`, `insertChild()`, `removeChild()`
-  - Automatically updates parent document's node map on add/remove
-  - Supports range queries: `getChildren(range, shallow)` returns iterator
-  - Hash combines ID + all children hashes
+- **YBody** - Document body (extends YTextContainer)
+  - Constructor: `new YBody(id = 'body', props, children?)`
   - Default ID: 'body'
+  - Can contain paragraphs, tables, or any block-level nodes
 
-- **YTable** - Table (container)
+- **YTable** - Table (extends YTextContainer)
+  - Constructor: `new YTable(id, props, children?)`
   - Array of `YRow` children
-  - Same interface as YBody
-  - Auto-updates node map
+  - Stores table-level properties (e.g., border, width)
 
-- **YRow** - Table row (container)
+- **YRow** - Table row (extends YTextContainer)
+  - Constructor: `new YRow(id, props, children?)`
   - Array of `YCell` children
-  - Auto-updates node map
+  - Stores row-level properties (e.g., height, background-color)
 
-- **YCell** - Table cell (container)
+- **YCell** - Table cell (extends YTextContainer)
+  - Constructor: `new YCell(id, props, children?)`
   - Can contain any node type (paragraphs, nested tables, etc.)
-  - Auto-updates node map
+  - Stores cell-level properties (e.g., colspan, rowspan, width, align)
 
 ### Document Container
 
 **YDoc** - Top-level document class
 - Contains a `YBody` root node
-- Contains a `YPropStore` for all properties
 - Maintains `Map<string, YNode>` for fast ID lookup
 - Methods:
   - `getBody()` - returns root YBody
-  - `getPropStore()` - returns property store
   - `getNodeById(id)` - O(1) lookup by ID
   - `updateTree(nodeId, newNode)` - replace subtree, maintains ID map
   - `rebuildNodeMap()` - rebuild entire node map (rarely needed)
-  - `addNodeToMapPublic(node)` - add node and descendants to map (called by containers)
-  - `removeNodeFromMapPublic(node)` - remove node and descendants from map (called by containers)
+  - `linkNodeInternal(parent, node)` - add node and descendants to map (called by containers)
+  - `unlinkNodeInternal(node)` - remove node and descendants from map (called by containers)
   - `getHash()` - returns document-wide hash
 
 **Automatic Node Map Synchronization:**
-- When `YBody`, `YTable`, `YRow`, or `YCell` calls `addChild()`/`insertChild()`:
+- When `YTextContainer` calls `addChild()`/`insertChild()`:
   1. Adds node to children array
-  2. Gets doc reference via `this.getDoc()`
-  3. Calls `doc.addNodeToMapPublic(node)` to update map
+  2. Gets doc reference via `this.doc`
+  3. Calls `doc.linkNodeInternal(this, node)` to update map
   4. Node and all descendants automatically added to map
-  5. Doc reference set on added nodes
+  5. Doc and parent references set on added nodes
 
 - When containers call `removeChild()`:
   1. Removes node from children array
-  2. Gets doc reference via `this.getDoc()`
-  3. Calls `doc.removeNodeFromMapPublic(node)` to update map
+  2. Gets doc reference via `this.doc`
+  3. Calls `doc.unlinkNodeInternal(node)` to update map
   4. Node and all descendants automatically removed from map
 
 **updateTree()** behavior:
@@ -115,19 +136,25 @@ The Object Model provides a structured representation of rich text documents wit
 
 ## HTML Parsing
 
-**loadHtml(html, propStore)** - Parse HTML to OM
+**loadHtml(html, styleStore?)** - Parse HTML to OM
 - Uses cheerio to parse HTML
+- Extracts CSS from `<style>` tags into optional styleStore
 - Converts HTML elements to YNode hierarchy:
   - `<p>` → YPara with YStr
-  - `<div>` → YBody
+  - `<div>` with text → YPara (empty divs ignored)
+  - `<div>` with mixed content → Multiple YPara nodes as needed
   - `<table>` → YTable
+  - `<tbody>` → Transparent (children added to parent table)
   - `<tr>` → YRow
   - `<td>`, `<th>` → YCell
-- Parses inline styles from `style` attributes
-- Recognizes formatting tags: `<b>`, `<strong>`, `<i>`, `<em>`, `<u>`, `<span>`
-- Converts to YPropSet and stores in YPropStore
-- Uses `getOrCreateId()` to deduplicate properties
-- Generates IDs if not present in HTML
+- **Property extraction strategy:**
+  - Accumulates properties in plain `{[key: string]: any}` objects during parsing
+  - Extracts from `style` attribute and common HTML attributes (align, width, height, bgcolor, border, colspan, rowspan)
+  - Creates immutable `YPropSet` via `YPropSet.create(props)` only when needed
+  - Automatic deduplication via YPropCache singleton
+- Recognizes formatting tags: `<b>`, `<strong>`, `<i>`, `<em>`, `<u>`, `<span>`, `<br>`
+- Inline elements accumulated into YStr with per-character YPropSet
+- Generates 31-bit IDs if not present in HTML using `make31BitId()`
 - Returns root YNode (typically YBody)
 
 ## Hash-Based Change Detection
@@ -238,21 +265,22 @@ All nodes, strings, and property sets cache their hash values:
 ```typescript
 // Create document
 const doc = new YDoc();
-const propStore = doc.getPropStore();
 
-// Create formatted text
-const str = new YStr('Hello World');
-const boldPropSet = new YPropSet();
-boldPropSet.set('font-weight', 'bold');
-const boldId = propStore.create(boldPropSet);
-str.setPropIdRange(0, 5, boldId); // "Hello" is bold
+// Create formatted text - accumulate properties in plain object
+const boldProps = { 'font-weight': 'bold' };
+const boldPropSet = YPropSet.create(boldProps); // Immutable, auto-cached
+
+const str = new YStr();
+str.append('Hello', boldPropSet); // "Hello" is bold
+str.append(' World', YPropSet.create({})); // " World" has no formatting
 
 // Add paragraph
-const para = new YPara('p1', str);
+const paraProps = { 'text-align': 'left' };
+const para = new YPara('p1', YPropSet.create(paraProps), str);
 doc.getBody().addChild(para); // Node map automatically updated
 
 // Generate HTML
-const html = makeHtml(doc.getBody(), propStore);
+const html = makeHtml(doc.getBody());
 // <body id="body"><p id="p1"><span style="font-weight:bold">Hello</span> World</p></body>
 
 // Handle user action
@@ -269,27 +297,38 @@ const result = handleRunAction(session, {
 
 // Load HTML back
 const html2 = '<p id="p2">New paragraph</p>';
-const newNode = loadHtml(html2, propStore);
+const newNode = loadHtml(html2);
 
 // Update tree
 doc.updateTree('p1', newNode); // Replace p1 with p2
 
 // Check if document changed
 const hash1 = doc.getHash();
-doc.getBody().addChild(new YPara('p3', new YStr('More text')));
+const newPara = new YPara('p3', YPropSet.create({}), new YStr());
+newPara.str.append('More text', YPropSet.create({}));
+doc.getBody().addChild(newPara);
 const hash2 = doc.getHash();
 console.log(hash1 !== hash2); // true - document changed
+
+// Modify properties immutably
+const updatedProps = YPropCache.instance.update(boldPropSet, (props) => {
+  props['font-style'] = 'italic'; // Now bold + italic
+});
+str.setPropsRange(0, 5, updatedProps);
 ```
 
 ## Design Principles
 
 1. **Immutable IDs**: Node IDs never change after creation
-2. **Hash-based equality**: Two nodes with same hash have identical content
-3. **Lazy computation**: Hashes computed only when needed
-4. **Automatic invalidation**: Mutations invalidate caches automatically
-5. **Property deduplication**: Same formatting uses same property ID
-6. **Efficient lookup**: O(1) node access by ID via YDoc
-7. **Automatic map sync**: Node map stays in sync with tree structure
-8. **Doc reference propagation**: All nodes have reference to parent document
-9. **Queue-based editing**: All edits go through action queue, batched to server
-10. **Incremental updates**: Only changed HTML blocks sent to client
+2. **Immutable Properties**: YPropSet is immutable - modifications create new instances
+3. **Hash-based equality**: Two nodes with same hash have identical content
+4. **Lazy computation**: Hashes computed only when needed, cached until invalidated
+5. **Automatic invalidation**: Mutations invalidate caches automatically
+6. **Property deduplication**: YPropCache ensures same properties share same YPropSet instance
+7. **Weak references**: YPropCache uses WeakRef for automatic garbage collection
+8. **Efficient lookup**: O(1) node access by ID via YDoc
+9. **Automatic map sync**: Node map stays in sync with tree structure via linkNode/unlinkNode
+10. **Doc reference propagation**: All nodes have reference to parent document and parent container
+11. **Queue-based editing**: All edits go through action queue, batched to server
+12. **Incremental updates**: Only changed HTML blocks sent to client
+13. **Accumulate then create**: Parser accumulates props in plain objects, creates YPropSet only when needed

@@ -1,4 +1,4 @@
-import { ActionResult } from './session.js';
+import { ActionResult, ChangeRecord } from './session.js';
 import { WRange, YNode, YTextContainer } from '../om/YNode.js';
 import { YDoc } from '../om/YDoc.js';
 import { YPara } from '../om/YPara.js';
@@ -7,6 +7,7 @@ import { makeHtml } from '../om/makeHtml.js';
 import { loadHtml } from '../om/loadHtml.js';
 import { make31BitId } from '../make31bitid.js';
 import { YStr } from '../om/YStr.js';
+import { YPropSet } from '../om/YPropSet.js';
 
 /**
  * Handle paste action - insert HTML/text content at cursor position
@@ -18,7 +19,6 @@ import { YStr } from '../om/YStr.js';
  */
 export function handlePaste(doc: YDoc, range: WRange, content: string): ActionResult {
   const body = doc.getBody();
-  const propStore = doc.getPropStore();
   const node = doc.getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
@@ -31,7 +31,7 @@ export function handlePaste(doc: YDoc, range: WRange, content: string): ActionRe
   try {
     // Attempt to parse as HTML (pass styleStore for CSS extraction)
     const styleStore = doc.getStyleStore();
-    const parsed = loadHtml(content, propStore, styleStore);
+    const parsed = loadHtml(content, styleStore);
 
     // Extract paragraphs from parsed content
     if (parsed instanceof YTextContainer) {
@@ -50,7 +50,7 @@ export function handlePaste(doc: YDoc, range: WRange, content: string): ActionRe
     // Split plain text by newlines to create multiple paragraphs
     const lines = content.split('\n');
     pastedNodes = lines.map(line => {
-      const para = new YPara(make31BitId(), new YStr(line));
+      const para = new YPara(make31BitId(), YPropSet.create({}), new YStr(line));
       return para;
     });
   }
@@ -61,7 +61,6 @@ export function handlePaste(doc: YDoc, range: WRange, content: string): ActionRe
 
 function pasteNodes(doc: YDoc, range: WRange, content: YNode[]): ActionResult {
   const body = doc.getBody();
-  const propStore = doc.getPropStore();
   const node = doc.getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
@@ -100,8 +99,8 @@ function pasteNodes(doc: YDoc, range: WRange, content: YNode[]): ActionResult {
   const rightPara = node.splitParagraph(offset);
   node.parent!.insertAfter(node, rightPara)
 
-  const changes: Array<{ id: string; html: string; prevId?: string }> = [
-    { id: node.id, html: makeHtml(node, propStore) }
+  const changes: ChangeRecord[] = [
+    { id: node.id, html: makeHtml(node), op: "changed" }
   ];
 
   // Insert middle pasted paragraphs (if any)
@@ -110,7 +109,8 @@ function pasteNodes(doc: YDoc, range: WRange, content: YNode[]): ActionResult {
   for (let add of content) {
     changes.push({
       id: node.id,
-      html: makeHtml(node, propStore),
+      html: makeHtml(node),
+      op: "inserted",
       prevId: lastInsertedId
     });
     lastInsertedId = node.id;
@@ -118,12 +118,13 @@ function pasteNodes(doc: YDoc, range: WRange, content: YNode[]): ActionResult {
 
   changes.push({
     id: rightPara.id,
-    html: makeHtml(rightPara, propStore),
+    html: makeHtml(rightPara),
+    op: "inserted",
     prevId: lastInsertedId
   });
 
   return {
     changes,
-    newPosition: { element: node.id, offset: node.str.length }
+    newPosition: { element: node.id, offset: node.length }
   };
 }

@@ -76,12 +76,18 @@ export class YStr {
     this.invalidateHash();
   }
 
+  appendY(str: YStr): void {
+    this._text += str._text;
+    this.props.splice(this.props.length - 1, 0, ...str.props);
+    this.invalidateHash();
+  }
+
   /**
    * Insert text at position with property ID
    */
-  insert(index: number, text: string, propId: number = 0): void {
+  insertAt(index: number, text: string, prop: YPropSet): void {
     this._text = this._text.slice(0, index) + text + this._text.slice(index);
-    const newPropIds = new Array(text.length).fill(propId);
+    const newPropIds = new Array<YPropSet>(text.length).fill(prop);
     this.props.splice(index, 0, ...newPropIds);
     this.invalidateHash();
   }

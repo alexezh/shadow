@@ -6,7 +6,6 @@ import { YTable } from './YTable.js';
 import { YRow } from './YRow.js';
 import { YCell } from './YCell.js';
 import { YStr } from './YStr.js';
-import { YPropCache } from './YPropCache.js';
 import { YPropSet } from './YPropSet.js';
 import { YStyleStore } from './YStyleStore.js';
 import { make31BitId } from '../make31bitid.js';
@@ -14,11 +13,10 @@ import { make31BitId } from '../make31bitid.js';
 /**
  * Load HTML and return root WNode
  * @param html HTML string to parse
- * @param propStore Property store to use for parsing styles
  * @param styleStore Optional style store to populate with CSS styles
  * @returns Root WNode (typically WBody)
  */
-export function loadHtml(html: string, propStore: YPropCache, styleStore?: YStyleStore): YNode {
+export function loadHtml(html: string, styleStore?: YStyleStore): YNode {
   const $ = cheerio.load(html);
 
   // Extract and parse CSS from <style> tags
@@ -37,24 +35,24 @@ export function loadHtml(html: string, propStore: YPropCache, styleStore?: YStyl
   // If body exists and has attributes/children that are not auto-generated
   if (body.length > 0 && body.children().length > 0) {
     const bodyId = body.attr('id') || 'body';
-    const bodyPropSet = extractElementProps(body);
-    const bodyNode = new YBody(bodyId, bodyPropSet);
-    parseChildren($, body, bodyNode, propStore);
+    const bodyProps = extractElementProps(body);
+    const bodyNode = new YBody(bodyId, YPropSet.create(bodyProps));
+    parseChildren($, body, bodyNode);
     return bodyNode;
   }
 
   // No meaningful body tag, parse root content directly
   // This handles cases like: <p>text</p> or <div><p>text</p></div>
-  const bodyNode = new YBody('body', new YPropSet());
+  const bodyNode = new YBody('body', YPropSet.create({}));
 
   // Cheerio automatically wraps content in html/body
   // So we look for the auto-generated body's children
   const autoBody = $('body');
   if (autoBody.length > 0 && autoBody.children().length > 0) {
-    parseChildren($, autoBody, bodyNode, propStore);
+    parseChildren($, autoBody, bodyNode);
   } else {
     // Fallback: parse root children
-    parseChildren($, $.root(), bodyNode, propStore);
+    parseChildren($, $.root(), bodyNode);
   }
 
   return bodyNode;
@@ -67,11 +65,8 @@ function parseChildren(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
   parent: YNode,
-  propStore: YPropCache,
-  parentPropSet: YPropSet = new YPropSet()
+  parentProps: { [key: string]: any } = {}
 ): void {
-  const parentPropId = propStore.getOrCreate(parentPropSet).getHash();
-
   element.contents().each((_index, child) => {
     const $child = $(child);
 
@@ -80,12 +75,13 @@ function parseChildren(
       const text = $child.text().trim();
       if (text.length > 0) {
         const str = new YStr();
-        str.append(text, parentPropId);
+        const parentPropSet = YPropSet.create(parentProps);
+        str.append(text, parentPropSet);
         const para = new YPara(make31BitId(), parentPropSet, str);
         (parent as any).addChild(para);
       }
     } else if (child.type === 'tag') {
-      const nodes = parseElement($, $child, propStore, parentPropSet);
+      const nodes = parseElement($, $child, parentProps);
       if (nodes) {
         for (const node of nodes) {
           if (parent instanceof YBody || parent instanceof YTable ||
@@ -100,55 +96,56 @@ function parseChildren(
 
 /**
  * Extract element properties from HTML attributes
+ * Returns plain object that can be used to create YPropSet later
  */
 function extractElementProps(
   element: cheerio.Cheerio<any>
-): YPropSet {
-  const propSet = new YPropSet();
+): { [key: string]: any } {
+  const props: { [key: string]: any } = {};
 
   // Parse style attribute
   const styleAttr = element.attr('style');
   if (styleAttr) {
-    parseInlineStyle(styleAttr, propSet);
+    parseInlineStyle(styleAttr, props);
   }
 
   // Parse other common attributes
   const alignAttr = element.attr('align');
   if (alignAttr) {
-    propSet.set('text-align', alignAttr);
+    props['text-align'] = alignAttr;
   }
 
   const widthAttr = element.attr('width');
   if (widthAttr) {
-    propSet.set('width', widthAttr);
+    props['width'] = widthAttr;
   }
 
   const heightAttr = element.attr('height');
   if (heightAttr) {
-    propSet.set('height', heightAttr);
+    props['height'] = heightAttr;
   }
 
   const bgcolorAttr = element.attr('bgcolor');
   if (bgcolorAttr) {
-    propSet.set('background-color', bgcolorAttr);
+    props['background-color'] = bgcolorAttr;
   }
 
   const borderAttr = element.attr('border');
   if (borderAttr) {
-    propSet.set('border-width', borderAttr);
+    props['border-width'] = borderAttr;
   }
 
   const colspanAttr = element.attr('colspan');
   if (colspanAttr) {
-    propSet.set('colspan', colspanAttr);
+    props['colspan'] = colspanAttr;
   }
 
   const rowspanAttr = element.attr('rowspan');
   if (rowspanAttr) {
-    propSet.set('rowspan', rowspanAttr);
+    props['rowspan'] = rowspanAttr;
   }
 
-  return propSet;
+  return props;
 }
 
 /**
@@ -158,20 +155,19 @@ function extractElementProps(
 function parseElement(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
-  propStore: YPropCache,
-  parentPropSet: YPropSet = new YPropSet()
+  parentProps: { [key: string]: any } = {}
 ): YNode[] | null {
   const tagName = element.prop('tagName')?.toLowerCase();
   const id = element.attr('id') || make31BitId();
 
   switch (tagName) {
     case 'p':
-      return [parseParagraph($, element, id, propStore)];
+      return [parseParagraph($, element, id)];
 
     case 'table': {
-      const propSet = extractElementProps(element);
-      const table = new YTable(id, propSet);
-      parseChildren($, element, table, propStore, propSet);
+      const props = extractElementProps(element);
+      const table = new YTable(id, YPropSet.create(props));
+      parseChildren($, element, table, props);
       return [table];
     }
 
@@ -179,7 +175,7 @@ function parseElement(
       // tbody is transparent, just parse its children
       const tbodyNodes: YNode[] = [];
       element.children().each((_index, child) => {
-        const nodes = parseElement($, $(child), propStore, parentPropSet);
+        const nodes = parseElement($, $(child), parentProps);
         if (nodes) {
           tbodyNodes.push(...nodes);
         }
@@ -187,17 +183,17 @@ function parseElement(
       return tbodyNodes.length > 0 ? tbodyNodes : null;
 
     case 'tr': {
-      const propSet = extractElementProps(element);
-      const row = new YRow(id, propSet);
-      parseChildren($, element, row, propStore, propSet);
+      const props = extractElementProps(element);
+      const row = new YRow(id, YPropSet.create(props));
+      parseChildren($, element, row, props);
       return [row];
     }
 
     case 'td':
     case 'th': {
-      const propSet = extractElementProps(element);
-      const cell = new YCell(id, propSet);
-      parseChildren($, element, cell, propStore, propSet);
+      const props = extractElementProps(element);
+      const cell = new YCell(id, YPropSet.create(props));
+      parseChildren($, element, cell, props);
       return [cell];
     }
 
@@ -213,17 +209,17 @@ function parseElement(
 
       if (!hasChildElements && textContent.length > 0) {
         // Div with only text - create paragraph
-        const propSet = extractElementProps(element);
-        const propId = propStore.getOrCreate(propSet).getHash();
+        const props = extractElementProps(element);
+        const propSet = YPropSet.create(props);
         const str = new YStr();
-        parseTextContent($, element, str, propStore, propId);
+        parseTextContent($, element, str, propSet);
         return [new YPara(id, propSet, str)];
       }
 
       // Div with mixed content or child elements
       const divNodes: YNode[] = [];
       let currentStr: YStr | null = null;
-      const parentPropId = propStore.getOrCreate(parentPropSet).getHash();
+      const parentPropSet = YPropSet.create(parentProps);
 
       element.contents().each((_index, child) => {
         const $child = $(child);
@@ -235,7 +231,7 @@ function parseElement(
             if (!currentStr) {
               currentStr = new YStr();
             }
-            currentStr.append(text, parentPropId);
+            currentStr.append(text, parentPropSet);
           }
         } else if (child.type === 'tag') {
           const childTagName = $child.prop('tagName')?.toLowerCase();
@@ -248,7 +244,7 @@ function parseElement(
             if (!currentStr) {
               currentStr = new YStr();
             }
-            parseTextContent($, $child, currentStr, propStore, parentPropId);
+            parseTextContent($, $child, currentStr, parentPropSet);
           } else {
             // Block element - flush current string as paragraph first
             if (currentStr && currentStr.length > 0) {
@@ -257,7 +253,7 @@ function parseElement(
             }
 
             // Parse block element
-            const nodes = parseElement($, $child, propStore, parentPropSet);
+            const nodes = parseElement($, $child, parentProps);
             if (nodes) {
               divNodes.push(...nodes);
             }
@@ -266,6 +262,7 @@ function parseElement(
       });
 
       // Flush remaining text
+      // @ts-ignore
       if (currentStr && currentStr.length > 0) {
         divNodes.push(new YPara(make31BitId(), parentPropSet, currentStr));
       }
@@ -285,15 +282,14 @@ function parseElement(
 function parseParagraph(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
-  id: string,
-  propStore: YPropCache
+  id: string
 ): YPara {
   // Capture paragraph-level properties
-  const paraPropSet = extractElementProps(element);
-  const paraPropId = propStore.getOrCreate(paraPropSet).getHash();
+  const paraProps = extractElementProps(element);
+  const paraPropSet = YPropSet.create(paraProps);
 
   const str = new YStr();
-  parseTextContent($, element, str, propStore, paraPropId);
+  parseTextContent($, element, str, paraPropSet);
 
   return new YPara(id, paraPropSet, str);
 }
@@ -305,59 +301,58 @@ function parseTextContent(
   $: cheerio.CheerioAPI,
   element: cheerio.Cheerio<any>,
   str: YStr,
-  propStore: YPropCache,
-  basePropId: number = 0
+  basePropSet: YPropSet = YPropSet.create({})
 ): void {
   element.contents().each((_index, node) => {
     if (node.type === 'text') {
       // Plain text node
       const text = $(node).text();
-      str.append(text, basePropId);
+      str.append(text, basePropSet);
     } else if (node.type === 'tag') {
       // Inline formatting tag
       const $node = $(node);
       const tagName = $node.prop('tagName')?.toLowerCase();
 
-      // Extract style from tag
-      const propSet = new YPropSet();
+      // Extract style from tag - accumulate in plain object
+      const props: { [key: string]: any } = {};
       const styleAttr = $node.attr('style');
       if (styleAttr) {
-        parseInlineStyle(styleAttr, propSet);
+        parseInlineStyle(styleAttr, props);
       }
 
       // Add tag-specific properties
       if (tagName === 'b' || tagName === 'strong') {
-        propSet.set('font-weight', 'bold');
+        props['font-weight'] = 'bold';
       } else if (tagName === 'i' || tagName === 'em') {
-        propSet.set('font-style', 'italic');
+        props['font-style'] = 'italic';
       } else if (tagName === 'u') {
-        propSet.set('text-decoration', 'underline');
+        props['text-decoration'] = 'underline';
       } else if (tagName === 'span') {
         // Span with style only
       } else if (tagName === 'br') {
         // Line break
-        str.append('\n', basePropId);
+        str.append('\n', basePropSet);
         return;
       }
 
-      // Get or create property ID
-      const prop = propStore.getOrCreate(propSet);
+      // Create YPropSet from accumulated properties
+      const propSet = YPropSet.create(props);
 
       // Recursively parse content
-      parseTextContent($, $node, str, propStore, prop.getHash());
+      parseTextContent($, $node, str, propSet);
     }
   });
 }
 
 /**
- * Parse inline CSS style attribute
+ * Parse inline CSS style attribute into a plain object
  */
-function parseInlineStyle(styleAttr: string, propSet: YPropSet): void {
+function parseInlineStyle(styleAttr: string, props: { [key: string]: any }): void {
   const styles = styleAttr.split(';');
   for (const style of styles) {
     const [key, value] = style.split(':').map(s => s.trim());
     if (key && value) {
-      propSet.set(key, value);
+      props[key] = value;
     }
   }
 }

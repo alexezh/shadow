@@ -11,8 +11,9 @@ export interface Session {
 
 export interface ChangeRecord {
   id: string;
-  html: string;
-  prevId?: string; // ID of preceding sibling (for new elements)
+  html: string | null;
+  prevId?: string;
+  op: "inserted" | "changed" | "deleted"
 }
 
 export interface ActionResult {
