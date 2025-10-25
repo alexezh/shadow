@@ -8,6 +8,7 @@ import { YCell } from './YCell.js';
 import { YStr } from './YStr.js';
 import { YPropStore } from './YPropStore.js';
 import { YPropSet } from './YPropSet.js';
+import { make31BitId } from '../make31bitid.js';
 
 /**
  * Load HTML and return root WNode
@@ -76,7 +77,7 @@ function parseElement(
   propStore: YPropStore
 ): YNode | null {
   const tagName = element.prop('tagName')?.toLowerCase();
-  const id = element.attr('id') || generateId(tagName || 'node');
+  const id = element.attr('id') || make31BitId();
 
   switch (tagName) {
     case 'p':
@@ -224,10 +225,3 @@ function parseCell(
   return cell;
 }
 
-/**
- * Generate a unique ID for a node
- */
-let idCounter = 0;
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${idCounter++}`;
-}

@@ -46,7 +46,11 @@ function makeParaHtml(node: YPara, propStore: YPropStore, writer: HtmlWriter): v
     const char = text[i];
     const charPropId = propIds[i] || 0;
 
-    if (char === '\n') {
+    // Check if this is a special marker character
+    const isNewline = char === '\n';
+    const isMarker = char === '\uFFFC'; // Object replacement character
+
+    if (isNewline || isMarker) {
       // Flush current span if any
       if (currentText.length > 0) {
         const style = propSetToStyle(propStore, currentPropId);
@@ -59,8 +63,24 @@ function makeParaHtml(node: YPara, propStore: YPropStore, writer: HtmlWriter): v
         }
         currentText = '';
       }
-      // Write newline as <br>
-      writer.writeSelfClosingTag('br');
+
+      // Write collapsed span with data-marker attribute
+      if (isNewline) {
+        writer.writeOpenTag('span', {
+          'data-marker': 'eos',
+          style: 'display:inline-block;width:0;height:0;overflow:hidden;'
+        });
+        writer.writeText('\n');
+        writer.writeCloseTag('span');
+      } else if (isMarker) {
+        writer.writeOpenTag('span', {
+          'data-marker': 'object',
+          style: 'display:inline-block;width:0;height:0;overflow:hidden;'
+        });
+        writer.writeText('\uFFFC');
+        writer.writeCloseTag('span');
+      }
+
       currentPropId = charPropId;
     } else if (charPropId === currentPropId) {
       // Same property, accumulate

@@ -20,24 +20,82 @@ const buttons = {
 // Session management
 let sessionId = null;
 
+// Command queue
+let commandQueue = [];
+let isProcessingQueue = false;
+
+// Queue processor
+async function processQueue() {
+  if (isProcessingQueue || commandQueue.length === 0) {
+    return;
+  }
+
+  isProcessingQueue = true;
+
+  try {
+    // Take all queued commands
+    const commands = commandQueue.splice(0);
+
+    for (const cmd of commands) {
+      const result = await runAction(cmd.action, cmd.range, cmd.text);
+
+      if (result && result.result) {
+        // Apply changes from result
+        if (result.result.changes && result.result.changes.length > 0) {
+          applyChanges(result.result.changes);
+        }
+
+        // Update cursor position
+        if (result.result.newPosition) {
+          updateCursorPosition(result.result.newPosition);
+        }
+
+        // Update selection if present
+        if (result.result.newRange) {
+          updateSelection(result.result.newRange);
+        }
+      }
+    }
+  } finally {
+    isProcessingQueue = false;
+
+    // Process any new commands that arrived
+    if (commandQueue.length > 0) {
+      setTimeout(processQueue, 0);
+    }
+  }
+}
+
+// Add command to queue
+function queueCommand(action, range, text) {
+  commandQueue.push({ action, range, text });
+  processQueue();
+}
+
 // Command runner
-async function runAction(action, range) {
+async function runAction(action, range, text) {
   if (!sessionId) {
     logToConsole('No session ID available', 'error');
     return;
   }
 
   try {
-    const response = await fetch('/api/runAction', {
+    const body = {
+      sessionId,
+      action,
+      range
+    };
+
+    if (text !== undefined) {
+      body.text = text;
+    }
+
+    const response = await fetch('/api/runaction', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        sessionId,
-        action,
-        range
-      })
+      body: JSON.stringify(body)
     });
 
     if (!response.ok) {
@@ -45,10 +103,10 @@ async function runAction(action, range) {
     }
 
     const result = await response.json();
-    logToConsole(`Command '${action}' executed successfully`);
+    logToConsole(`Action '${action}' executed successfully`);
     return result;
   } catch (error) {
-    logToConsole(`Error executing command: ${error.message}`, 'error');
+    logToConsole(`Error executing action: ${error.message}`, 'error');
     throw error;
   }
 }
@@ -75,6 +133,19 @@ function getSelectionRange() {
     return null;
   }
 
+  // Check if there's a selection
+  if (cursor.selection.active) {
+    const startElement = findElementId(cursor.selection.startNode);
+    const endElement = findElementId(cursor.selection.endNode);
+
+    return {
+      startElement,
+      startOffset: cursor.selection.startOffset,
+      endElement,
+      endOffset: cursor.selection.endOffset
+    };
+  }
+
   return {
     startElement: element.id,
     startOffset: cursor.position.offset,
@@ -83,11 +154,57 @@ function getSelectionRange() {
   };
 }
 
+// Update cursor position from server response
+function updateCursorPosition(newPosition) {
+  const cursor = window.ipCursor;
+  if (!cursor) return;
+
+  const element = document.getElementById(newPosition.element);
+  if (!element) return;
+
+  // Find first text node in element
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    null
+  );
+  const textNode = walker.nextNode();
+
+  if (textNode) {
+    cursor.position.node = textNode;
+    cursor.position.offset = Math.min(newPosition.offset, textNode.textContent.length);
+    cursor.updateCursorPosition();
+    cursor.selection.clear();
+  }
+}
+
+// Update selection from server response
+function updateSelection(newRange) {
+  const cursor = window.ipCursor;
+  if (!cursor) return;
+
+  const startElement = document.getElementById(newRange.startElement);
+  const endElement = document.getElementById(newRange.endElement);
+
+  if (!startElement || !endElement) return;
+
+  // Find text nodes
+  const walker1 = document.createTreeWalker(startElement, NodeFilter.SHOW_TEXT, null);
+  const startNode = walker1.nextNode();
+
+  const walker2 = document.createTreeWalker(endElement, NodeFilter.SHOW_TEXT, null);
+  const endNode = walker2.nextNode();
+
+  if (startNode && endNode) {
+    cursor.selection.set(startNode, newRange.startOffset, endNode, newRange.endOffset);
+  }
+}
+
 buttons.bold.addEventListener('click', async () => {
   buttons.bold.classList.toggle('active');
   const range = getSelectionRange();
   if (range) {
-    await runAction('bold', range);
+    queueCommand('bold', range);
   }
   logToConsole('Bold toggled');
 });
@@ -96,7 +213,7 @@ buttons.italic.addEventListener('click', async () => {
   buttons.italic.classList.toggle('active');
   const range = getSelectionRange();
   if (range) {
-    await runAction('italic', range);
+    queueCommand('italic', range);
   }
   logToConsole('Italic toggled');
 });
@@ -104,7 +221,7 @@ buttons.italic.addEventListener('click', async () => {
 buttons.bullet.addEventListener('click', async () => {
   const range = getSelectionRange();
   if (range) {
-    await runAction('bullet', range);
+    queueCommand('bullet', range);
   }
   logToConsole('Bullet list clicked');
 });
@@ -112,10 +229,51 @@ buttons.bullet.addEventListener('click', async () => {
 buttons.number.addEventListener('click', async () => {
   const range = getSelectionRange();
   if (range) {
-    await runAction('number', range);
+    queueCommand('number', range);
   }
   logToConsole('Numbered list clicked');
 });
+
+// Selection management
+class Selection {
+  constructor() {
+    this.active = false;
+    this.startNode = null;
+    this.startOffset = 0;
+    this.endNode = null;
+    this.endOffset = 0;
+  }
+
+  set(startNode, startOffset, endNode, endOffset) {
+    this.active = true;
+    this.startNode = startNode;
+    this.startOffset = startOffset;
+    this.endNode = endNode;
+    this.endOffset = endOffset;
+  }
+
+  clear() {
+    this.active = false;
+    this.startNode = null;
+    this.startOffset = 0;
+    this.endNode = null;
+    this.endOffset = 0;
+  }
+
+  getRange() {
+    if (!this.active) return null;
+
+    const startElement = findElementId(this.startNode);
+    const endElement = findElementId(this.endNode);
+
+    return {
+      startElement,
+      startOffset: this.startOffset,
+      endElement,
+      endOffset: this.endOffset
+    };
+  }
+}
 
 // IP Cursor (Insertion Point) management
 class IPCursor {
@@ -123,6 +281,7 @@ class IPCursor {
     this.documentEl = documentEl;
     this.cursorEl = null;
     this.position = { node: null, offset: 0 };
+    this.selection = new Selection();
     this.visible = false;
     this.blinkInterval = null;
 
@@ -147,6 +306,11 @@ class IPCursor {
     // Mouse down to position cursor (not on release)
     this.documentEl.addEventListener('mousedown', (e) => {
       this.positionAtClick(e);
+
+      // Hide Clippy on mouse button press
+      if (window.clippyFloat) {
+        window.clippyFloat.hide();
+      }
     });
 
     // Mouse move to continuously position cursor while mouse is down
@@ -158,6 +322,11 @@ class IPCursor {
 
     document.addEventListener('mouseup', () => {
       isMouseDown = false;
+
+      // Restore Clippy on mouse button release
+      if (window.clippyFloat) {
+        window.clippyFloat.show();
+      }
     });
 
     this.documentEl.addEventListener('mousemove', (e) => {
@@ -198,6 +367,7 @@ class IPCursor {
 
     this.position.node = range.startContainer;
     this.position.offset = range.startOffset;
+    this.selection.clear();
 
     this.updateCursorPosition();
     this.show();
@@ -263,38 +433,167 @@ class IPCursor {
     this.stopBlinking();
     this.startBlinking();
 
-    // Handle arrow keys
+    const shiftKey = e.shiftKey;
+
+    // Handle arrow keys with selection support
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      this.moveLeft();
+      if (shiftKey) {
+        this.extendSelectionLeft();
+      } else {
+        this.selection.clear();
+        this.moveLeft();
+      }
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
-      this.moveRight();
+      if (shiftKey) {
+        this.extendSelectionRight();
+      } else {
+        this.selection.clear();
+        this.moveRight();
+      }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      this.moveUp();
+      if (shiftKey) {
+        this.extendSelectionUp();
+      } else {
+        this.selection.clear();
+        this.moveUp();
+      }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      this.moveDown();
+      if (shiftKey) {
+        this.extendSelectionDown();
+      } else {
+        this.selection.clear();
+        this.moveDown();
+      }
     } else if (e.key === 'Home') {
       e.preventDefault();
+      this.selection.clear();
       this.moveToLineStart();
     } else if (e.key === 'End') {
       e.preventDefault();
+      this.selection.clear();
       this.moveToLineEnd();
     } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
       // Regular character input
       e.preventDefault();
-      this.insertCharacter(e.key);
+
+      // If selection is active, delete selection first
+      if (this.selection.active) {
+        this.deleteSelection(() => {
+          this.insertCharacter(e.key);
+        });
+      } else {
+        this.insertCharacter(e.key);
+      }
     } else if (e.key === 'Backspace') {
       e.preventDefault();
-      this.deleteBackward();
+      if (this.selection.active) {
+        this.deleteSelection();
+      } else {
+        this.deleteBackward();
+      }
     } else if (e.key === 'Delete') {
       e.preventDefault();
-      this.deleteForward();
+      if (this.selection.active) {
+        this.deleteSelection();
+      } else {
+        this.deleteForward();
+      }
     } else if (e.key === 'Enter') {
       e.preventDefault();
       this.handleEnter();
+    }
+  }
+
+  extendSelectionLeft() {
+    if (!this.selection.active) {
+      // Start selection from current position
+      this.selection.set(
+        this.position.node,
+        this.position.offset,
+        this.position.node,
+        this.position.offset
+      );
+    }
+
+    // Move cursor left
+    this.moveLeft();
+
+    // Update selection end
+    this.selection.endNode = this.position.node;
+    this.selection.endOffset = this.position.offset;
+
+    logToConsole('Extended selection left');
+  }
+
+  extendSelectionRight() {
+    if (!this.selection.active) {
+      // Start selection from current position
+      this.selection.set(
+        this.position.node,
+        this.position.offset,
+        this.position.node,
+        this.position.offset
+      );
+    }
+
+    // Move cursor right
+    this.moveRight();
+
+    // Update selection end
+    this.selection.endNode = this.position.node;
+    this.selection.endOffset = this.position.offset;
+
+    logToConsole('Extended selection right');
+  }
+
+  extendSelectionUp() {
+    if (!this.selection.active) {
+      this.selection.set(
+        this.position.node,
+        this.position.offset,
+        this.position.node,
+        this.position.offset
+      );
+    }
+
+    this.moveUp();
+    this.selection.endNode = this.position.node;
+    this.selection.endOffset = this.position.offset;
+
+    logToConsole('Extended selection up');
+  }
+
+  extendSelectionDown() {
+    if (!this.selection.active) {
+      this.selection.set(
+        this.position.node,
+        this.position.offset,
+        this.position.node,
+        this.position.offset
+      );
+    }
+
+    this.moveDown();
+    this.selection.endNode = this.position.node;
+    this.selection.endOffset = this.position.offset;
+
+    logToConsole('Extended selection down');
+  }
+
+  deleteSelection(callback) {
+    const range = this.selection.getRange();
+    if (!range) return;
+
+    queueCommand('delete', range);
+    this.selection.clear();
+
+    // Execute callback after delete completes
+    if (callback) {
+      setTimeout(callback, 50);
     }
   }
 
@@ -304,7 +603,7 @@ class IPCursor {
     // Get the range for the split action
     const range = getSelectionRange();
     if (range) {
-      await runAction('split', range);
+      queueCommand('split', range);
       logToConsole('Enter pressed - split paragraph');
     }
   }
@@ -404,37 +703,19 @@ class IPCursor {
   insertCharacter(char) {
     if (!this.position.node) return;
 
-    // If we're at a text node, insert the character
-    if (this.position.node.nodeType === Node.TEXT_NODE) {
-      const text = this.position.node.textContent || '';
-      const newText = text.slice(0, this.position.offset) + char + text.slice(this.position.offset);
-      this.position.node.textContent = newText;
-      this.position.offset++;
-    } else {
-      // Create a new text node
-      const textNode = document.createTextNode(char);
-      this.position.node.appendChild(textNode);
-      this.position.node = textNode;
-      this.position.offset = 1;
+    const range = getSelectionRange();
+    if (range) {
+      queueCommand('type', range, char);
+      logToConsole(`Inserted: ${char}`);
     }
-
-    this.updateCursorPosition();
-    logToConsole(`Inserted: ${char}`);
   }
 
   deleteBackward() {
-    if (!this.position.node || this.position.offset === 0) {
-      logToConsole('Cannot delete: at start');
-      return;
-    }
+    if (!this.position.node) return;
 
-    if (this.position.node.nodeType === Node.TEXT_NODE) {
-      const text = this.position.node.textContent || '';
-      const newText = text.slice(0, this.position.offset - 1) + text.slice(this.position.offset);
-      this.position.node.textContent = newText;
-      this.position.offset--;
-
-      this.updateCursorPosition();
+    const range = getSelectionRange();
+    if (range) {
+      queueCommand('backspace', range);
       logToConsole('Deleted backward');
     }
   }
@@ -442,17 +723,9 @@ class IPCursor {
   deleteForward() {
     if (!this.position.node) return;
 
-    if (this.position.node.nodeType === Node.TEXT_NODE) {
-      const text = this.position.node.textContent || '';
-      if (this.position.offset >= text.length) {
-        logToConsole('Cannot delete: at end');
-        return;
-      }
-
-      const newText = text.slice(0, this.position.offset) + text.slice(this.position.offset + 1);
-      this.position.node.textContent = newText;
-
-      this.updateCursorPosition();
+    const range = getSelectionRange();
+    if (range) {
+      queueCommand('delete', range);
       logToConsole('Deleted forward');
     }
   }
@@ -499,8 +772,24 @@ async function pollChanges() {
     const changes = await response.json();
 
     if (changes && changes.length > 0) {
-      applyChanges(changes);
-      logToConsole(`Applied ${changes.length} changes`);
+      for (const change of changes) {
+        // Apply changes
+        if (change.changes && change.changes.length > 0) {
+          applyChanges(change.changes);
+        }
+
+        // Update cursor position
+        if (change.newPosition) {
+          updateCursorPosition(change.newPosition);
+        }
+
+        // Update selection if present
+        if (change.newRange) {
+          updateSelection(change.newRange);
+        }
+      }
+
+      logToConsole(`Applied ${changes.length} change sets`);
     }
 
     // Continue polling
@@ -514,13 +803,6 @@ async function pollChanges() {
 
 // Apply changes to document
 function applyChanges(changes) {
-  // Save current cursor position
-  const cursor = window.ipCursor;
-  const savedPosition = cursor ? {
-    elementId: cursor.position.node ? findElementId(cursor.position.node) : null,
-    offset: cursor.position.offset
-  } : null;
-
   // Apply each change
   for (const change of changes) {
     const element = document.getElementById(change.id);
@@ -532,25 +814,6 @@ function applyChanges(changes) {
       } else {
         element.outerHTML = change.html;
         logToConsole(`Updated element ${change.id}`);
-      }
-    }
-  }
-
-  // Restore cursor position if possible
-  if (savedPosition && savedPosition.elementId) {
-    const element = document.getElementById(savedPosition.elementId);
-    if (element && cursor) {
-      // Find first text node in element
-      const walker = document.createTreeWalker(
-        element,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
-      const textNode = walker.nextNode();
-      if (textNode) {
-        cursor.position.node = textNode;
-        cursor.position.offset = Math.min(savedPosition.offset, textNode.textContent.length);
-        cursor.updateCursorPosition();
       }
     }
   }
@@ -574,7 +837,15 @@ function findElementId(node) {
 async function loadDocument() {
   try {
     logToConsole('Fetching document from server...');
-    const response = await fetch('/api/getdoc');
+
+    // Check if we have a sessionId stored (e.g., from previous page load)
+    const storedSessionId = localStorage.getItem('sessionId');
+    const headers = {};
+    if (storedSessionId) {
+      headers['XSessionId'] = storedSessionId;
+    }
+
+    const response = await fetch('/api/getdoc', { headers });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -582,6 +853,9 @@ async function loadDocument() {
 
     const data = await response.json();
     sessionId = data.sessionId;
+
+    // Store sessionId for future use
+    localStorage.setItem('sessionId', sessionId);
 
     const docContent = document.getElementById('doc-content');
     docContent.innerHTML = data.html;
@@ -612,19 +886,22 @@ class ClippyFloat {
     this.textboxEl = document.getElementById('clippy-textbox');
     this.sendBtn = document.getElementById('clippy-send');
     this.isExpanded = false;
+    this.isVisible = false;
 
     this.setupEventListeners();
   }
 
   setupEventListeners() {
     // Click on icon to expand
-    this.iconEl.addEventListener('click', () => {
+    this.iconEl.addEventListener('click', (e) => {
+      e.stopPropagation();
       this.expand();
     });
 
     // Click on collapsed float to expand
     this.floatEl.addEventListener('click', (e) => {
-      if (!this.isExpanded && e.target === this.floatEl) {
+      if (!this.isExpanded) {
+        e.stopPropagation();
         this.expand();
       }
     });
@@ -681,7 +958,6 @@ class ClippyFloat {
     // Position below and slightly to the right of cursor
     this.floatEl.style.left = `${cursorRect.left + 10}px`;
     this.floatEl.style.top = `${cursorRect.bottom + 10}px`;
-    this.floatEl.style.display = 'block';
   }
 
   expand() {
@@ -739,10 +1015,13 @@ class ClippyFloat {
   }
 
   show() {
+    this.isVisible = true;
+    this.floatEl.style.display = 'block';
     this.positionBelowCursor();
   }
 
   hide() {
+    this.isVisible = false;
     this.floatEl.style.display = 'none';
   }
 }

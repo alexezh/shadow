@@ -68,7 +68,7 @@ export class HttpServer {
     }
 
     // Serve wx.js
-    if (url === '/wx.js') {
+    if (url === '/clippy.js') {
       await this.serveFile(res, 'clippy.js', 'application/javascript');
       return;
     }
@@ -96,11 +96,7 @@ export class HttpServer {
 
     // API endpoint to get document
     if (url === '/api/getdoc' && req.method === 'GET') {
-      const sessionId = this.createSession();
-      const html = '<div id="placeholder">Document content will appear here. Click to position cursor.</div>';
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ sessionId, html }));
+      await this.handleGetDoc(req, res);
       return;
     }
 
@@ -127,18 +123,59 @@ export class HttpServer {
     res.end('Not Found');
   }
 
-  private createSession(): string {
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  private getOrCreateSession(sessionId?: string): Session {
+    // If sessionId provided, try to get existing session
+    if (sessionId) {
+      const existing = this.sessions.get(sessionId);
+      if (existing) {
+        console.log(`Using existing session: ${sessionId}`);
+        return existing;
+      }
+    }
+
+    // Create new session
+    const newSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const doc = new YDoc();
+
+    // Create default document with placeholder paragraph
+    const body = doc.getBody();
+    const para = new (require('../om/YPara.js').YPara)(
+      'p1',
+      new (require('../om/YStr.js').YStr)('Document content will appear here. Click to position cursor.\n')
+    );
+    body.addChild(para);
+
     const session: Session = {
-      id: sessionId,
+      id: newSessionId,
       createdAt: new Date(),
       pendingChanges: [],
       changeResolvers: [],
-      doc: new YDoc()
+      doc
     };
-    this.sessions.set(sessionId, session);
-    console.log(`Created session: ${sessionId}`);
-    return sessionId;
+    this.sessions.set(newSessionId, session);
+    console.log(`Created session: ${newSessionId}`);
+    return session;
+  }
+
+  private async handleGetDoc(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    try {
+      // Get sessionId from XSessionId header
+      const headerSessionId = req.headers['xsessionid'] as string | undefined;
+
+      // Get or create session
+      const session = this.getOrCreateSession(headerSessionId);
+
+      // Generate HTML from document
+      const makeHtml = require('../om/makeHtml.js').makeHtml;
+      const html = makeHtml(session.doc.getBody(), session.doc.getPropStore());
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ sessionId: session.id, html }));
+    } catch (error) {
+      console.error('Error handling getdoc:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
   }
 
   private async handleRunAction(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {

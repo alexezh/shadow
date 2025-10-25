@@ -100,101 +100,173 @@
       color: #1976d2;
     }
 
-    /* Clippy floating area */
+    /* ===== Clippy-only (compact, no bleed) ===== */
+
+    /* Container with tokens */
     #clippy-float {
-      position: absolute;
-      z-index: 2000;
-      display: none;
-      background: white;
-      border: 2px solid #ccc;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      padding: 8px;
+      --clippy-radius: 16px;
+      --clippy-gap: 10px;
+      --clippy-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+      --clippy-border: 1px solid rgba(0, 0, 0, .06);
+      --clippy-bg: rgba(255, 255, 255, .78);
+      --clippy-grad-1: 255, 255, 255;
+      --clippy-grad-2: 244, 246, 255;
+
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 2147483647;
+
+      /* default = collapsed footprint only */
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      border-radius: 0;
     }
 
+    /* Collapsed: show only the circle; no card chrome at all */
     #clippy-float.collapsed {
-      width: 50px;
-      height: 50px;
       cursor: pointer;
     }
 
+    /* Expanded: enable the card, spacing, and bounds */
     #clippy-float.expanded {
-      width: 300px;
-      padding: 12px;
+      gap: var(--clippy-gap);
+      width: min(92vw, 360px);
+      max-height: calc(100vh - 32px);
+      /* prevents stretching toward bottom */
+      padding: 14px;
+      border-radius: var(--clippy-radius);
+      border: var(--clippy-border);
+      box-shadow: var(--clippy-shadow);
+      background: linear-gradient(180deg,
+          rgba(var(--clippy-grad-1), .88),
+          rgba(var(--clippy-grad-2), .82));
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+      /* keeps rounded corners clean */
     }
 
+    /* Icon badge (smaller) */
+    #clippy-icon-wrap {
+      display: grid;
+      place-items: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      margin: 0 auto;
+      background: radial-gradient(120% 120% at 30% 20%, #f8f9ff 0%, #eef1ff 60%, #e9efff 100%);
+      border: var(--clippy-border);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .08);
+    }
+
+    /* Hide icon when expanded (so only the card content shows) */
+    #clippy-float.expanded #clippy-icon-wrap {
+      display: none;
+    }
+
+    /* PNG */
     #clippy-icon {
-      width: 40px;
-      height: 40px;
+      width: 34px;
+      height: 34px;
+      object-fit: contain;
+      filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .4)) drop-shadow(0 2px 6px rgba(0, 0, 0, .15));
+      user-select: none;
+      pointer-events: none;
       display: block;
     }
 
-    #clippy-float.expanded #clippy-icon {
-      display: none;
-    }
-
+    /* Prompt card */
     #clippy-prompt {
       display: none;
-      flex-direction: column;
-      gap: 8px;
+      padding: 12px;
+      border-radius: calc(var(--clippy-radius) - 4px);
+      background: var(--clippy-bg);
+      border: var(--clippy-border);
     }
 
     #clippy-float.expanded #clippy-prompt {
-      display: flex;
-    }
-
-    #clippy-prompt-label {
-      font-size: 12px;
-      color: #666;
-      margin-bottom: 4px;
-    }
-
-    #clippy-input-container {
-      display: flex;
+      display: grid;
       gap: 8px;
-      align-items: flex-start;
+      max-height: calc(100vh - 32px - 28px);
+      /* container limit minus padding */
+      overflow: auto;
     }
 
+    /* Input row */
+    #clippy-input-container {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 8px;
+    }
+
+    /* Textarea (plays nice with your 10-line JS cap) */
     #clippy-textbox {
-      flex: 1;
-      padding: 6px 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 14px;
-      font-family: inherit;
+      box-sizing: border-box;
       resize: none;
-      overflow-y: auto;
-      min-height: 32px;
-      max-height: 200px;
-      line-height: 20px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 0, 0, .12);
+      background: #fff;
+      font: 14px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      color: #111;
+      outline: none;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, .04);
+      overflow-y: hidden;
+      /* your JS switches to auto at cap */
     }
 
+    #clippy-textbox::placeholder {
+      color: #7a7a7a;
+    }
+
+    /* Send button */
     #clippy-send {
-      width: 32px;
-      height: 32px;
-      border: none;
-      background-color: #e0e0e0;
-      border-radius: 50%;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-      transition: background-color 0.2s;
-    }
-
-    #clippy-send:hover:not(:disabled) {
-      background-color: #d0d0d0;
-    }
-
-    #clippy-send:disabled {
-      opacity: 0.4;
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 0, 0, .12);
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .05);
       cursor: not-allowed;
+      transition: transform .08s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    #clippy-send:not([disabled]) {
+      cursor: pointer;
+      background: linear-gradient(180deg, #ffffff, #f6f6ff);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .10);
+    }
+
+    #clippy-send:active:not([disabled]) {
+      transform: translateY(1px);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .12) inset;
     }
 
     #clippy-send img {
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+    }
+
+    /* Mobile nudge */
+    @media (max-width: 480px) {
+      #clippy-float {
+        right: 12px;
+        left: 12px;
+        bottom: 12px;
+      }
+
+      #clippy-float.expanded {
+        width: auto;
+      }
     }
   </style>
 </head>
@@ -229,18 +301,39 @@
   </div>
 
   <!-- Clippy floating assistant -->
-  <div id="clippy-float" class="collapsed">
-    <img id="clippy-icon" src="/clippy.png" alt="Clippy">
+  <div id="clippy-float" class="collapsed" role="dialog" aria-label="Clippy helper">
+    <div id="clippy-icon-wrap" aria-hidden="true">
+      <img id="clippy-icon" src="/clippy.png" alt="Clippy" />
+    </div>
+
     <div id="clippy-prompt">
-      <div id="clippy-prompt-label">Ask anything</div>
       <div id="clippy-input-container">
-        <textarea id="clippy-textbox" placeholder="ask anything" rows="1"></textarea>
-        <button id="clippy-send" disabled>
-          <img src="/uparrow.png" alt="Send">
+        <textarea id="clippy-textbox" placeholder="Ask anything" rows="1" aria-label="Ask anything"></textarea>
+        <button id="clippy-send" aria-label="Send" disabled>
+          <img src="/uparrow.png" alt="" />
         </button>
       </div>
     </div>
   </div>
+
+
+  <script>
+    // Auto-grow textarea + enable/disable send
+    (function () {
+      const ta = document.getElementById('clippy-textbox');
+      const send = document.getElementById('clippy-send');
+      if (!ta || !send) return;
+
+      const update = () => {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(160, ta.scrollHeight) + 'px';
+        send.disabled = !ta.value.trim().length;
+      };
+
+      ta.addEventListener('input', update);
+      update();
+    })();
+  </script>
 
   <script src="/clippy.js"></script>
 </body>
