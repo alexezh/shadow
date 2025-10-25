@@ -1,12 +1,11 @@
-import { make31BitId } from "../make31bitid";
-import { YPropSet } from "./YPropSet";
+import { YPropSet } from "./YPropSet.js";
 
 /**
  * WStr - Maintains string content with newlines and array of int IDs to property sets
  */
 export class YStr {
   private _text: string;
-  private props: YPropSet[]; // Array of property set IDs, one per character
+  private attrs: YPropSet[]; // Array of property set IDs, one per character
   private cachedHash: number | null = null;
 
   public get text(): string {
@@ -17,9 +16,16 @@ export class YStr {
     return this._text.length;
   }
 
-  constructor(text: string = '', props?: YPropSet[]) {
-    this._text = text;
-    this.props = props || new Array(text.length).fill(0);
+  constructor(text?: string, attrs?: YPropSet | YPropSet[]) {
+    this._text = text ?? '';
+    this.attrs = new Array<YPropSet>(this._text.length);
+    if (this.attrs.length > 0) {
+      if (Array.isArray(attrs)) {
+        this.attrs = [...attrs];
+      } else {
+        this.attrs.fill(attrs ?? YPropSet.create({}));
+      }
+    }
   }
 
   private invalidateHash(): void {
@@ -39,9 +45,9 @@ export class YStr {
    */
   getPropsAt(index: number): YPropSet {
     if (index < 0) {
-      return this.props[this.props.length + index];
+      return this.attrs[this.attrs.length + index];
     } else {
-      return this.props[index];
+      return this.attrs[index];
     }
   }
 
@@ -49,8 +55,8 @@ export class YStr {
    * Set property ID at given position
    */
   setPropAt(index: number, props: YPropSet): void {
-    if (index >= 0 && index < this.props.length) {
-      this.props[index] = props;
+    if (index >= 0 && index < this.attrs.length) {
+      this.attrs[index] = props;
       this.invalidateHash();
     }
   }
@@ -59,8 +65,8 @@ export class YStr {
    * Set property ID for a range
    */
   setPropsRange(start: number, end: number, props: YPropSet): void {
-    for (let i = start; i < end && i < this.props.length; i++) {
-      this.props[i] = props;
+    for (let i = start; i < end && i < this.attrs.length; i++) {
+      this.attrs[i] = props;
     }
     this.invalidateHash();
   }
@@ -71,14 +77,14 @@ export class YStr {
   append(text: string, props: YPropSet): void {
     this._text += text;
     for (let i = 0; i < text.length; i++) {
-      this.props.push(props);
+      this.attrs.push(props);
     }
     this.invalidateHash();
   }
 
   appendY(str: YStr): void {
     this._text += str._text;
-    this.props.splice(this.props.length - 1, 0, ...str.props);
+    this.attrs.splice(this.attrs.length - 1, 0, ...str.attrs);
     this.invalidateHash();
   }
 
@@ -88,7 +94,7 @@ export class YStr {
   insertAt(index: number, text: string, prop: YPropSet): void {
     this._text = this._text.slice(0, index) + text + this._text.slice(index);
     const newPropIds = new Array<YPropSet>(text.length).fill(prop);
-    this.props.splice(index, 0, ...newPropIds);
+    this.attrs.splice(index, 0, ...newPropIds);
     this.invalidateHash();
   }
 
@@ -97,7 +103,7 @@ export class YStr {
 
     // Split the string at cursor position
     const secondText = this._text.substring(offset);
-    const secondProp = this.props.slice(offset);
+    const secondProp = this.attrs.slice(offset);
 
     const newStr = new YStr(secondText, secondProp);
 
@@ -110,7 +116,7 @@ export class YStr {
    */
   delete(start: number, count: number): void {
     this._text = this._text.slice(0, start) + this._text.slice(start + count);
-    this.props.splice(start, count);
+    this.attrs.splice(start, count);
     this.invalidateHash();
   }
 
@@ -129,8 +135,8 @@ export class YStr {
       }
 
       // Hash the property IDs
-      for (let i = 0; i < this.props.length; i++) {
-        hash = ((hash << 5) - hash) + this.props[i].getHash();
+      for (let i = 0; i < this.attrs.length; i++) {
+        hash = ((hash << 5) - hash) + this.attrs[i].getHash();
         hash = hash & 0x7FFFFFFF;
       }
 
@@ -144,6 +150,6 @@ export class YStr {
    * Get all property IDs
    */
   getProps(): ReadonlyArray<YPropSet> {
-    return this.props;
+    return this.attrs;
   }
 }

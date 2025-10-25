@@ -30,15 +30,15 @@ function makeParaHtml(node: YPara, writer: HtmlWriter): void {
 
   const str = node as YPara;
   const text = str.getText();
-  const propIds = str.getTextAttrs();
+  const textAttrs = str.getTextAttrs();
 
   // Group consecutive characters with the same property ID
-  let currentPropId = propIds[0] || 0;
+  let currentAttr = textAttrs[0];
   let currentText = '';
 
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
-    const charPropId = propIds[i] || 0;
+    const charAttr = textAttrs[i];
 
     // Check if this is a special marker character
     const isNewline = char === '\n';
@@ -47,7 +47,7 @@ function makeParaHtml(node: YPara, writer: HtmlWriter): void {
     if (isNewline || isMarker) {
       // Flush current span if any
       if (currentText.length > 0) {
-        const style = propSetToStyle(currentPropId);
+        const style = propSetToStyle(currentAttr);
         if (style) {
           writer.writeOpenTag('span', { style });
           writer.writeText(currentText);
@@ -75,14 +75,14 @@ function makeParaHtml(node: YPara, writer: HtmlWriter): void {
         writer.writeCloseTag('span');
       }
 
-      currentPropId = charPropId;
-    } else if (charPropId === currentPropId) {
+      currentAttr = charAttr;
+    } else if (charAttr === currentAttr) {
       // Same property, accumulate
       currentText += char;
     } else {
       // Property changed, flush previous span
       if (currentText.length > 0) {
-        const style = propSetToStyle(currentPropId);
+        const style = propSetToStyle(currentAttr);
         if (style) {
           writer.writeOpenTag('span', { style });
           writer.writeText(currentText);
@@ -92,14 +92,14 @@ function makeParaHtml(node: YPara, writer: HtmlWriter): void {
         }
       }
       // Start new span
-      currentPropId = charPropId;
+      currentAttr = charAttr;
       currentText = char;
     }
   }
 
   // Flush remaining text
   if (currentText.length > 0) {
-    const style = propSetToStyle(currentPropId);
+    const style = propSetToStyle(currentAttr);
     if (style) {
       writer.writeOpenTag('span', { style });
       writer.writeText(currentText);

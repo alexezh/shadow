@@ -1,6 +1,6 @@
-import type { YDoc } from "./YDoc";
-import { WRange, YNode } from "./YNode";
-import { YPara } from "./YPara";
+import type { YDoc } from "./YDoc.js";
+import { WRange, YNode } from "./YNode.js";
+import { YPara } from "./YPara.js";
 
 export function deleteRange(doc: YDoc, range: WRange): { node: YNode, op: "changed" | "deleted" }[] {
   const body = doc.getBody();

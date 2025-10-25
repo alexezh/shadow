@@ -2,6 +2,7 @@
   "name": "openai-mcp-service",
   "version": "1.0.0",
   "description": "MCP service for OpenAI with embedding-based data storage",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

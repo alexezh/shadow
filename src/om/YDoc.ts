@@ -3,13 +3,31 @@ import { YBody } from './YBody.js';
 import { YStyleStore } from './YStyleStore.js';
 import { YPropSet } from './YPropSet.js';
 
+export type YDocPartKind = "main" | "draft" | "summary" | "chat";
+
+export class YDocPart {
+  public readonly body?: YBody;
+  public readonly doc: YDoc;
+  public readonly id: string;
+  public readonly kind: YDocPartKind;
+
+  public constructor(doc: YDoc, id: string, kind: YDocPartKind, body?: YBody) {
+    this.doc = doc;
+    this.id = id;
+    this.kind = kind;
+    this.body = body;
+  }
+}
+
 export class YDoc {
   private body: YBody;
   private styleStore: YStyleStore;
   private nodeMap: Map<string, YNode>;
+  private readonly parts = new Map<string, YDocPart>();
 
   constructor() {
     this.body = new YBody('body', YPropSet.create({}));
+    this.parts.set("main", new YDocPart(this, "main", "main", this.body))
     this.styleStore = new YStyleStore();
     this.nodeMap = new Map();
     this.linkTree();

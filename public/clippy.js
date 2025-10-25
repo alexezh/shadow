@@ -931,49 +931,77 @@ async function pollChanges() {
 
 // Apply changes to document
 function applyChanges(changes) {
-  // Apply each change
+  // Apply each change based on operation type
   for (const change of changes) {
     const element = document.getElementById(change.id);
-    if (element) {
-      // Special case: replacing entire doc-content
-      if (change.id === 'doc-content') {
-        element.innerHTML = change.html;
-        logToConsole(`Replaced document content`);
-      } else {
-        element.outerHTML = change.html;
-        //logToConsole(`Updated element ${change.id}`);
-      }
-    } else {
-      // Element doesn't exist yet (e.g., new paragraph from split)
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = change.html;
-      const newElement = tempDiv.firstChild;
 
-      if (newElement) {
-        // Use prevId to find where to insert
-        if (change.prevId) {
-          const prevElement = document.getElementById(change.prevId);
-          if (prevElement && prevElement.parentElement) {
-            // Insert right after prevElement
-            prevElement.parentElement.insertBefore(newElement, prevElement.nextSibling);
-            //logToConsole(`Inserted new element ${change.id} after ${change.prevId}`);
+    switch (change.op) {
+      case 'deleted':
+        // Remove element from DOM
+        if (element) {
+          element.remove();
+          //logToConsole(`Deleted element ${change.id}`);
+        } else {
+          logToConsole(`Warning: Cannot delete element ${change.id} - not found`, 'warn');
+        }
+        break;
+
+      case 'changed':
+        // Update existing element
+        if (element) {
+          // Special case: replacing entire doc-content
+          if (change.id === 'doc-content') {
+            element.innerHTML = change.html;
+            logToConsole(`Replaced document content`);
           } else {
-            logToConsole(`Warning: prevId ${change.prevId} not found, appending to body`, 'warn');
-            // Fallback: append to body
-            const docContent = document.getElementById('doc-content');
-            if (docContent && docContent.firstChild) {
-              docContent.firstChild.appendChild(newElement);
-            }
+            element.outerHTML = change.html;
+            //logToConsole(`Updated element ${change.id}`);
           }
         } else {
-          // No prevId - append to body
-          const docContent = document.getElementById('doc-content');
-          if (docContent && docContent.firstChild) {
-            docContent.firstChild.appendChild(newElement);
-            logToConsole(`Inserted new element ${change.id} at end`);
+          logToConsole(`Warning: Cannot update element ${change.id} - not found`, 'warn');
+        }
+        break;
+
+      case 'inserted':
+        // Insert new element
+        if (element) {
+          logToConsole(`Warning: Element ${change.id} already exists, skipping insert`, 'warn');
+        } else {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = change.html;
+          const newElement = tempDiv.firstChild;
+
+          if (newElement) {
+            // Use prevId to find where to insert
+            if (change.prevId) {
+              const prevElement = document.getElementById(change.prevId);
+              if (prevElement && prevElement.parentElement) {
+                // Insert right after prevElement
+                prevElement.parentElement.insertBefore(newElement, prevElement.nextSibling);
+                //logToConsole(`Inserted new element ${change.id} after ${change.prevId}`);
+              } else {
+                logToConsole(`Warning: prevId ${change.prevId} not found, appending to body`, 'warn');
+                // Fallback: append to body
+                const docContent = document.getElementById('doc-content');
+                if (docContent && docContent.firstChild) {
+                  docContent.firstChild.appendChild(newElement);
+                }
+              }
+            } else {
+              // No prevId - append to body
+              const docContent = document.getElementById('doc-content');
+              if (docContent && docContent.firstChild) {
+                docContent.firstChild.appendChild(newElement);
+                logToConsole(`Inserted new element ${change.id} at end`);
+              }
+            }
           }
         }
-      }
+        break;
+
+      default:
+        logToConsole(`Warning: Unknown operation ${change.op} for element ${change.id}`, 'warn');
+        break;
     }
   }
 }

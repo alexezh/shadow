@@ -57,7 +57,8 @@ export function makeDefaultDoc(): YDoc {
 
   // Create default document with placeholder paragraph
   const body = doc.getBody();
-  const para = new YPara(make31BitId(), YPropSet.create({}), new YStr('Document content will appear here. Click to position cursor.\n'))
+  const para = new YPara(make31BitId(), YPropSet.create({}),
+    new YStr('Document content will appear here. Click to position cursor.\n', YPropSet.create({})))
   body.addChild(para);
   return doc;
 }

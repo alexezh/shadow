@@ -75,8 +75,7 @@ function handleDelete(doc: YDoc, range: WRange, key: "backspace" | "delete"): Ac
   };
 }
 
-function handleType(doc: any, range: WRange, text: string): ActionResult {
-  const propStore = doc.getPropStore();
+function handleType(doc: YDoc, range: WRange, text: string): ActionResult {
   const node = doc.getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
@@ -101,9 +100,8 @@ function handleType(doc: any, range: WRange, text: string): ActionResult {
   };
 }
 
-function handleSplit(doc: any, range: WRange): ActionResult {
+function handleSplit(doc: YDoc, range: WRange): ActionResult {
   const body = doc.getBody();
-  const propStore = doc.getPropStore();
   const node = doc.getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
