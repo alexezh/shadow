@@ -162,8 +162,11 @@ export class HttpServer {
       // Generate HTML from document
       const html = makeHtml(session.doc.getBody(), session.doc.getPropStore());
 
+      // Get styles as JSON array
+      const styles = session.doc.getStyleStore().toJson();
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ sessionId: session.id, html }));
+      res.end(JSON.stringify({ sessionId: session.id, html, styles }));
     } catch (error) {
       console.error('Error handling getdoc:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });

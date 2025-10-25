@@ -1,15 +1,18 @@
 import { YNode } from './YNode.js';
 import { YBody } from './YBody.js';
 import { YPropStore } from './YPropStore.js';
+import { YStyleStore } from './YStyleStore.js';
 
 export class YDoc {
   private body: YBody;
   private propStore: YPropStore;
+  private styleStore: YStyleStore;
   private nodeMap: Map<string, YNode>;
 
   constructor() {
     this.body = new YBody();
     this.propStore = new YPropStore();
+    this.styleStore = new YStyleStore();
     this.nodeMap = new Map();
     this.rebuildNodeMap();
     this.setDocOnAllNodes();
@@ -36,6 +39,10 @@ export class YDoc {
 
   getPropStore(): YPropStore {
     return this.propStore;
+  }
+
+  getStyleStore(): YStyleStore {
+    return this.styleStore;
   }
 
   getNodeById(id: string): YNode | undefined {

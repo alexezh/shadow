@@ -8,16 +8,28 @@ import { YCell } from './YCell.js';
 import { YStr } from './YStr.js';
 import { YPropStore } from './YPropStore.js';
 import { YPropSet } from './YPropSet.js';
+import { YStyleStore } from './YStyleStore.js';
 import { make31BitId } from '../make31bitid.js';
 
 /**
  * Load HTML and return root WNode
  * @param html HTML string to parse
  * @param propStore Property store to use for parsing styles
+ * @param styleStore Optional style store to populate with CSS styles
  * @returns Root WNode (typically WBody)
  */
-export function loadHtml(html: string, propStore: YPropStore): YNode {
+export function loadHtml(html: string, propStore: YPropStore, styleStore?: YStyleStore): YNode {
   const $ = cheerio.load(html);
+
+  // Extract and parse CSS from <style> tags
+  if (styleStore) {
+    $('style').each((_index, elem) => {
+      const cssText = $(elem).text();
+      if (cssText) {
+        styleStore.parseCss(cssText);
+      }
+    });
+  }
 
   // Try to find explicit body tag
   let body = $('body');

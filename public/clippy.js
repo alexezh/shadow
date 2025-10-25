@@ -37,7 +37,7 @@ async function processQueue() {
     const commands = commandQueue.splice(0);
 
     for (const cmd of commands) {
-      const result = await runAction(cmd.action, cmd.range, cmd.text);
+      const result = await runAction(cmd.action, cmd.range, cmd.text, cmd.content);
 
       if (result && result.result) {
         // Apply changes from result
@@ -67,13 +67,13 @@ async function processQueue() {
 }
 
 // Add command to queue
-function queueCommand(action, range, text) {
-  commandQueue.push({ action, range, text });
+function queueCommand(action, range, text, content) {
+  commandQueue.push({ action, range, text, content });
   processQueue();
 }
 
 // Command runner
-async function runAction(action, range, text) {
+async function runAction(action, range, text, content) {
   if (!sessionId) {
     logToConsole('No session ID available', 'error');
     return;
@@ -90,6 +90,10 @@ async function runAction(action, range, text) {
       body.text = text;
     }
 
+    if (content !== undefined) {
+      body.content = content;
+    }
+
     const response = await fetch('/api/runaction', {
       method: 'POST',
       headers: {
@@ -103,7 +107,7 @@ async function runAction(action, range, text) {
     }
 
     const result = await response.json();
-    logToConsole(`Action '${action}' executed successfully`);
+    //logToConsole(`Action '${action}' executed successfully`);
     return result;
   } catch (error) {
     logToConsole(`Error executing action: ${error.message}`, 'error');
@@ -206,7 +210,7 @@ buttons.bold.addEventListener('click', async () => {
   if (range) {
     queueCommand('bold', range);
   }
-  logToConsole('Bold toggled');
+  //logToConsole('Bold toggled');
 });
 
 buttons.italic.addEventListener('click', async () => {
@@ -215,7 +219,7 @@ buttons.italic.addEventListener('click', async () => {
   if (range) {
     queueCommand('italic', range);
   }
-  logToConsole('Italic toggled');
+  //logToConsole('Italic toggled');
 });
 
 buttons.bullet.addEventListener('click', async () => {
@@ -223,7 +227,7 @@ buttons.bullet.addEventListener('click', async () => {
   if (range) {
     queueCommand('bullet', range);
   }
-  logToConsole('Bullet list clicked');
+  //logToConsole('Bullet list clicked');
 });
 
 buttons.number.addEventListener('click', async () => {
@@ -231,7 +235,7 @@ buttons.number.addEventListener('click', async () => {
   if (range) {
     queueCommand('number', range);
   }
-  logToConsole('Numbered list clicked');
+  //logToConsole('Numbered list clicked');
 });
 
 // Selection management
@@ -362,7 +366,7 @@ class IPCursor {
     // Focus handler
     this.documentEl.addEventListener('focus', () => {
       this.show();
-      logToConsole('Document focused');
+      //logToConsole('Document focused');
     });
 
     this.documentEl.addEventListener('blur', () => {
@@ -382,7 +386,7 @@ class IPCursor {
     this.updateCursorPosition();
     this.show();
 
-    logToConsole(`Cursor positioned at offset ${this.position.offset}`);
+    //logToConsole(`Cursor positioned at offset ${this.position.offset}`);
   }
 
   updateCursorPosition() {
@@ -515,6 +519,9 @@ class IPCursor {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       this.handleEnter();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+      e.preventDefault();
+      this.handlePaste(e);
     }
   }
 
@@ -543,7 +550,7 @@ class IPCursor {
     // Highlight the selection visually
     this.highlightSelection();
 
-    logToConsole(`Extended selection left: ${this.selection.startOffset}-${this.selection.endOffset}`);
+    //logToConsole(`Extended selection left: ${this.selection.startOffset}-${this.selection.endOffset}`);
   }
 
   extendSelectionRight() {
@@ -571,7 +578,7 @@ class IPCursor {
     // Highlight the selection visually
     this.highlightSelection();
 
-    logToConsole(`Extended selection right: ${this.selection.startOffset}-${this.selection.endOffset}`);
+    //logToConsole(`Extended selection right: ${this.selection.startOffset}-${this.selection.endOffset}`);
   }
 
   extendSelectionUp() {
@@ -591,7 +598,7 @@ class IPCursor {
     // Highlight the selection visually
     this.highlightSelection();
 
-    logToConsole('Extended selection up');
+    //logToConsole('Extended selection up');
   }
 
   extendSelectionDown() {
@@ -611,7 +618,7 @@ class IPCursor {
     // Highlight the selection visually
     this.highlightSelection();
 
-    logToConsole('Extended selection down');
+    //logToConsole('Extended selection down');
   }
 
   highlightSelection() {
@@ -652,7 +659,48 @@ class IPCursor {
     const range = getSelectionRange();
     if (range) {
       queueCommand('split', range);
-      logToConsole('Enter pressed - split paragraph');
+      //logToConsole('Enter pressed - split paragraph');
+    }
+  }
+
+  async handlePaste(e) {
+    if (!this.position.node) return;
+
+    try {
+      // Try to read clipboard data
+      const clipboardData = e.clipboardData || window.clipboardData;
+
+      if (!clipboardData) {
+        // Use Clipboard API if available
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          this.processPaste(text);
+        } else {
+          logToConsole('Clipboard access not available', 'error');
+        }
+        return;
+      }
+
+      // Try to get HTML first, fall back to plain text
+      const html = clipboardData.getData('text/html');
+      const text = clipboardData.getData('text/plain');
+
+      const content = html || text;
+      if (content) {
+        this.processPaste(content);
+      } else {
+        logToConsole('No clipboard content available', 'warn');
+      }
+    } catch (error) {
+      logToConsole(`Paste error: ${error.message}`, 'error');
+    }
+  }
+
+  processPaste(content) {
+    const range = getSelectionRange();
+    if (range) {
+      queueCommand('paste', range, undefined, content);
+      logToConsole('Pasted content');
     }
   }
 
@@ -667,6 +715,9 @@ class IPCursor {
       if (prevNode) {
         this.position.node = prevNode;
         this.position.offset = prevNode.textContent.length;
+      } else {
+        // At the very beginning, can't move further left
+        return;
       }
     }
 
@@ -691,7 +742,7 @@ class IPCursor {
     }
 
     this.updateCursorPosition();
-    logToConsole(`Moved right to offset ${this.position.offset}`);
+    //logToConsole(`Moved right to offset ${this.position.offset}`);
   }
 
   moveUp() {
@@ -709,7 +760,7 @@ class IPCursor {
       this.position.node = newRange.startContainer;
       this.position.offset = newRange.startOffset;
       this.updateCursorPosition();
-      logToConsole('Moved up');
+      //logToConsole('Moved up');
     }
   }
 
@@ -728,7 +779,7 @@ class IPCursor {
       this.position.node = newRange.startContainer;
       this.position.offset = newRange.startOffset;
       this.updateCursorPosition();
-      logToConsole('Moved down');
+      //logToConsole('Moved down');
     }
   }
 
@@ -736,7 +787,7 @@ class IPCursor {
     // Simplified: move to start of current text node
     this.position.offset = 0;
     this.updateCursorPosition();
-    logToConsole('Moved to line start');
+    //logToConsole('Moved to line start');
   }
 
   moveToLineEnd() {
@@ -745,7 +796,7 @@ class IPCursor {
       this.position.offset = this.position.node.textContent?.length || 0;
     }
     this.updateCursorPosition();
-    logToConsole('Moved to line end');
+    //logToConsole('Moved to line end');
   }
 
   insertCharacter(char) {
@@ -754,7 +805,7 @@ class IPCursor {
     const range = getSelectionRange();
     if (range) {
       queueCommand('type', range, char);
-      logToConsole(`Inserted: ${char}`);
+      //logToConsole(`Inserted: ${char}`);
     }
   }
 
@@ -764,7 +815,7 @@ class IPCursor {
     const range = getSelectionRange();
     if (range) {
       queueCommand('backspace', range);
-      logToConsole('Deleted backward');
+      //logToConsole('Deleted backward');
     }
   }
 
@@ -774,7 +825,7 @@ class IPCursor {
     const range = getSelectionRange();
     if (range) {
       queueCommand('delete', range);
-      logToConsole('Deleted forward');
+      //logToConsole('Deleted forward');
     }
   }
 
@@ -837,7 +888,7 @@ async function pollChanges() {
         }
       }
 
-      logToConsole(`Applied ${changes.length} change sets`);
+      //logToConsole(`Applied ${changes.length} change sets`);
     }
 
     // Continue polling
@@ -861,7 +912,38 @@ function applyChanges(changes) {
         logToConsole(`Replaced document content`);
       } else {
         element.outerHTML = change.html;
-        logToConsole(`Updated element ${change.id}`);
+        //logToConsole(`Updated element ${change.id}`);
+      }
+    } else {
+      // Element doesn't exist yet (e.g., new paragraph from split)
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = change.html;
+      const newElement = tempDiv.firstChild;
+
+      if (newElement) {
+        // Use prevId to find where to insert
+        if (change.prevId) {
+          const prevElement = document.getElementById(change.prevId);
+          if (prevElement && prevElement.parentElement) {
+            // Insert right after prevElement
+            prevElement.parentElement.insertBefore(newElement, prevElement.nextSibling);
+            //logToConsole(`Inserted new element ${change.id} after ${change.prevId}`);
+          } else {
+            logToConsole(`Warning: prevId ${change.prevId} not found, appending to body`, 'warn');
+            // Fallback: append to body
+            const docContent = document.getElementById('doc-content');
+            if (docContent && docContent.firstChild) {
+              docContent.firstChild.appendChild(newElement);
+            }
+          }
+        } else {
+          // No prevId - append to body
+          const docContent = document.getElementById('doc-content');
+          if (docContent && docContent.firstChild) {
+            docContent.firstChild.appendChild(newElement);
+            logToConsole(`Inserted new element ${change.id} at end`);
+          }
+        }
       }
     }
   }
@@ -879,6 +961,27 @@ function findElementId(node) {
   }
 
   return element ? element.id : null;
+}
+
+// Apply styles to document
+function applyStyles(styles) {
+  // Find or create style element
+  let styleEl = document.getElementById('doc-styles');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'doc-styles';
+    document.head.appendChild(styleEl);
+  }
+
+  // Convert styles array to CSS string
+  const cssRules = styles.map(style => {
+    const props = Object.entries(style.properties)
+      .map(([key, value]) => `  ${key}: ${value};`)
+      .join('\n');
+    return `${style.selector} {\n${props}\n}`;
+  });
+
+  styleEl.textContent = cssRules.join('\n\n');
 }
 
 // Document loading
@@ -907,6 +1010,12 @@ async function loadDocument() {
 
     const docContent = document.getElementById('doc-content');
     docContent.innerHTML = data.html;
+
+    // Apply styles if provided
+    if (data.styles && data.styles.length > 0) {
+      applyStyles(data.styles);
+      logToConsole(`Loaded ${data.styles.length} styles`);
+    }
 
     logToConsole(`Document loaded, session: ${sessionId}`, 'info');
 
@@ -998,13 +1107,21 @@ class ClippyFloat {
 
   positionBelowCursor() {
     const cursor = window.ipCursor;
-    if (!cursor || !cursor.cursorEl) return;
+    if (!cursor || !cursor.cursorEl || !cursor.visible) return;
 
     const cursorRect = cursor.cursorEl.getBoundingClientRect();
+
+    // Check if cursor has a valid position (not at 0,0)
+    if (cursorRect.left === 0 && cursorRect.top === 0) {
+      logToConsole('Warning: Cursor at invalid position (0,0)', 'warn');
+      return;
+    }
 
     // Position very close to cursor - just 2px below and 2px to the right
     this.floatEl.style.left = `${cursorRect.left + 2}px`;
     this.floatEl.style.top = `${cursorRect.bottom + 2}px`;
+
+    logToConsole(`Clippy positioned at (${cursorRect.left + 2}, ${cursorRect.bottom + 2})`);
   }
 
   expand() {
@@ -1020,7 +1137,7 @@ class ClippyFloat {
       this.textboxEl.focus();
     }, 50);
 
-    logToConsole('Clippy expanded');
+    //logToConsole('Clippy expanded');
   }
 
   collapse() {
@@ -1033,14 +1150,14 @@ class ClippyFloat {
     // Reposition and show the icon
     this.show();
 
-    logToConsole('Clippy collapsed');
+    //logToConsole('Clippy collapsed');
   }
 
   async sendQuestion() {
     const question = this.textboxEl.value.trim();
     if (!question) return;
 
-    logToConsole(`Clippy: ${question}`);
+    //logToConsole(`Clippy: ${question}`);
 
     try {
       // Send command to server

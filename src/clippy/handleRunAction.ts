@@ -5,12 +5,14 @@ import { YPara } from '../om/YPara.js';
 import { YStr } from '../om/YStr.js';
 import { makeHtml } from '../om/makeHtml.js';
 import { YBody } from '../om/YBody.js';
+import { handlePaste } from './handlePaste.js';
 
 export type RunActionRequest = {
   sessionId: string;
   action: string;
   range: WRange;
   text?: string; // For type action
+  content?: string; // For paste action
 }
 
 export function handleRunAction(session: Session, req: RunActionRequest): ActionResult {
@@ -30,6 +32,9 @@ export function handleRunAction(session: Session, req: RunActionRequest): Action
 
     case 'split':
       return handleSplit(doc, req.range);
+
+    case 'paste':
+      return handlePaste(doc, req.range, req.content || '');
 
     default:
       // Other formatting commands - placeholder
@@ -274,7 +279,7 @@ function handleSplit(doc: any, range: WRange): ActionResult {
   return {
     changes: [
       { id: node.getId(), html: firstHtml },
-      { id: newId, html: secondHtml }
+      { id: newId, html: secondHtml, prevId: node.getId() }
     ],
     newPosition: { element: newId, offset: 0 }
   };

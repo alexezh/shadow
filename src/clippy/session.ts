@@ -12,6 +12,7 @@ export interface Session {
 export interface ChangeRecord {
   id: string;
   html: string;
+  prevId?: string; // ID of preceding sibling (for new elements)
 }
 
 export interface ActionResult {
