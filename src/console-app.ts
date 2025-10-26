@@ -4,7 +4,7 @@ import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { executeCommand } from './executecommand.js';
+import { executePrompt } from './executeprompt.js';
 
 export class ConsoleApp {
   private database: Database;
@@ -117,7 +117,7 @@ export class ConsoleApp {
       }
 
       try {
-        await executeCommand(undefined, this.database, this.openaiClient, trimmed);
+        await executePrompt(undefined, this.database, this.openaiClient, trimmed);
       } catch (error) {
         console.error(`Error: ${error}`);
       }

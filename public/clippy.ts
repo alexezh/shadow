@@ -485,16 +485,29 @@ class ClippyFloat {
     //logToConsole(`Clippy: ${question}`);
 
     try {
+      const sessionId = getSessionId();
+      const selectionRange = getSelectionRange();
+      const payload: Record<string, any> = {
+        sessionId,
+        prompt: question,
+        partId: currentPartId
+      };
+
+      if (selectionRange) {
+        payload.selectionRange = selectionRange;
+      }
+
+      if (sessionId) {
+        payload.docId = sessionId;
+      }
+
       // Send command to server
       const response = await fetch('/api/executecommand', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          sessionId: getSessionId(),
-          prompt: question
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {

@@ -17,29 +17,30 @@ import { skilledWorker } from "./skilledworker.js";
 import { mcpTools } from "./mcptools.js";
 import { Session } from "./clippy/session.js";
 import { loadDoc } from "./clippy/loaddoc.js";
+import type { ExecutePromptContext } from "./executepromptcontext.js";
 
-export async function executeCommand(session: Session | undefined,
-  database: Database,
-  openaiClient: OpenAIClient,
-  command: string): Promise<void> {
-  const parts = command.split(' ');
+type PromptMetadata = {
+};
+
+export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
+  const parts = ctx.prompt.split(' ');
   const cmd = parts[0];
 
   switch (cmd) {
     case '!init':
-      await handleInit(database, openaiClient);
+      await handleInit(ctx.database, ctx.openaiClient);
       break;
 
     case '!initmodel':
-      await initRuleModel(database);
+      await initRuleModel(ctx.database);
       break;
 
     case '!testmodel':
-      await testRuleModel(database);
+      await testRuleModel(ctx.database);
       break;
 
     case '!list-instructions':
-      await handleListRules(database);
+      await handleListRules(ctx.database);
       break;
 
     case '!get-instruction':
@@ -47,7 +48,7 @@ export async function executeCommand(session: Session | undefined,
         console.log('Usage: get-rule <term1> [term2] ...');
         return;
       }
-      await handleGetInstructions(database, parts.slice(1));
+      await handleGetInstructions(ctx.database, parts.slice(1));
       break;
 
     // case '!store-instruction':
@@ -59,7 +60,7 @@ export async function executeCommand(session: Session | undefined,
         console.log('Usage: !import <filename>');
         return;
       }
-      await importDoc(parts[1], openaiClient);
+      await importDoc(parts[1], ctx.openaiClient);
       break;
 
     case '!load-doc':
@@ -75,15 +76,15 @@ export async function executeCommand(session: Session | undefined,
         console.log('Usage: !import <filename>');
         return;
       }
-      await importBlueprint(parts[1], openaiClient);
+      await importBlueprint(parts[1], ctx.openaiClient);
       break;
 
     case '!ib':
-      await importBlueprint("tonniecv.html", openaiClient);
+      await importBlueprint("tonniecv.html", ctx.openaiClient);
       break;
 
     case '!make-sample':
-      await makeSample(openaiClient, command);
+      await makeSample(ctx.openaiClient, ctx.prompt);
       break;
 
     case '!make-html':
@@ -96,9 +97,9 @@ export async function executeCommand(session: Session | undefined,
 
     case '!listparts':
       if (parts.length >= 2) {
-        await handleListParts(database, parts[1]);
+        await handleListParts(ctx.database, parts[1]);
       } else {
-        await handleListParts(database);
+        await handleListParts(ctx.database);
       }
       break;
 
@@ -107,7 +108,7 @@ export async function executeCommand(session: Session | undefined,
         console.log('Usage: !editpart <docid> <partid>');
         return;
       }
-      await handleEditPart(database, parts[1], parts[2]);
+      await handleEditPart(ctx.database, parts[1], parts[2]);
       break;
 
     case '!export':
@@ -115,13 +116,13 @@ export async function executeCommand(session: Session | undefined,
         console.log('Usage: !assemble <docid>');
         return;
       }
-      await handleExport(database, parts[1]);
+      await handleExport(ctx.database, parts[1]);
       break;
 
     default:
       // Treat as chat message if not starting with !
-      if (!command.startsWith('!')) {
-        await handleChatMessage(session!, database, openaiClient, command);
+      if (!ctx.prompt.startsWith('!')) {
+        await handleChatMessage(ctx);
       } else {
         console.log('Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, !assemble, exit');
       }
@@ -202,15 +203,19 @@ async function handleExport(database: Database, docid: string): Promise<void> {
   }
 }
 
-async function handleChatMessage(session: Session, database: Database, openaiClient: OpenAIClient, message: string): Promise<void> {
+async function handleChatMessage(
+  ctx: ExecutePromptContext
+): Promise<void> {
   try {
-    const systemPrompt = await getChatPrompt(database);
+    const systemPrompt = await getChatPrompt(ctx.database, {
+      docId: ctx.docId ?? ctx.session?.id,
+      partId: ctx.partId ?? ctx.session?.currentPartId,
+      selectionRange: ctx.selectionRange
+    });
     const result = await skilledWorker(
-      session,
-      openaiClient,
+      ctx,
       mcpTools,
       systemPrompt,
-      message
     );
 
     // Note: conversationState is now returned instead of conversationId

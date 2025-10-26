@@ -48,6 +48,24 @@ export const mcpTools: ChatCompletionTool[] = [
   {
     type: 'function' as const,
     function: {
+      name: 'replace_contentrange',
+      description: 'Replaces range of document content from HTML parts stored in the database. Omit start_para and end_para to read entire document from start to end',
+      parameters: {
+        type: 'object',
+        properties: {
+          docid: { type: 'string', description: 'Document ID' },
+          partid: { type: 'string', description: 'Part ID' },
+          format: { type: 'string', enum: ['text', 'html'] },
+          start_para: { type: 'string', description: 'Starting paragraph ID (optional)' },
+          end_para: { type: 'string', description: 'Ending paragraph ID (optional)' }
+        },
+        required: ['docid', 'format']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'store_asset',
       description: `Store document data with embeddings. 
 For large content, use chunking parameters.

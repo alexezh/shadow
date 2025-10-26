@@ -13,8 +13,10 @@ export interface Session {
 
 export interface PromptRequest {
   sessionId: string;
-  partId: string;
   prompt: string;
+  partId?: string;
+  docId?: string;
+  selectionRange?: unknown;
 }
 
 export type GetChangesResponse = { kind: "console" | "action", data: ActionResult | ConsoleResult };

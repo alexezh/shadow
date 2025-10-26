@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Database } from '../database.js';
 import { YDoc } from '../om/YDoc.js';
-import { executeCommand } from '../executecommand.js';
+import { executePrompt } from '../executeprompt.js';
 import { OpenAIClient } from '../openai-client.js';
 import { handleRunAction, RunActionRequest } from './handleRunAction.js';
 import { PromptRequest, Session } from './session.js';
@@ -270,7 +270,11 @@ export class HttpServer {
   }
 
   private async executeCommand(session: Session, prompt: PromptRequest): Promise<string> {
-    executeCommand(session, this.database, this.openaiClient, prompt.prompt);
+    executePrompt(session, this.database, this.openaiClient, prompt.prompt, {
+      partId: prompt.partId,
+      docId: prompt.docId,
+      selectionRange: prompt.selectionRange
+    });
     // Notify waiting clients
     //this.notifyChangeListeners(session.id);
     return "success";

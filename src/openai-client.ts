@@ -512,7 +512,7 @@ export class OpenAIClient {
           continue;
         }
 
-        await this.executeTools(session, toolCalls, messages, conversationState);
+        await this.executeTools(session!, toolCalls, messages, conversationState);
 
         if (synthesizedEnvelope) {
           pushSystemMessage('Reminder: include a phase="action" envelope that lists your tools before invoking them.');

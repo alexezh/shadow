@@ -4,6 +4,12 @@ import { Database } from './database.js';
 
 export const youAreShadow = 'You are Shadow, a word processing software agent responsible for working with documents.';
 
+export interface ChatPromptContext {
+  selectionRange?: unknown;
+  docId?: string;
+  partId?: string;
+}
+
 function normalizeInstructionText(text?: string | null): string {
   if (!text) {
     return '';
@@ -35,15 +41,35 @@ async function loadSelectSkillInstructions(database: Database): Promise<string> 
   }
 }
 
-export async function getChatPrompt(database: Database): Promise<string> {
+export async function getChatPrompt(database: Database, context?: ChatPromptContext): Promise<string> {
   const selectSkillInstructions = await loadSelectSkillInstructions(database);
+  const contextLines: string[] = [];
+
+  if (context?.docId) {
+    contextLines.push(`- Active document id: ${context.docId}`);
+  }
+
+  if (context?.partId) {
+    contextLines.push(`- Active part id: ${context.partId} (e.g., main content, draft, summary, comments)`);
+  }
+
+  if (context?.selectionRange !== undefined && context.selectionRange !== null) {
+    const selectionJson = typeof context.selectionRange === 'string'
+      ? context.selectionRange
+      : JSON.stringify(context.selectionRange);
+    contextLines.push(`- Current selection range: ${selectionJson}`);
+  }
+
+  const contextSegment = contextLines.length > 0
+    ? `Current editing context:\n${contextLines.join('\n')}\n\n`
+    : '';
 
   const systemPrompt = `
 ${youAreShadow}
 You have access to document library which you can read with load_asset API and write with store_asset API.
 You can also store additional data like summary, blueprint or any other information in the library.
 
-Use the following skill-selection guide ONLY to choose which skill to apply internally—never send the skill name directly to the user unless explicitly asked.
+${contextSegment}Use the following skill-selection guide ONLY to choose which skill to apply internally—never send the skill name directly to the user unless explicitly asked.
 
 ${selectSkillInstructions}
 
