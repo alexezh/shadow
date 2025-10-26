@@ -13,6 +13,7 @@ import {
   setCurrentPartId
 } from "./dom.js"
 import { getSelectionRange } from "./dom.js"
+import { VirtualDocument, vdomCache } from "./vdom.js"
 
 // Toolbar button handlers
 const buttons = {
@@ -273,6 +274,19 @@ function applyChanges(changes: ChangeRecord[]): void {
         break;
     }
   }
+
+  // Update the cached virtual document after changes
+  const currentPartId = vdomCache.getCurrentPartId();
+  if (currentPartId) {
+    const vdom = vdomCache.get(currentPartId);
+    if (vdom) {
+      const docContent = document.getElementById('doc-content') as HTMLElement;
+      if (docContent) {
+        vdom.captureFromDOM(docContent);
+        vdomCache.set(currentPartId, vdom);
+      }
+    }
+  }
 }
 
 // Apply styles to document
@@ -325,13 +339,16 @@ async function loadDocument(): Promise<void> {
 
     const docContent = document.getElementById('doc-content') as HTMLElement;
     if (!docContent) return;
-    docContent.innerHTML = data.html;
 
-    // Apply styles if provided
-    if (data.styles && data.styles.length > 0) {
-      applyStyles(data.styles);
-      logToConsole(`Loaded ${data.styles.length} styles`);
-    }
+    // Create virtual document for main part
+    const partId = 'main';
+    const vdom = new VirtualDocument(partId, data.html, data.styles || []);
+    vdom.applyToDOM(docContent, 'doc-styles');
+
+    // Store in cache
+    vdomCache.set(partId, vdom);
+    vdomCache.setCurrentPartId(partId);
+    setCurrentPartId(partId);
 
     logToConsole(`Document loaded, session: ${getSessionId()}`, 'info');
 
@@ -614,24 +631,50 @@ function renderPartsList(): void {
 async function selectPart(partId: string): Promise<void> {
   if (partId === currentPartId) return;
 
+  const docContent = document.getElementById('doc-content') as HTMLElement;
+  if (!docContent) return;
+
   try {
-    const response = await fetch(`/api/getpart?sessionId=${getSessionId()}&partId=${partId}`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    // Save current document state to cache
+    const oldPartId = vdomCache.getCurrentPartId();
+    if (oldPartId) {
+      const currentVdom = vdomCache.get(oldPartId);
+      if (currentVdom) {
+        // Capture current DOM state before switching
+        currentVdom.captureFromDOM(docContent);
+        vdomCache.set(oldPartId, currentVdom);
+        logToConsole(`Cached part: ${oldPartId}`, 'info');
+      }
     }
 
-    const data = await response.json();
+    // Check if new part is already in cache
+    let vdom = vdomCache.get(partId);
+
+    if (vdom) {
+      // Load from cache
+      logToConsole(`Loading part from cache: ${partId}`, 'info');
+      vdom.applyToDOM(docContent, 'doc-styles');
+    } else {
+      // Fetch from server
+      const response = await fetch(`/api/getpart?sessionId=${getSessionId()}&partId=${partId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Create new virtual document
+      vdom = new VirtualDocument(partId, data.html, data.styles || []);
+      vdom.applyToDOM(docContent, 'doc-styles');
+
+      // Store in cache
+      vdomCache.set(partId, vdom);
+      logToConsole(`Fetched and cached part: ${partId}`, 'info');
+    }
+
+    // Update current part ID
     setCurrentPartId(partId);
-
-    // Update document content
-    const docContent = document.getElementById('doc-content') as HTMLElement;
-    if (!docContent) return;
-    docContent.innerHTML = data.html;
-
-    // Apply styles if provided
-    if (data.styles && data.styles.length > 0) {
-      applyStyles(data.styles);
-    }
+    vdomCache.setCurrentPartId(partId);
 
     // Re-render parts list to update active state
     renderPartsList();
@@ -641,6 +684,7 @@ async function selectPart(partId: string): Promise<void> {
     // Reinitialize cursor for new content
     if (window.ipCursor) {
       window.ipCursor.position = { node: null, offset: 0 };
+      window.ipCursor.selection.clear();
       docContent.focus();
     }
   } catch (error) {

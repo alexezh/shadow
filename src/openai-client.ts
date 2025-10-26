@@ -695,10 +695,7 @@ export class OpenAIClient {
           }
 
           const toolCall = toolCallsMap.get(callId)!;
-          const res = accumulateCallParams(event, callId, toolCall);
-          if (res === "break") {
-            break streamLoop;
-          }
+          accumulateCallParams(event, callId, toolCall);
           continue;
         } else if (type === 'response.usage.delta') {
           const delta = event.delta ?? {};
@@ -777,10 +774,13 @@ export class OpenAIClient {
       }
 
       const functionName = toolCall.function?.name ?? toolCall.name ?? 'unknown';
+      const preParsed = (toolCall as any).__parsed;
       const rawArgs = toolCall.function?.arguments ?? toolCall.arguments ?? '{}';
 
       let parsedArgs: Record<string, unknown> = {};
-      if (typeof rawArgs === 'string') {
+      if (preParsed && typeof preParsed === 'object') {
+        parsedArgs = preParsed as Record<string, unknown>;
+      } else if (typeof rawArgs === 'string') {
         const trimmed = rawArgs.trim();
         if (trimmed.length > 0) {
           try {
@@ -903,8 +903,6 @@ function accumulateCallParams(
 ) {
   (toolCall as any).__blankCount ??= 0;
   (toolCall as any).__locked ??= false;
-  (toolCall as any).__debounce ??= 0;
-
   const rawDelta = typeof event.delta === 'string'
     ? event.delta
     : (event.delta?.arguments ?? '');
@@ -912,10 +910,9 @@ function accumulateCallParams(
   // If locked, wait for a couple of whitespace ticks, then break stream loop.
   if ((toolCall as any).__locked) {
     if (typeof rawDelta === 'string' && rawDelta.trim().length === 0) {
-      (toolCall as any).__debounce++;
-      if ((toolCall as any).__debounce >= 2) return "break";
+      (toolCall as any).__blankCount++;
     }
-    return "continue";
+    return;
   }
 
   if (typeof rawDelta === 'string') {
@@ -930,8 +927,7 @@ function accumulateCallParams(
         toolCall.function.arguments = parsed.slice;
         (toolCall as any).__parsed = parsed.json;
         (toolCall as any).__locked = true;
-        (toolCall as any).__debounce = 0;
-        return "continue"; // next tick or two will be blanks; then we'll "break"
+        return;
       }
     } else {
       // Whitespace heartbeat
@@ -947,8 +943,7 @@ function accumulateCallParams(
         }
         toolCall.function.arguments = slice;
         (toolCall as any).__locked = true;
-        (toolCall as any).__debounce = 0;
-        return "continue";
+        return;
       }
 
       // Nothing but whitespace forever?
@@ -958,11 +953,8 @@ function accumulateCallParams(
       if (toolCall.function.arguments.length > 0 && (toolCall as any).__blankCount > 50) {
         console.warn(`⚠️ Excessive whitespace for tool ${toolCall.function.name || callId}; locking by timeout.`);
         (toolCall as any).__locked = true;
-        (toolCall as any).__debounce = 0;
-        return "continue";
+        return;
       }
     }
   }
-
-  return "continue";
 }
