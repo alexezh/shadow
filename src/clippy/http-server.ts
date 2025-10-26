@@ -228,7 +228,7 @@ export class HttpServer {
         const result = handleRunAction(session, request);
 
         // Add result to pending changes
-        session.pendingChanges.push(result);
+        //session.pendingChanges.push(result);
 
         // Notify any waiting getchanges requests
         this.notifyChangeListeners(request.sessionId);

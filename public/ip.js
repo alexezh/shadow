@@ -421,12 +421,38 @@ export class IPCursor {
 
       if (!clipboardData) {
         // Use Clipboard API if available
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          const text = await navigator.clipboard.readText();
-          this.processPaste(text);
-        } else {
-          logToConsole('Clipboard access not available', 'error');
+        if (navigator.clipboard) {
+          try {
+            // Try to read HTML first using the modern Clipboard API
+            if (navigator.clipboard.read) {
+              const items = await navigator.clipboard.read();
+              for (const item of items) {
+                // Try HTML first
+                if (item.types.includes('text/html')) {
+                  const blob = await item.getType('text/html');
+                  const html = await blob.text();
+                  this.processPaste(html);
+                  return;
+                }
+                // Fall back to plain text
+                if (item.types.includes('text/plain')) {
+                  const blob = await item.getType('text/plain');
+                  const text = await blob.text();
+                  this.processPaste(text);
+                  return;
+                }
+              }
+            } else if (navigator.clipboard.readText) {
+              // Fallback to readText if read() is not available
+              const text = await navigator.clipboard.readText();
+              this.processPaste(text);
+              return;
+            }
+          } catch (err) {
+            logToConsole(`Clipboard read error: ${err.message}`, 'error');
+          }
         }
+        logToConsole('Clipboard access not available', 'error');
         return;
       }
 

@@ -41,13 +41,13 @@ export function loadDoc(session: Session | undefined, htmlContent: string): stri
   const newHtml = makeHtml(body);
 
   // Create a change to update the entire document
-  session.pendingChanges.push({
-    changes: [{
-      id: 'doc-content',
-      html: newHtml,
-      op: "inserted"
-    }]
-  });
+  // session.pendingChanges.push({
+  //   changes: [{
+  //     id: 'doc-content',
+  //     html: newHtml,
+  //     op: "inserted"
+  //   }]
+  // });
 
   return `Document loaded successfully. ${nodeCount} nodes added.`;
 }
