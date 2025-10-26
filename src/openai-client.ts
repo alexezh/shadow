@@ -655,14 +655,10 @@ export class OpenAIClient {
         if (type === 'response.output_text.delta') {
           assistantContent += event.delta ?? '';
           continue;
-        }
-
-        if (type === 'response.refusal.delta') {
+        } else if (type === 'response.refusal.delta') {
           refusalContent += event.delta ?? '';
           continue;
-        }
-
-        if (type === 'response.tool_calls.created' || type === 'response.function_call.created') {
+        } else if (type === 'response.tool_calls.created' || type === 'response.function_call.created') {
           const call = event.tool_call ?? event;
           const callId = call?.id ?? event.item_id ?? event.call_id;
           const funcName = call?.function?.name ?? call?.name ?? event.name ?? '';
@@ -679,9 +675,7 @@ export class OpenAIClient {
             }
           });
           continue;
-        }
-
-        if (type === 'response.tool_calls.arguments.delta' || type === 'response.function_call_arguments.delta') {
+        } else if (type === 'response.tool_calls.arguments.delta' || type === 'response.function_call_arguments.delta') {
           const callId = event.tool_call_id ?? event.tool_call?.id ?? event.item_id ?? event.call_id ?? event.id;
           if (!callId) {
             console.warn('⚠️ Missing tool call id while streaming arguments delta', JSON.stringify(event).slice(0, 200));
@@ -706,9 +700,7 @@ export class OpenAIClient {
             break streamLoop;
           }
           continue;
-        }
-
-        if (type === 'response.usage.delta') {
+        } else if (type === 'response.usage.delta') {
           const delta = event.delta ?? {};
           const promptDelta = delta.prompt_tokens ?? 0;
           const completionDelta = delta.completion_tokens ?? 0;
@@ -717,9 +709,7 @@ export class OpenAIClient {
           completionTokens += completionDelta;
           totalTokens += totalDelta;
           continue;
-        }
-
-        if (type === 'response.completed' || type === 'response.done') {
+        } else if (type === 'response.completed' || type === 'response.done') {
           const usage = event.response?.usage ?? event.usage;
           if (usage) {
             promptTokens = usage.prompt_tokens ?? promptTokens;
@@ -727,14 +717,10 @@ export class OpenAIClient {
             totalTokens = usage.total_tokens ?? totalTokens;
           }
           continue;
-        }
-
-        if (type === 'response.error') {
+        } else if (type === 'response.error') {
           const errMessage = event.error?.message ?? 'Unknown response stream error';
           throw new Error(errMessage);
-        }
-
-        if (type &&
+        } else if (type &&
           !type.startsWith('response.output_text') &&
           !type.startsWith('response.output_item') &&
           !type.startsWith('response.content_part') &&
@@ -871,10 +857,50 @@ function parseIfReady(s: string): { ok: true; value: any } | { ok: false } {
   try { return { ok: true, value: JSON.parse(t) }; } catch { return { ok: false }; }
 }
 
+function extractFirstBalancedJson(s: string): string | null {
+  // Find first '{' or '['
+  const start = s.search(/[\{\[]/);
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  let end = -1;
+  const open = s[start];
+  const close = open === '{' ? '}' : ']';
+
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) { end = i; break; }
+    }
+  }
+
+  if (end === -1) return null;
+  return s.slice(start, end + 1); // exact JSON slice; ignore any trailing junk
+}
+
+function tryParseFirstJson(s: string): { ok: true; json: any; slice: string } | { ok: false } {
+  const slice = extractFirstBalancedJson(s);
+  if (!slice) return { ok: false };
+  try { return { ok: true, json: JSON.parse(slice), slice }; }
+  catch { return { ok: false }; }
+}
+
 function accumulateCallParams(
   event: any,
   callId: string,
-  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall) {
+  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall
+) {
   (toolCall as any).__blankCount ??= 0;
   (toolCall as any).__locked ??= false;
   (toolCall as any).__debounce ??= 0;
@@ -883,60 +909,57 @@ function accumulateCallParams(
     ? event.delta
     : (event.delta?.arguments ?? '');
 
+  // If locked, wait for a couple of whitespace ticks, then break stream loop.
   if ((toolCall as any).__locked) {
-    // Already have complete args; ignore trailing whitespace ticks.
     if (typeof rawDelta === 'string' && rawDelta.trim().length === 0) {
       (toolCall as any).__debounce++;
-      if ((toolCall as any).__debounce >= 2) {
-        return "break"; // move to next step quickly
-      }
+      if ((toolCall as any).__debounce >= 2) return "break";
     }
-    // If model erroneously sends more non-whitespace after lock, you could log it.
     return "continue";
   }
 
   if (typeof rawDelta === 'string') {
-    if (rawDelta.length && rawDelta.trim().length > 0) {
+    if (rawDelta.trim().length > 0) {
       toolCall.function.arguments += rawDelta;
       (toolCall as any).__blankCount = 0;
 
-      // Check completeness on every meaningful chunk.
-      const ready = parseIfReady(toolCall.function.arguments);
-      if (ready.ok) {
+      // Try to parse the FIRST balanced JSON slice only.
+      const parsed = tryParseFirstJson(toolCall.function.arguments);
+      if (parsed.ok) {
+        // Keep only the valid JSON slice; drop any trailing chatter.
+        toolCall.function.arguments = parsed.slice;
+        (toolCall as any).__parsed = parsed.json;
         (toolCall as any).__locked = true;
         (toolCall as any).__debounce = 0;
-
-        // Optionally store parsed args to avoid re-parse later:
-        (toolCall as any).__parsed = ready.value;
-
-        // Don’t wait for 20 tabs—just require a tiny debounce of whitespace.
-        return "contunue";
+        return "continue"; // next tick or two will be blanks; then we'll "break"
       }
     } else {
-      // Whitespace delta (\t, \n, etc.)
-      (toolCall as any).__blankCount = ((toolCall as any).__blankCount ?? 0) + 1;
-
-      // If it *looks* like complete JSON but parse failed due to e.g. dangling comma,
-      // you can still bail out after a few blanks, or keep your old high watermark.
-      if (looksLikeJson(toolCall.function.arguments) && isBalancedJsonish(toolCall.function.arguments)) {
-        if ((toolCall as any).__blankCount >= 3) {
-          console.warn(`⚠️ Whitespace heartbeats; treating tool args as complete by balance.`);
-          (toolCall as any).__locked = true;
-          (toolCall as any).__debounce = 0;
-          return "continue";
+      // Whitespace heartbeat
+      (toolCall as any).__blankCount++;
+      // If the buffer ALREADY contains a balanced slice (even if parse failed before),
+      // and we've seen a few blanks, lock by balance to move on.
+      const slice = extractFirstBalancedJson(toolCall.function.arguments);
+      if (slice && (toolCall as any).__blankCount >= 3) {
+        try {
+          (toolCall as any).__parsed = JSON.parse(slice);
+        } catch {
+          // As a last resort, still accept balanced slice and let caller validate.
         }
+        toolCall.function.arguments = slice;
+        (toolCall as any).__locked = true;
+        (toolCall as any).__debounce = 0;
+        return "continue";
       }
 
-      // Legacy guard: if nothing but whitespace for too long
+      // Nothing but whitespace forever?
       if (toolCall.function.arguments.length === 0 && (toolCall as any).__blankCount > 20) {
         throw new Error(`Tool call ${toolCall.function.name || callId} produced only whitespace arguments.`);
       }
-
-      // If we have *some* args but only blanks for too long, bail out too:
       if (toolCall.function.arguments.length > 0 && (toolCall as any).__blankCount > 50) {
-        console.warn(`⚠️ Excessive whitespace deltas for tool ${toolCall.function.name || callId}; assuming arguments complete.`);
+        console.warn(`⚠️ Excessive whitespace for tool ${toolCall.function.name || callId}; locking by timeout.`);
         (toolCall as any).__locked = true;
         (toolCall as any).__debounce = 0;
+        return "continue";
       }
     }
   }

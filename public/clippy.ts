@@ -374,6 +374,11 @@ class ClippyFloat {
   }
 
   setupEventListeners(): void {
+    // Prevent mousedown on clippy from affecting document selection
+    this.floatEl.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+    });
+
     // Click on icon to expand
     this.iconEl.addEventListener('click', (e) => {
       e.stopPropagation();

@@ -40,8 +40,30 @@ export class IPCursor {
 
   setupEventListeners(): void {
     // Mouse down to position cursor (not on release)
+    let isMouseDown = false;
+    let isShiftDown = false;
+    let selectionAnchor: { node: Node | null; offset: number } | null = null;
+
     this.documentEl.addEventListener('mousedown', (e) => {
-      this.positionAtClick(e);
+      isMouseDown = true;
+      isShiftDown = e.shiftKey;
+
+      if (isShiftDown && this.position.node) {
+        // Start selection from current position
+        selectionAnchor = { node: this.position.node, offset: this.position.offset };
+        if (!this.selection.active) {
+          this.selection.set(
+            this.position.node,
+            this.position.offset,
+            this.position.node,
+            this.position.offset
+          );
+        }
+      } else {
+        // Clear selection and position cursor normally
+        selectionAnchor = null;
+        this.positionAtClick(e);
+      }
 
       // Hide Clippy on mouse button press
       if (window.clippyFloat) {
@@ -49,15 +71,10 @@ export class IPCursor {
       }
     });
 
-    // Mouse move to continuously position cursor while mouse is down
-    let isMouseDown = false;
-
-    this.documentEl.addEventListener('mousedown', () => {
-      isMouseDown = true;
-    });
-
     document.addEventListener('mouseup', () => {
       isMouseDown = false;
+      isShiftDown = false;
+      selectionAnchor = null;
 
       // Restore Clippy on mouse button release
       if (window.clippyFloat) {
@@ -67,7 +84,28 @@ export class IPCursor {
 
     this.documentEl.addEventListener('mousemove', (e) => {
       if (isMouseDown) {
-        this.positionAtClick(e);
+        if (isShiftDown && selectionAnchor) {
+          // Extend selection to current mouse position
+          const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+          if (range && range.startContainer) {
+            this.position.node = range.startContainer;
+            this.position.offset = range.startOffset;
+
+            // Update selection end to current position
+            this.selection.set(
+              selectionAnchor.node,
+              selectionAnchor.offset,
+              this.position.node,
+              this.position.offset
+            );
+
+            this.updateCursorPosition();
+            this.highlightSelection();
+          }
+        } else {
+          // Normal cursor positioning
+          this.positionAtClick(e);
+        }
       }
     });
 
