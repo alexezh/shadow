@@ -100,6 +100,90 @@
       color: #1976d2;
     }
 
+    /* Parts section */
+    .parts-section {
+      margin-bottom: 15px;
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 10px;
+    }
+
+    .parts-toolbar {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 8px;
+    }
+
+    .parts-toolbar button {
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      background-color: #fff;
+      cursor: pointer;
+      font-size: 11px;
+      border-radius: 3px;
+      transition: background-color 0.2s;
+    }
+
+    .parts-toolbar button:hover {
+      background-color: #f0f0f0;
+    }
+
+    .parts-toolbar button:active {
+      background-color: #e0e0e0;
+    }
+
+    .parts-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .part-item {
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background-color 0.2s;
+    }
+
+    .part-item:hover {
+      background-color: #f9f9f9;
+    }
+
+    .part-item.active {
+      background-color: #e3f2fd;
+      border-color: #2196f3;
+    }
+
+    .part-item-kind {
+      color: #666;
+      font-size: 10px;
+      text-transform: uppercase;
+      margin-right: 4px;
+    }
+
+    .part-item-title {
+      color: #333;
+    }
+
+    .parts-more-btn {
+      width: 100%;
+      padding: 4px;
+      border: 1px solid #ccc;
+      background-color: #fff;
+      cursor: pointer;
+      font-size: 11px;
+      border-radius: 3px;
+      margin-top: 4px;
+      transition: background-color 0.2s;
+    }
+
+    .parts-more-btn:hover {
+      background-color: #f0f0f0;
+    }
+
     /* ===== Clippy floating assistant ===== */
 
     /* Container */
@@ -245,6 +329,19 @@
   <div class="container">
     <!-- Console on the left -->
     <div class="console" id="console">
+      <!-- Parts section -->
+      <div class="parts-section">
+        <div class="parts-toolbar">
+          <button id="btn-add-draft">+draft</button>
+          <button id="btn-add-chat">+chat</button>
+        </div>
+        <ul class="parts-list" id="parts-list">
+          <!-- Parts will be populated here -->
+        </ul>
+        <button class="parts-more-btn" id="parts-more-btn" style="display: none;">more</button>
+      </div>
+
+      <!-- Console log -->
       <div class="console-line info">Shadow Editor Console</div>
       <div class="console-line">Ready...</div>
     </div>
@@ -320,7 +417,7 @@
     })();
   </script>
 
-  <script src="/clippy.js"></script>
+  <script type="module" src="/clippy.js"></script>
 </body>
 
 </html>

@@ -63,6 +63,7 @@ export class HttpServer {
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = req.url || '/';
 
+    console.log(url);
     // Serve w.html at root
     if (url === '/' || url === '/clippy.html') {
       await this.serveFile(res, 'clippy.html', 'text/html');
@@ -70,42 +71,61 @@ export class HttpServer {
     }
 
     // Serve wx.js
-    if (url === '/clippy.js') {
-      await this.serveFile(res, 'clippy.js', 'application/javascript');
-      return;
-    }
+    switch (url) {
 
-    // Serve image files
-    if (url === '/bullet.png') {
-      await this.serveFile(res, 'bullet.png', 'image/png');
-      return;
-    }
+      case '/clippy.js':
+        await this.serveFile(res, 'clippy.js', 'application/javascript');
+        return;
 
-    if (url === '/numbered.png') {
-      await this.serveFile(res, 'numbered.png', 'image/png');
-      return;
-    }
+      case '/dom.js':
+        await this.serveFile(res, 'dom.js', 'application/javascript');
+        return;
 
-    if (url === '/clippy.png') {
-      await this.serveFile(res, 'clippy.png', 'image/png');
-      return;
-    }
+      case '/ip.js':
+        await this.serveFile(res, 'ip.js', 'application/javascript');
+        return;
 
-    if (url === '/uparrow.png') {
-      await this.serveFile(res, 'uparrow.png', 'image/png');
-      return;
-    }
+      // Serve image files
+      case '/bullet.png':
+        await this.serveFile(res, 'bullet.png', 'image/png');
+        return;
 
-    // API endpoint to get document
-    if (url === '/api/getdoc' && req.method === 'GET') {
-      await this.handleGetDoc(req, res);
-      return;
-    }
 
-    // API endpoint to run command
-    if (url === '/api/runaction' && req.method === 'POST') {
-      await this.handleRunAction(req, res);
-      return;
+      case '/numbered.png':
+        await this.serveFile(res, 'numbered.png', 'image/png');
+        return;
+
+
+      case '/clippy.png':
+        await this.serveFile(res, 'clippy.png', 'image/png');
+        return;
+
+
+      case '/uparrow.png':
+        await this.serveFile(res, 'uparrow.png', 'image/png');
+        return;
+
+
+      // API endpoint to get document
+      case '/api/getdoc':
+        if (req.method === 'GET') {
+          await this.handleGetDoc(req, res);
+          return;
+        }
+
+      // API endpoint to run command
+      case '/api/runaction':
+        if (req.method === 'POST') {
+          await this.handleRunAction(req, res);
+          return;
+        }
+      // API endpoint to create part
+      case '/api/createpart':
+        if (req.method === 'POST') {
+          await this.handleCreatePart(req, res);
+          return;
+        }
+
     }
 
     // API endpoint to execute command (from Clippy)
@@ -117,6 +137,18 @@ export class HttpServer {
     // API endpoint to get changes (long polling)
     if (url.startsWith('/api/getchanges') && req.method === 'GET') {
       await this.handleGetChanges(req, res);
+      return;
+    }
+
+    // API endpoint to get parts list
+    if (url.startsWith('/api/getparts') && req.method === 'GET') {
+      await this.handleGetParts(req, res);
+      return;
+    }
+
+    // API endpoint to get part
+    if (url.startsWith('/api/getpart') && req.method === 'GET') {
+      await this.handleGetPart(req, res);
       return;
     }
 
@@ -144,7 +176,8 @@ export class HttpServer {
       createdAt: new Date(),
       pendingChanges: [],
       changeResolvers: [],
-      doc
+      doc,
+      currentPartId: 'main'
     };
     this.sessions.set(newSessionId, session);
     console.log(`Created session: ${newSessionId}`);
@@ -310,6 +343,104 @@ export class HttpServer {
         resolve(changes);
       }
     }
+  }
+
+  private async handleGetParts(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    const sessionId = url.searchParams.get('sessionId');
+
+    if (!sessionId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing sessionId' }));
+      return;
+    }
+
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Session not found' }));
+      return;
+    }
+
+    // Get all parts from the document
+    const parts = Array.from(session.doc.parts.values()).map(part => ({
+      id: part.id,
+      kind: part.kind,
+      title: part.title
+    }));
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ parts }));
+  }
+
+  private async handleCreatePart(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+
+    req.on('end', () => {
+      try {
+        const { sessionId, kind } = JSON.parse(body);
+
+        const session = this.sessions.get(sessionId);
+        if (!session) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Session not found' }));
+          return;
+        }
+
+        // Create a new part
+        const partId = session.doc.createPart(kind);
+        console.log(`Created part: ${partId} (kind: ${kind})`);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, partId }));
+      } catch (error) {
+        console.error('Error handling createpart:', error);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid request' }));
+      }
+    });
+  }
+
+  private async handleGetPart(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    const sessionId = url.searchParams.get('sessionId');
+    const partId = url.searchParams.get('partId');
+
+    if (!sessionId || !partId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing sessionId or partId' }));
+      return;
+    }
+
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Session not found' }));
+      return;
+    }
+
+    // Get the part
+    const part = session.doc.parts.get(partId);
+    if (!part) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Part not found' }));
+      return;
+    }
+
+    // Update session's current part
+    session.currentPartId = partId;
+
+    // Generate HTML from part's body
+    const html = part.body ? makeHtml(part.body) : '';
+
+    // Get styles as JSON array
+    const styles = session.doc.getStyleStore().toJson();
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ html, styles }));
   }
 
   private async serveFile(res: http.ServerResponse, filename: string, contentType: string): Promise<void> {

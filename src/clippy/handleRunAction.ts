@@ -16,10 +16,16 @@ export type RunActionRequest = {
   range: WRange;
   text?: string; // For type action
   content?: string; // For paste action
+  partId?: string; // Optional part ID, defaults to 'main'
 }
 
 export function handleRunAction(session: Session, req: RunActionRequest): ActionResult {
   const doc = session.doc;
+
+  // Update current part ID if provided
+  if (req.partId) {
+    session.currentPartId = req.partId;
+  }
 
   switch (req.action) {
     case 'backspace':

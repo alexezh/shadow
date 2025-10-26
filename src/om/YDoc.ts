@@ -10,11 +10,13 @@ export class YDocPart {
   public readonly doc: YDoc;
   public readonly id: string;
   public readonly kind: YDocPartKind;
+  public readonly title: string;
 
-  public constructor(doc: YDoc, id: string, kind: YDocPartKind, body?: YBody) {
+  public constructor(doc: YDoc, id: string, kind: YDocPartKind, title: string, body?: YBody) {
     this.doc = doc;
     this.id = id;
     this.kind = kind;
+    this.title = title;
     this.body = body;
   }
 }
@@ -23,14 +25,34 @@ export class YDoc {
   private body: YBody;
   private styleStore: YStyleStore;
   private nodeMap: Map<string, YNode>;
-  private readonly parts = new Map<string, YDocPart>();
+  private readonly _parts = new Map<string, YDocPart>();
+
+  public get parts(): ReadonlyMap<string, YDocPart> {
+    return this._parts;
+  }
 
   constructor() {
     this.body = new YBody('body', YPropSet.create({}));
-    this.parts.set("main", new YDocPart(this, "main", "main", this.body))
+    this._parts.set("main", new YDocPart(this, "main", "main", "Main content", this.body))
     this.styleStore = new YStyleStore();
     this.nodeMap = new Map();
     this.linkTree();
+  }
+
+  public createPart(kind: YDocPartKind): string {
+    // Generate a unique part ID
+    const partId = `${kind}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Create a new body for the part
+    const partBody = new YBody(`body_${partId}`, YPropSet.create({}));
+    this.linkNodeInternal(null, partBody);
+
+    // Create the part
+    const title = `${kind.charAt(0).toUpperCase() + kind.slice(1)} ${this._parts.size}`;
+    const part = new YDocPart(this, partId, kind, title, partBody);
+    this._parts.set(partId, part);
+
+    return partId;
   }
 
   // Set doc reference on all nodes in the tree

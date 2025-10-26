@@ -7,6 +7,7 @@ export interface Session {
   pendingChanges: Array<ActionResult>;
   changeResolvers: Array<(changes: any[]) => void>;
   doc: YDoc;
+  currentPartId: string;
 }
 
 export interface ChangeRecord {
