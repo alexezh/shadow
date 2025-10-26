@@ -446,7 +446,7 @@ class ClippyFloat {
     this.floatEl.style.left = `${cursorRect.left + 2}px`;
     this.floatEl.style.top = `${cursorRect.bottom + 2}px`;
 
-    logToConsole(`Clippy positioned at (${cursorRect.left + 2}, ${cursorRect.bottom + 2})`);
+    //logToConsole(`Clippy positioned at (${cursorRect.left + 2}, ${cursorRect.bottom + 2})`);
   }
 
   expand(): void {

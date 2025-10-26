@@ -1,3 +1,5 @@
+import type { IPCursor } from "./ip";
+
 // Console logging
 const consoleEl = document.getElementById('console') as HTMLElement;
 
@@ -8,6 +10,11 @@ let sessionId: string | null = null;
 export let currentPartId: string = 'main';
 export let allParts: Array<{ id: string; kind: string; title: string }> = [];
 export let showAllParts: boolean = false;
+
+export type EditorContext = {
+  
+  ipCursor: IPCursor;
+}
 
 export function setCurrentPartId(_partId: string): void {
   currentPartId = _partId;
