@@ -1,4 +1,4 @@
-import { ActionResult, ChangeRecord, Session } from './session.js';
+import { ActionResult, ContentChangeRecord, Session } from './session.js';
 import { make31BitId } from '../make31bitid.js';
 import { WRange } from '../om/YNode.js';
 import { YPara } from '../om/YPara.js';
@@ -56,7 +56,7 @@ function handleDelete(doc: YDoc, range: WRange, key: "backspace" | "delete"): Ac
   const node = doc.getNodeById(range.startElement);
   let changedNodes = deleteRange(doc, range);
 
-  const changeRecords: ChangeRecord[] = [];
+  const changeRecords: ContentChangeRecord[] = [];
   for (let c of changedNodes) {
     if (c.op === "deleted") {
       changeRecords.push({

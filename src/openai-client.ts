@@ -775,35 +775,62 @@ export class OpenAIClient {
     conversationState: ConversationState
   ): Promise<void> {
     // Execute tool calls
-    for (const toolCall of toolCalls) {
+    for (const toolCall of toolCalls ?? []) {
       const toolStartAt = performance.now();
 
-      if (toolCall.type === 'function') {
-        try {
-          const functionArgs = JSON.parse(toolCall.function.arguments);
-          const result = await this.mcpClient.executeTool({
-            name: toolCall.function.name,
-            arguments: functionArgs
-          });
-
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: result
-          });
-          conversationState.recordMessage('tool', result, toolCall.function.name);
-        } catch (error) {
-          const errText = `Error executing ${toolCall.function.name}: ${error}`;
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: errText
-          });
-          conversationState.recordMessage('tool', errText, `${toolCall.function.name}-error`);
-        }
+      if (toolCall?.type !== 'function') {
+        console.warn(`⚠️ Unsupported tool call type "${toolCall?.type}", skipping.`);
+        continue;
       }
 
-      console.log(`executeTools: ${toolCall.function.name} elapsed: ${(performance.now() - toolStartAt) / 1000}`);
+      const functionName = toolCall.function?.name ?? toolCall.name ?? 'unknown';
+      const rawArgs = toolCall.function?.arguments ?? toolCall.arguments ?? '{}';
+
+      let parsedArgs: Record<string, unknown> = {};
+      if (typeof rawArgs === 'string') {
+        const trimmed = rawArgs.trim();
+        if (trimmed.length > 0) {
+          try {
+            parsedArgs = JSON.parse(trimmed);
+          } catch (error) {
+            const errText = `Error parsing arguments for ${functionName}: ${error}`;
+            messages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: errText
+            });
+            conversationState.recordMessage('tool', errText, `${functionName}-error`);
+            console.error(errText);
+            continue;
+          }
+        }
+      } else if (rawArgs && typeof rawArgs === 'object') {
+        parsedArgs = rawArgs as Record<string, unknown>;
+      }
+
+      try {
+        const result = await this.mcpClient.executeTool({
+          name: functionName,
+          arguments: parsedArgs
+        });
+
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: result
+        });
+        conversationState.recordMessage('tool', result, functionName);
+      } catch (error) {
+        const errText = `Error executing ${functionName}: ${error}`;
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: errText
+        });
+        conversationState.recordMessage('tool', errText, `${functionName}-error`);
+      }
+
+      console.log(`executeTools: ${functionName} elapsed: ${(performance.now() - toolStartAt) / 1000}`);
     }
   }
 }

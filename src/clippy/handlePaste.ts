@@ -1,4 +1,4 @@
-import { ActionResult, ChangeRecord } from './session.js';
+import { ActionResult, ContentChangeRecord } from './session.js';
 import { WRange, YNode, YTextContainer } from '../om/YNode.js';
 import { YDoc } from '../om/YDoc.js';
 import { YPara } from '../om/YPara.js';
@@ -99,7 +99,7 @@ function pasteNodes(doc: YDoc, range: WRange, content: YNode[]): ActionResult {
   const rightPara = node.splitParagraph(offset);
   node.parent!.insertAfter(node, rightPara)
 
-  const changes: ChangeRecord[] = [
+  const changes: ContentChangeRecord[] = [
     { id: node.id, html: makeHtml(node), op: "changed" }
   ];
 

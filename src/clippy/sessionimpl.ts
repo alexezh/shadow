@@ -1,11 +1,11 @@
 import type { YDoc } from "../om/YDoc.js";
-import type { ActionResult, Session } from "./session.js";
+import type { ActionResult, ConsoleResult, GetChangesResponse, Session } from "./session.js";
 
 export class SessionImpl implements Session {
   public id: string;
   public createdAt: Date = new Date();
-  public pendingChanges: ActionResult[] = [];
-  public changeResolvers: Array<(changes: any[]) => void> = [];
+  public pendingChanges: GetChangesResponse[] = [];
+  public changeResolvers: Array<(changes: GetChangesResponse[]) => void> = [];
   public doc: YDoc;
   public currentPartId: string;
 
@@ -17,5 +17,27 @@ export class SessionImpl implements Session {
     this.id = id;
     this.doc = doc;
     this.currentPartId = currentPartId;
+  }
+
+  /**
+   * Send a console message to the client
+   * @param html HTML content to display in the console
+   */
+  public sendConsole(html: string): void {
+    const consoleResult: ConsoleResult = { html };
+    const response: GetChangesResponse = {
+      kind: "console",
+      data: consoleResult
+    };
+    this.pendingChanges.push(response);
+
+    // Resolve any waiting change listeners
+    while (this.changeResolvers.length > 0) {
+      const resolve = this.changeResolvers.shift();
+      if (resolve) {
+        const changes = this.pendingChanges.splice(0);
+        resolve(changes);
+      }
+    }
   }
 }

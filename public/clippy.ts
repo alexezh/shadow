@@ -33,7 +33,7 @@ interface ActionResult {
 interface ChangeRecord {
   id: string;
   html: string | null;
-  op: 'inserted' | 'changed' | 'deleted';
+  op: 'inserted' | 'changed' | 'ContentChangeRecord';
   prevId?: string;
 }
 
@@ -155,27 +155,38 @@ async function pollChanges(): Promise<void> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const changes = await response.json();
+    const responses = await response.json();
 
-    if (changes && changes.length > 0) {
-      for (const change of changes) {
-        // Apply changes
-        if (change.changes && change.changes.length > 0) {
-          applyChanges(change.changes);
-        }
+    if (responses && responses.length > 0) {
+      for (const resp of responses) {
+        if (resp.kind === 'console') {
+          // Console message - display in console
+          const consoleEl = document.getElementById('console');
+          if (consoleEl) {
+            const div = document.createElement('div');
+            div.innerHTML = resp.data.html;
+            consoleEl.appendChild(div);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+          }
+        } else if (resp.kind === 'action') {
+          // Action result - apply changes
+          const actionResult = resp.data;
 
-        // Update cursor position
-        if (change.newPosition) {
-          updateCursorPosition(change.newPosition);
-        }
+          if (actionResult.changes && actionResult.changes.length > 0) {
+            applyChanges(actionResult.changes);
+          }
 
-        // Update selection if present
-        if (change.newRange) {
-          updateSelection(change.newRange);
+          // Update cursor position
+          if (actionResult.newPosition) {
+            updateCursorPosition(actionResult.newPosition);
+          }
+
+          // Update selection if present
+          if (actionResult.newRange) {
+            updateSelection(actionResult.newRange);
+          }
         }
       }
-
-      //logToConsole(`Applied ${changes.length} change sets`);
     }
 
     // Continue polling
@@ -194,7 +205,7 @@ function applyChanges(changes: ChangeRecord[]): void {
     const element = document.getElementById(change.id);
 
     switch (change.op) {
-      case 'deleted':
+      case 'ContentChangeRecord':
         // Remove element from DOM
         if (element) {
           element.remove();

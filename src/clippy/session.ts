@@ -4,13 +4,20 @@ import type { WRange } from "../om/YNode";
 export interface Session {
   id: string;
   createdAt: Date;
-  pendingChanges: Array<ActionResult>;
-  changeResolvers: Array<(changes: any[]) => void>;
+  pendingChanges: Array<GetChangesResponse>;
+  changeResolvers: Array<(changes: GetChangesResponse[]) => void>;
   doc: YDoc;
   currentPartId: string;
+  sendConsole(html: string): void;
 }
 
-export interface ChangeRecord {
+export type GetChangesResponse = { kind: "console" | "action", data: ActionResult | ConsoleResult };
+
+export interface ConsoleResult {
+  html: string;
+}
+
+export interface ContentChangeRecord {
   id: string;
   html: string | null;
   prevId?: string;
@@ -18,7 +25,7 @@ export interface ChangeRecord {
 }
 
 export interface ActionResult {
-  changes: ChangeRecord[];
+  changes: ContentChangeRecord[];
   newPosition?: { element: string; offset: number };
   newRange?: WRange;
 }
