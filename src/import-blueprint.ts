@@ -46,7 +46,7 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
     }
 
     if (rootNode.hasChildren()) {
-      for (const child of rootNode.getChildren()) {
+      for (const child of rootNode.getChildren()!) {
         body.addChild(child);
       }
     } else {

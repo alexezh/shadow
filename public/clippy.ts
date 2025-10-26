@@ -302,11 +302,11 @@ async function loadDocument(): Promise<void> {
     logToConsole('Fetching document from server...');
 
     // Check if we have a sessionId stored (e.g., from previous page load)
-    const storedSessionId = localStorage.getItem('sessionId');
+    // const storedSessionId = localStorage.getItem('sessionId');
     const headers: Record<string, string> = {};
-    if (storedSessionId) {
-      headers['XSessionId'] = storedSessionId;
-    }
+    // if (storedSessionId) {
+    //   headers['XSessionId'] = storedSessionId;
+    // }
 
     const response = await fetch('/api/getdoc', { headers });
 
@@ -318,10 +318,10 @@ async function loadDocument(): Promise<void> {
     setSessionId(data.sessionId);
 
     // Store sessionId for future use
-    const currentSessionId = getSessionId();
-    if (currentSessionId) {
-      localStorage.setItem('sessionId', currentSessionId);
-    }
+    // const currentSessionId = getSessionId();
+    // if (currentSessionId) {
+    //   localStorage.setItem('sessionId', currentSessionId);
+    // }
 
     const docContent = document.getElementById('doc-content') as HTMLElement;
     if (!docContent) return;

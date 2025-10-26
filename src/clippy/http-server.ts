@@ -270,7 +270,11 @@ export class HttpServer {
   }
 
   private async executeCommand(session: Session, prompt: PromptRequest): Promise<string> {
-    executePrompt(session, this.database, this.openaiClient, prompt.prompt, {
+    executePrompt({
+      session: session,
+      database: this.database,
+      openaiClient: this.openaiClient,
+      prompt: prompt.prompt,
       partId: prompt.partId,
       docId: prompt.docId,
       selectionRange: prompt.selectionRange

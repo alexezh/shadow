@@ -68,7 +68,7 @@ The HTML should be complete and ready to use as sample content.`;
 Please generate appropriate HTML elements and suggest a filename.`;
 
     const conversationState = new ConversationState(systemPrompt, userPrompt);
-    const { response } = await openaiClient.chatWithMCPTools([], conversationState, userPrompt, {
+    const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
       requireEnvelope: false
     });
 

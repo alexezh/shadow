@@ -68,7 +68,7 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
         console.log('Usage: !load-doc <filename>');
         return;
       }
-      await loadDoc(session, parts[1]);
+      await loadDoc(ctx.session, parts[1]);
       break;
 
     case '!import-blueprint':

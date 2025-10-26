@@ -644,6 +644,7 @@ export class OpenAIClient {
     let totalTokens = 0;
 
     try {
+      streamLoop:
       for await (const event of stream as any) {
         if (!event || typeof event !== 'object') {
           continue;
@@ -700,7 +701,10 @@ export class OpenAIClient {
           }
 
           const toolCall = toolCallsMap.get(callId)!;
-          toolCall.function.arguments += event.delta ?? '';
+          const res = accumulateCallParams(event, callId, toolCall);
+          if (res === "break") {
+            break streamLoop;
+          }
           continue;
         }
 
@@ -836,4 +840,106 @@ export class OpenAIClient {
       console.log(`executeTools: ${functionName} elapsed: ${(performance.now() - toolStartAt) / 1000}`);
     }
   }
+}
+
+function looksLikeJson(s: string) {
+  const t = s.trim();
+  return (t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'));
+}
+
+function isBalancedJsonish(s: string) {
+  // Cheap guard for streams that aren’t strict JSON yet.
+  let depth = 0, inStr = false, esc = false;
+  for (const ch of s) {
+    if (inStr) {
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '{' || ch === '[') depth++;
+    if (ch === '}' || ch === ']') depth--;
+  }
+  return depth === 0 && !inStr;
+}
+
+function parseIfReady(s: string): { ok: true; value: any } | { ok: false } {
+  const t = s.trim();
+  if (!looksLikeJson(t)) return { ok: false };
+  if (!isBalancedJsonish(t)) return { ok: false };
+  try { return { ok: true, value: JSON.parse(t) }; } catch { return { ok: false }; }
+}
+
+function accumulateCallParams(
+  event: any,
+  callId: string,
+  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall) {
+  (toolCall as any).__blankCount ??= 0;
+  (toolCall as any).__locked ??= false;
+  (toolCall as any).__debounce ??= 0;
+
+  const rawDelta = typeof event.delta === 'string'
+    ? event.delta
+    : (event.delta?.arguments ?? '');
+
+  if ((toolCall as any).__locked) {
+    // Already have complete args; ignore trailing whitespace ticks.
+    if (typeof rawDelta === 'string' && rawDelta.trim().length === 0) {
+      (toolCall as any).__debounce++;
+      if ((toolCall as any).__debounce >= 2) {
+        return "break"; // move to next step quickly
+      }
+    }
+    // If model erroneously sends more non-whitespace after lock, you could log it.
+    return "continue";
+  }
+
+  if (typeof rawDelta === 'string') {
+    if (rawDelta.length && rawDelta.trim().length > 0) {
+      toolCall.function.arguments += rawDelta;
+      (toolCall as any).__blankCount = 0;
+
+      // Check completeness on every meaningful chunk.
+      const ready = parseIfReady(toolCall.function.arguments);
+      if (ready.ok) {
+        (toolCall as any).__locked = true;
+        (toolCall as any).__debounce = 0;
+
+        // Optionally store parsed args to avoid re-parse later:
+        (toolCall as any).__parsed = ready.value;
+
+        // Don’t wait for 20 tabs—just require a tiny debounce of whitespace.
+        return "contunue";
+      }
+    } else {
+      // Whitespace delta (\t, \n, etc.)
+      (toolCall as any).__blankCount = ((toolCall as any).__blankCount ?? 0) + 1;
+
+      // If it *looks* like complete JSON but parse failed due to e.g. dangling comma,
+      // you can still bail out after a few blanks, or keep your old high watermark.
+      if (looksLikeJson(toolCall.function.arguments) && isBalancedJsonish(toolCall.function.arguments)) {
+        if ((toolCall as any).__blankCount >= 3) {
+          console.warn(`⚠️ Whitespace heartbeats; treating tool args as complete by balance.`);
+          (toolCall as any).__locked = true;
+          (toolCall as any).__debounce = 0;
+          return "continue";
+        }
+      }
+
+      // Legacy guard: if nothing but whitespace for too long
+      if (toolCall.function.arguments.length === 0 && (toolCall as any).__blankCount > 20) {
+        throw new Error(`Tool call ${toolCall.function.name || callId} produced only whitespace arguments.`);
+      }
+
+      // If we have *some* args but only blanks for too long, bail out too:
+      if (toolCall.function.arguments.length > 0 && (toolCall as any).__blankCount > 50) {
+        console.warn(`⚠️ Excessive whitespace deltas for tool ${toolCall.function.name || callId}; assuming arguments complete.`);
+        (toolCall as any).__locked = true;
+        (toolCall as any).__debounce = 0;
+      }
+    }
+  }
+
+  return "continue";
 }

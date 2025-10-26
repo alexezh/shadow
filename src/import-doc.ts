@@ -42,7 +42,7 @@ The user wants to import: ${filename}`;
     const userMessage = `Import the document "${filename}" into the document library`;
 
     const conversationState = new ConversationState(systemPrompt, userMessage);
-    const result = await openaiClient.chatWithMCPTools(mcpTools, conversationState, userMessage);
+    const result = await openaiClient.chatWithMCPTools(undefined, mcpTools, conversationState, userMessage);
     const response = result.response;
     console.log('🤖 Shadow:', response);
 

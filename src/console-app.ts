@@ -117,7 +117,8 @@ export class ConsoleApp {
       }
 
       try {
-        await executePrompt(undefined, this.database, this.openaiClient, trimmed);
+        //await executePrompt(undefined, this.database, this.openaiClient, trimmed);
+        throw "Not implemented"
       } catch (error) {
         console.error(`Error: ${error}`);
       }
