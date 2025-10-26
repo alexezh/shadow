@@ -3,6 +3,9 @@ import { OpenAIClient, ConversationState } from "./openai-client.js";
 import * as cheerio from 'cheerio';
 import * as fs from 'fs';
 import * as path from 'path';
+import { SessionImpl } from './clippy/sessionimpl.js';
+import { makeDefaultDoc } from './clippy/loaddoc.js';
+import { loadHtml } from './om/loadHtml.js';
 
 /*
   get document text
@@ -21,15 +24,46 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
   try {
     console.log(`🔄 Importing document: ${filename}`);
 
+    // Load the HTML file
+    const contentDir = path.join(process.cwd(), 'content');
+    const htmlFilePath = path.join(contentDir, filename);
+
+    if (!fs.existsSync(htmlFilePath)) {
+      console.error(`❌ File not found: ${htmlFilePath}`);
+      return;
+    }
+
+    const htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
+
+    // Create a temporary session with the document loaded
+    const doc = makeDefaultDoc();
+    const rootNode = loadHtml(htmlContent);
+
+    // Clear default content and add loaded content
+    const body = doc.getBody();
+    while (body.getChildren().length > 0) {
+      body.removeChild(0);
+    }
+
+    if (rootNode.hasChildren()) {
+      for (const child of rootNode.getChildren()) {
+        body.addChild(child);
+      }
+    } else {
+      body.addChild(rootNode);
+    }
+
+    const session = new SessionImpl(filename, doc);
+
     const systemPrompt = `You are Shadow, a word processing software agent responsible for working with documents.
 
 -read document text using get_contentrange(format=html) API. Assume that user specified file name in a prompt.
 -compute semantical structure of the document
-   * Example. If document is a resume which contains person name, address and other info, output as 
-        document type - resume, person: tonnie, address: xyz, content and other semantical blocks 
+   * Example. If document is a resume which contains person name, address and other info, output as
+        document type - resume, person: tonnie, address: xyz, content and other semantical blocks
    * include start and stop paragraph id in markdown at the end of semantic block name using {startId:<id>, endId:<id>} syntax
    * store semantical structure as markdown using store_asset(kind="semantic")
-   
+
 -compute layout and formatting of the document as markdown focusing how different semantic elements are formatted
   * output your data in chunks of max 1500 tokens
   * store each chunk store_asset(kind="blueprint", chunkId=N).
@@ -49,7 +83,7 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
     const userMessage = `Produce blueprint and semantic map for document "${filename}"`;
 
     const conversationState = new ConversationState(systemPrompt, userMessage);
-    const result = await openaiClient.chatWithMCPTools(mcpTools, conversationState, userMessage);
+    const result = await openaiClient.chatWithMCPTools(session, mcpTools, conversationState, userMessage);
     const response = result.response;
     console.log('🤖 Shadow:', response);
 

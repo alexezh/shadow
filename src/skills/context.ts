@@ -68,7 +68,7 @@ Examples:
 Return only the terms as a comma-separated list, no explanations.`;
 
     const conversationState = new ConversationState(systemPrompt, userPrompt);
-    const { response } = await openaiClient.chatWithMCPTools([], conversationState, userPrompt, {
+    const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
       requireEnvelope: false
     });
 

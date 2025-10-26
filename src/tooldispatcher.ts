@@ -7,17 +7,18 @@ import { findRanges as findRangesStandalone } from './skills/findRange.js';
 import { formatRange as formatRangeStandalone, cacheRange } from './skills/formatRange.js';
 import { getSkills } from "./skills/getSkills.js";
 import { getContext, setContext } from './skills/context.js';
-import { getContentRange } from './contentrange.js';
+import { getContentRange } from './om/contentrange.js';
 import { ContentBuffer, loadAsset, storeAsset } from './asset.js';
 import { make31BitId } from './make31bitid.js';
 import { documentCreate, loadHtmlPart, storeHtmlPart } from './htmlparts.js';
+import { Session } from './clippy/session.js';
 
 export interface MCPToolCall {
   name: string;
   arguments: any;
 }
 
-export class MCPLocalClient {
+export class ToolDispatcher {
   private database: Database;
   private openaiClient: OpenAI;
   private currentPrompt: string = '';
@@ -30,13 +31,13 @@ export class MCPLocalClient {
     this.openaiClient = openaiClient;
   }
 
-  async executeTool(toolCall: MCPToolCall): Promise<string> {
+  async executeTool(session: Session, toolCall: MCPToolCall): Promise<string> {
     switch (toolCall.name) {
       case 'get_skills':
         return await getSkills(this.database, this.openaiClient, toolCall.arguments);
 
       case 'get_contentrange':
-        return await getContentRange(toolCall.arguments, this.database);
+        return await getContentRange(session, toolCall.arguments);
 
       case 'store_asset':
         return await storeAsset(this.database, this.openaiClient, this.contentBuffer, toolCall.arguments);

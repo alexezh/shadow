@@ -90,7 +90,7 @@ Requirements:
 Return only the finished manual.`;
 
   const conversationState = new ConversationState(systemPrompt, userPrompt);
-  const { response } = await openaiClient.chatWithMCPTools([], conversationState, userPrompt, {
+  const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
     requireEnvelope: false
   });
 
@@ -118,7 +118,7 @@ Examples:
 Return only the task - oriented terms as a comma - separated list, no explanations.`;
 
     const conversationState = new ConversationState(systemPrompt, userPrompt);
-    const { response } = await openaiClient.chatWithMCPTools([], conversationState, userPrompt, {
+    const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
       requireEnvelope: false
     });
 

@@ -6,7 +6,7 @@ import { YDoc } from '../om/YDoc.js';
 import { executeCommand } from '../executecommand.js';
 import { OpenAIClient } from '../openai-client.js';
 import { handleRunAction, RunActionRequest } from './handleRunAction.js';
-import { Session } from './session.js';
+import { PromptRequest, Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
 import { makeHtml } from '../om/makeHtml.js';
 import { SessionImpl } from './sessionimpl.js';
@@ -245,19 +245,19 @@ export class HttpServer {
 
     req.on('end', async () => {
       try {
-        const { sessionId, prompt } = JSON.parse(body);
+        const request = JSON.parse(body) as PromptRequest;
 
-        const session = this.sessions.get(sessionId);
+        const session = this.sessions.get(request.sessionId);
         if (!session) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Session not found' }));
           return;
         }
 
-        console.log(`Execute command: session=${sessionId}, prompt="${prompt}"`);
+        console.log(`Execute command: session=${request.sessionId}, prompt="${request.prompt}"`);
 
         // Execute the command
-        const result = await this.executeCommand(session, prompt);
+        const result = await this.executeCommand(session, request);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, result }));
@@ -269,10 +269,10 @@ export class HttpServer {
     });
   }
 
-  private async executeCommand(session: Session, prompt: string): Promise<string> {
-    executeCommand(session, this.database, this.openaiClient, prompt);
+  private async executeCommand(session: Session, prompt: PromptRequest): Promise<string> {
+    executeCommand(session, this.database, this.openaiClient, prompt.prompt);
     // Notify waiting clients
-    this.notifyChangeListeners(session.id);
+    //this.notifyChangeListeners(session.id);
     return "success";
   }
 

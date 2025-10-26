@@ -1,8 +1,9 @@
 import OpenAI from 'openai';
-import { MCPLocalClient } from './mcp-client.js';
+import { ToolDispatcher } from './tooldispatcher.js';
 import { Database } from './database.js';
 import { ChatCompletionTool } from 'openai/resources/index.js';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
+import { Session } from './clippy/session.js';
 
 type TrackerEntry =
   | { kind: 'message'; role: string; tag?: string; length: number; timestamp: number }
@@ -270,13 +271,13 @@ export interface ChatResult {
 
 export class OpenAIClient {
   private client: OpenAI;
-  private mcpClient: MCPLocalClient;
+  private mcpClient: ToolDispatcher;
 
   constructor(database: Database, apiKey?: string) {
     this.client = new OpenAI({
       apiKey: apiKey || process.env.OPENAI_API_KEY
     });
-    this.mcpClient = new MCPLocalClient(database, this.client);
+    this.mcpClient = new ToolDispatcher(database, this.client);
   }
 
   // async generateInstructions(terms: string[]): Promise<string> {
@@ -306,6 +307,7 @@ export class OpenAIClient {
   }
 
   async chatWithMCPTools(
+    session: Session | undefined,
     mcpTools: Array<ChatCompletionTool>,
     conversationState: ConversationState,
     userMessage: string,
@@ -510,7 +512,7 @@ export class OpenAIClient {
           continue;
         }
 
-        await this.executeTools(toolCalls, messages, conversationState);
+        await this.executeTools(session, toolCalls, messages, conversationState);
 
         if (synthesizedEnvelope) {
           pushSystemMessage('Reminder: include a phase="action" envelope that lists your tools before invoking them.');
@@ -770,6 +772,7 @@ export class OpenAIClient {
   }
 
   private async executeTools(
+    session: Session,
     toolCalls: any,
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
     conversationState: ConversationState
@@ -809,7 +812,7 @@ export class OpenAIClient {
       }
 
       try {
-        const result = await this.mcpClient.executeTool({
+        const result = await this.mcpClient.executeTool(session, {
           name: functionName,
           arguments: parsedArgs
         });

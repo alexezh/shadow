@@ -11,6 +11,12 @@ export interface Session {
   sendConsole(html: string): void;
 }
 
+export interface PromptRequest {
+  sessionId: string;
+  partId: string;
+  prompt: string;
+}
+
 export type GetChangesResponse = { kind: "console" | "action", data: ActionResult | ConsoleResult };
 
 export interface ConsoleResult {

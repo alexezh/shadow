@@ -18,7 +18,10 @@ import { mcpTools } from "./mcptools.js";
 import { Session } from "./clippy/session.js";
 import { loadDoc } from "./clippy/loaddoc.js";
 
-export async function executeCommand(session: Session | undefined, database: Database, openaiClient: OpenAIClient, command: string): Promise<void> {
+export async function executeCommand(session: Session | undefined,
+  database: Database,
+  openaiClient: OpenAIClient,
+  command: string): Promise<void> {
   const parts = command.split(' ');
   const cmd = parts[0];
 
@@ -118,7 +121,7 @@ export async function executeCommand(session: Session | undefined, database: Dat
     default:
       // Treat as chat message if not starting with !
       if (!command.startsWith('!')) {
-        await handleChatMessage(database, openaiClient, command);
+        await handleChatMessage(session!, database, openaiClient, command);
       } else {
         console.log('Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, !assemble, exit');
       }
@@ -199,10 +202,11 @@ async function handleExport(database: Database, docid: string): Promise<void> {
   }
 }
 
-async function handleChatMessage(database: Database, openaiClient: OpenAIClient, message: string): Promise<void> {
+async function handleChatMessage(session: Session, database: Database, openaiClient: OpenAIClient, message: string): Promise<void> {
   try {
     const systemPrompt = await getChatPrompt(database);
     const result = await skilledWorker(
+      session,
       openaiClient,
       mcpTools,
       systemPrompt,

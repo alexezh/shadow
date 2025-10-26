@@ -1,5 +1,10 @@
 import { mcpTools } from "./mcptools.js";
 import { OpenAIClient, ConversationState } from "./openai-client.js";
+import { SessionImpl } from './clippy/sessionimpl.js';
+import { makeDefaultDoc } from './clippy/loaddoc.js';
+import { loadHtml } from './om/loadHtml.js';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /*
   get document text
