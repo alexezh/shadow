@@ -9,18 +9,40 @@ import {
   allParts,
   showAllParts,
   setAllParts,
-  setShowAllParts
+  setShowAllParts,
+  setCurrentPartId
 } from "./dom.js"
+import { getSelectionRange } from "./dom.js"
 
 // Toolbar button handlers
 const buttons = {
-  bold: document.getElementById('btn-bold'),
-  italic: document.getElementById('btn-italic'),
-  bullet: document.getElementById('btn-bullet'),
-  number: document.getElementById('btn-number')
+  bold: document.getElementById('btn-bold') as HTMLButtonElement,
+  italic: document.getElementById('btn-italic') as HTMLButtonElement,
+  bullet: document.getElementById('btn-bullet') as HTMLButtonElement,
+  number: document.getElementById('btn-number') as HTMLButtonElement
 };
 
-function applyAction(result) {
+interface ActionResult {
+  result?: {
+    changes?: ChangeRecord[];
+    newPosition?: { element: string; offset: number };
+    newRange?: { startElement: string; startOffset: number; endElement: string; endOffset: number };
+  };
+}
+
+interface ChangeRecord {
+  id: string;
+  html: string | null;
+  op: 'inserted' | 'changed' | 'deleted';
+  prevId?: string;
+}
+
+interface StyleRule {
+  selector: string;
+  properties: Record<string, string>;
+}
+
+function applyAction(result: ActionResult): void {
   if (result && result.result) {
     // Apply changes from result
     if (result.result.changes && result.result.changes.length > 0) {
@@ -40,7 +62,7 @@ function applyAction(result) {
 }
 
 // Update cursor position from server response
-function updateCursorPosition(newPosition) {
+function updateCursorPosition(newPosition: { element: string; offset: number }): void {
   const cursor = window.ipCursor;
   if (!cursor) return;
 
@@ -55,7 +77,7 @@ function updateCursorPosition(newPosition) {
   );
   const textNode = walker.nextNode();
 
-  if (textNode) {
+  if (textNode && textNode.textContent) {
     cursor.position.node = textNode;
     cursor.position.offset = Math.min(newPosition.offset, textNode.textContent.length);
     cursor.updateCursorPosition();
@@ -64,7 +86,7 @@ function updateCursorPosition(newPosition) {
 }
 
 // Update selection from server response
-function updateSelection(newRange) {
+function updateSelection(newRange: { startElement: string; startOffset: number; endElement: string; endOffset: number }): void {
   const cursor = window.ipCursor;
   if (!cursor) return;
 
@@ -120,7 +142,7 @@ buttons.number.addEventListener('click', async () => {
 });
 
 // Change polling
-async function pollChanges() {
+async function pollChanges(): Promise<void> {
   if (!getSessionId()) {
     logToConsole('No session ID, skipping poll', 'error');
     return;
@@ -159,14 +181,14 @@ async function pollChanges() {
     // Continue polling
     pollChanges();
   } catch (error) {
-    logToConsole(`Error polling changes: ${error.message}`, 'error');
+    logToConsole(`Error polling changes: ${(error as Error).message}`, 'error');
     // Retry after delay
     setTimeout(pollChanges, 2000);
   }
 }
 
 // Apply changes to document
-function applyChanges(changes) {
+function applyChanges(changes: ChangeRecord[]): void {
   // Apply each change based on operation type
   for (const change of changes) {
     const element = document.getElementById(change.id);
@@ -187,10 +209,10 @@ function applyChanges(changes) {
         if (element) {
           // Special case: replacing entire doc-content
           if (change.id === 'doc-content') {
-            element.innerHTML = change.html;
+            element.innerHTML = change.html || '';
             logToConsole(`Replaced document content`);
           } else {
-            element.outerHTML = change.html;
+            element.outerHTML = change.html || '';
             //logToConsole(`Updated element ${change.id}`);
           }
         } else {
@@ -204,7 +226,7 @@ function applyChanges(changes) {
           logToConsole(`Warning: Element ${change.id} already exists, skipping insert`, 'warn');
         } else {
           const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = change.html;
+          tempDiv.innerHTML = change.html || '';
           const newElement = tempDiv.firstChild;
 
           if (newElement) {
@@ -243,7 +265,7 @@ function applyChanges(changes) {
 }
 
 // Apply styles to document
-function applyStyles(styles) {
+function applyStyles(styles: StyleRule[]): void {
   // Find or create style element
   let styleEl = document.getElementById('doc-styles');
   if (!styleEl) {
@@ -264,13 +286,13 @@ function applyStyles(styles) {
 }
 
 // Document loading
-async function loadDocument() {
+async function loadDocument(): Promise<void> {
   try {
     logToConsole('Fetching document from server...');
 
     // Check if we have a sessionId stored (e.g., from previous page load)
     const storedSessionId = localStorage.getItem('sessionId');
-    const headers = {};
+    const headers: Record<string, string> = {};
     if (storedSessionId) {
       headers['XSessionId'] = storedSessionId;
     }
@@ -285,9 +307,13 @@ async function loadDocument() {
     setSessionId(data.sessionId);
 
     // Store sessionId for future use
-    localStorage.setItem('sessionId', getSessionId());
+    const currentSessionId = getSessionId();
+    if (currentSessionId) {
+      localStorage.setItem('sessionId', currentSessionId);
+    }
 
-    const docContent = document.getElementById('doc-content');
+    const docContent = document.getElementById('doc-content') as HTMLElement;
+    if (!docContent) return;
     docContent.innerHTML = data.html;
 
     // Apply styles if provided
@@ -308,26 +334,35 @@ async function loadDocument() {
     // Start polling for changes
     pollChanges();
   } catch (error) {
-    logToConsole(`Error loading document: ${error.message}`, 'error');
-    document.getElementById('doc-content').innerHTML =
-      '<div style="color: #d32f2f;">Failed to load document</div>';
+    logToConsole(`Error loading document: ${(error as Error).message}`, 'error');
+    const docContent = document.getElementById('doc-content');
+    if (docContent) {
+      docContent.innerHTML = '<div style="color: #d32f2f;">Failed to load document</div>';
+    }
   }
 }
 
 // Clippy floating assistant
 class ClippyFloat {
+  private floatEl: HTMLElement;
+  private iconEl: HTMLElement;
+  private textboxEl: HTMLTextAreaElement;
+  private sendBtn: HTMLButtonElement;
+  private isExpanded: boolean;
+  private isVisible: boolean;
+
   constructor() {
-    this.floatEl = document.getElementById('clippy-float');
-    this.iconEl = document.getElementById('clippy-icon');
-    this.textboxEl = document.getElementById('clippy-textbox');
-    this.sendBtn = document.getElementById('clippy-send');
+    this.floatEl = document.getElementById('clippy-float') as HTMLElement;
+    this.iconEl = document.getElementById('clippy-icon') as HTMLElement;
+    this.textboxEl = document.getElementById('clippy-textbox') as HTMLTextAreaElement;
+    this.sendBtn = document.getElementById('clippy-send') as HTMLButtonElement;
     this.isExpanded = false;
     this.isVisible = false;
 
     this.setupEventListeners();
   }
 
-  setupEventListeners() {
+  setupEventListeners(): void {
     // Click on icon to expand
     this.iconEl.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -371,7 +406,7 @@ class ClippyFloat {
 
     // Click outside to collapse
     document.addEventListener('click', (e) => {
-      if (this.isExpanded && !this.floatEl.contains(e.target)) {
+      if (this.isExpanded && !this.floatEl.contains(e.target as Node)) {
         this.collapse();
       }
     });
@@ -384,7 +419,7 @@ class ClippyFloat {
     });
   }
 
-  positionBelowCursor() {
+  positionBelowCursor(): void {
     const cursor = window.ipCursor;
     if (!cursor || !cursor.cursorEl || !cursor.visible) return;
 
@@ -403,7 +438,7 @@ class ClippyFloat {
     logToConsole(`Clippy positioned at (${cursorRect.left + 2}, ${cursorRect.bottom + 2})`);
   }
 
-  expand() {
+  expand(): void {
     this.isExpanded = true;
     this.floatEl.classList.remove('collapsed');
     this.floatEl.classList.add('expanded');
@@ -419,7 +454,7 @@ class ClippyFloat {
     //logToConsole('Clippy expanded');
   }
 
-  collapse() {
+  collapse(): void {
     this.isExpanded = false;
     this.floatEl.classList.remove('expanded');
     this.floatEl.classList.add('collapsed');
@@ -432,7 +467,7 @@ class ClippyFloat {
     //logToConsole('Clippy collapsed');
   }
 
-  async sendQuestion() {
+  async sendQuestion(): Promise<void> {
     const question = this.textboxEl.value.trim();
     if (!question) return;
 
@@ -460,7 +495,7 @@ class ClippyFloat {
         logToConsole(`Response: ${result.result}`, 'info');
       }
     } catch (error) {
-      logToConsole(`Error: ${error.message}`, 'error');
+      logToConsole(`Error: ${(error as Error).message}`, 'error');
     }
 
     this.textboxEl.value = '';
@@ -468,7 +503,7 @@ class ClippyFloat {
     this.collapse();
   }
 
-  show() {
+  show(): void {
     if (!this.isExpanded) {
       // Only show collapsed icon when not expanded
       this.isVisible = true;
@@ -477,7 +512,7 @@ class ClippyFloat {
     }
   }
 
-  hide() {
+  hide(): void {
     if (!this.isExpanded) {
       // Only hide when collapsed
       this.isVisible = false;
@@ -486,7 +521,7 @@ class ClippyFloat {
   }
 }
 
-async function loadParts() {
+async function loadParts(): Promise<void> {
   if (!getSessionId()) return;
 
   try {
@@ -499,11 +534,11 @@ async function loadParts() {
     setAllParts(data.parts || []);
     renderPartsList();
   } catch (error) {
-    logToConsole(`Error loading parts: ${error.message}`, 'error');
+    logToConsole(`Error loading parts: ${(error as Error).message}`, 'error');
   }
 }
 
-function renderPartsList() {
+function renderPartsList(): void {
   const partsListEl = document.getElementById('parts-list');
   const moreBtn = document.getElementById('parts-more-btn');
 
@@ -547,7 +582,7 @@ function renderPartsList() {
   }
 }
 
-async function selectPart(partId) {
+async function selectPart(partId: string): Promise<void> {
   if (partId === currentPartId) return;
 
   try {
@@ -557,10 +592,11 @@ async function selectPart(partId) {
     }
 
     const data = await response.json();
-    currentPartId = partId;
+    setCurrentPartId(partId);
 
     // Update document content
-    const docContent = document.getElementById('doc-content');
+    const docContent = document.getElementById('doc-content') as HTMLElement;
+    if (!docContent) return;
     docContent.innerHTML = data.html;
 
     // Apply styles if provided
@@ -579,11 +615,11 @@ async function selectPart(partId) {
       docContent.focus();
     }
   } catch (error) {
-    logToConsole(`Error loading part: ${error.message}`, 'error');
+    logToConsole(`Error loading part: ${(error as Error).message}`, 'error');
   }
 }
 
-async function createPart(kind) {
+async function createPart(kind: string): Promise<void> {
   if (!getSessionId()) return;
 
   try {
@@ -611,7 +647,7 @@ async function createPart(kind) {
     // Select the new part
     await selectPart(data.partId);
   } catch (error) {
-    logToConsole(`Error creating part: ${error.message}`, 'error');
+    logToConsole(`Error creating part: ${(error as Error).message}`, 'error');
   }
 }
 
@@ -652,7 +688,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const checkCursor = setInterval(() => {
       const cursor = window.ipCursor;
       if (cursor && cursor.visible) {
-        window.clippyFloat.show();
+        window.clippyFloat?.show();
         clearInterval(checkCursor);
       }
     }, 100);

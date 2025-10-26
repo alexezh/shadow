@@ -9,6 +9,7 @@ import { handleRunAction, RunActionRequest } from './handleRunAction.js';
 import { Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
 import { makeHtml } from '../om/makeHtml.js';
+import { SessionImpl } from './sessionimpl.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -74,15 +75,15 @@ export class HttpServer {
     switch (url) {
 
       case '/clippy.js':
-        await this.serveFile(res, 'clippy.js', 'application/javascript');
+        await this.serveFile(res, 'dist/clippy.js', 'application/javascript');
         return;
 
       case '/dom.js':
-        await this.serveFile(res, 'dom.js', 'application/javascript');
+        await this.serveFile(res, 'dist/dom.js', 'application/javascript');
         return;
 
       case '/ip.js':
-        await this.serveFile(res, 'ip.js', 'application/javascript');
+        await this.serveFile(res, 'dist/ip.js', 'application/javascript');
         return;
 
       // Serve image files
@@ -171,14 +172,7 @@ export class HttpServer {
     const newSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const doc = makeDefaultDoc();
 
-    const session: Session = {
-      id: newSessionId,
-      createdAt: new Date(),
-      pendingChanges: [],
-      changeResolvers: [],
-      doc,
-      currentPartId: 'main'
-    };
+    const session = new SessionImpl(newSessionId, doc, 'main');
     this.sessions.set(newSessionId, session);
     console.log(`Created session: ${newSessionId}`);
     return session;

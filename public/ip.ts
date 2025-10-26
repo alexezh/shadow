@@ -7,9 +7,15 @@ import {
 
 // IP Cursor (Insertion Point) management
 export class IPCursor {
-  constructor(documentEl) {
+  private documentEl: HTMLElement;
+  public cursorEl!: HTMLSpanElement;
+  public position: { node: Node | null; offset: number };
+  public selection: Selection;
+  public visible: boolean;
+  private blinkInterval: number | null;
+
+  constructor(documentEl: HTMLElement) {
     this.documentEl = documentEl;
-    this.cursorEl = null;
     this.position = { node: null, offset: 0 };
     this.selection = new Selection();
     this.visible = false;
@@ -19,7 +25,7 @@ export class IPCursor {
     this.setupEventListeners();
   }
 
-  createCursor() {
+  createCursor(): void {
     this.cursorEl = document.createElement('span');
     this.cursorEl.id = 'ip-cursor';
     this.cursorEl.style.position = 'absolute';
@@ -32,7 +38,7 @@ export class IPCursor {
     document.body.appendChild(this.cursorEl);
   }
 
-  setupEventListeners() {
+  setupEventListeners(): void {
     // Mouse down to position cursor (not on release)
     this.documentEl.addEventListener('mousedown', (e) => {
       this.positionAtClick(e);
@@ -94,10 +100,10 @@ export class IPCursor {
     });
   }
 
-  positionAtClick(e) {
+  positionAtClick(e: MouseEvent): void {
     // Get the clicked position
     const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-    const clickedParagraph = e.target && e.target.closest ? e.target.closest('p[id]') : null;
+    const clickedParagraph = (e.target as HTMLElement)?.closest('p[id]');
 
     const hasValidRange = !!(range && range.startContainer);
     const rangeElementId = hasValidRange ? findElementId(range.startContainer) : null;
@@ -127,7 +133,7 @@ export class IPCursor {
     //logToConsole(`Cursor positioned at offset ${this.position.offset}`);
   }
 
-  updateCursorPosition() {
+  updateCursorPosition(): void {
     if (!this.position.node) return;
 
     // Create a range at the current position
@@ -144,24 +150,24 @@ export class IPCursor {
     this.cursorEl.style.height = `${rect.height || 20}px`;
 
     // Update Clippy position if it exists and is visible
-    if (window.clippyFloat && this.visible) {
-      window.clippyFloat.positionBelowCursor();
+    if ((window as any).clippyFloat && this.visible) {
+      (window as any).clippyFloat.positionBelowCursor();
     }
   }
 
-  show() {
+  show(): void {
     this.visible = true;
     this.cursorEl.style.display = 'block';
     this.startBlinking();
   }
 
-  hide() {
+  hide(): void {
     this.visible = false;
     this.cursorEl.style.display = 'none';
     this.stopBlinking();
   }
 
-  startBlinking() {
+  startBlinking(): void {
     this.stopBlinking();
     this.blinkInterval = setInterval(() => {
       if (this.cursorEl.style.visibility === 'hidden') {
@@ -169,10 +175,10 @@ export class IPCursor {
       } else {
         this.cursorEl.style.visibility = 'hidden';
       }
-    }, 500);
+    }, 500) as unknown as number;
   }
 
-  stopBlinking() {
+  stopBlinking(): void {
     if (this.blinkInterval) {
       clearInterval(this.blinkInterval);
       this.blinkInterval = null;
@@ -180,7 +186,7 @@ export class IPCursor {
     this.cursorEl.style.visibility = 'visible';
   }
 
-  handleKeyDown(e) {
+  handleKeyDown(e: KeyboardEvent): void {
     // Reset blink on any key
     this.stopBlinking();
     this.startBlinking();
@@ -259,11 +265,11 @@ export class IPCursor {
       this.handleEnter();
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
       e.preventDefault();
-      this.handlePaste(e);
+      this.handlePaste(e as unknown as ClipboardEvent);
     }
   }
 
-  extendSelectionLeft() {
+  extendSelectionLeft(): void {
     if (!this.selection.active) {
       // Start selection from current position
       this.selection.set(
@@ -291,7 +297,7 @@ export class IPCursor {
     //logToConsole(`Extended selection left: ${this.selection.startOffset}-${this.selection.endOffset}`);
   }
 
-  extendSelectionRight() {
+  extendSelectionRight(): void {
     if (!this.selection.active) {
       // Start selection from current position
       this.selection.set(
@@ -319,7 +325,7 @@ export class IPCursor {
     //logToConsole(`Extended selection right: ${this.selection.startOffset}-${this.selection.endOffset}`);
   }
 
-  extendSelectionUp() {
+  extendSelectionUp(): void {
     if (!this.selection.active) {
       this.selection.set(
         this.position.node,
@@ -339,7 +345,7 @@ export class IPCursor {
     //logToConsole('Extended selection up');
   }
 
-  extendSelectionDown() {
+  extendSelectionDown(): void {
     if (!this.selection.active) {
       this.selection.set(
         this.position.node,
@@ -359,25 +365,26 @@ export class IPCursor {
     //logToConsole('Extended selection down');
   }
 
-  highlightSelection() {
+  highlightSelection(): void {
     if (!this.selection.active) return;
 
     try {
       // Use browser's native selection to highlight
       const browserSel = window.getSelection();
+      if (!browserSel) return;
       browserSel.removeAllRanges();
 
       const range = document.createRange();
-      range.setStart(this.selection.startNode, this.selection.startOffset);
-      range.setEnd(this.selection.endNode, this.selection.endOffset);
+      range.setStart(this.selection.startNode!, this.selection.startOffset);
+      range.setEnd(this.selection.endNode!, this.selection.endOffset);
 
       browserSel.addRange(range);
     } catch (e) {
-      logToConsole(`Error highlighting selection: ${e.message}`, 'error');
+      logToConsole(`Error highlighting selection: ${(e as Error).message}`, 'error');
     }
   }
 
-  deleteSelection(callback) {
+  deleteSelection(callback?: () => void): void {
     const range = this.selection.getRange();
     if (!range) return;
 
@@ -390,7 +397,7 @@ export class IPCursor {
     }
   }
 
-  async handleEnter() {
+  async handleEnter(): Promise<void> {
     if (!this.position.node) return;
 
     // Get the range for the split action
@@ -412,12 +419,12 @@ export class IPCursor {
     }
   }
 
-  async handlePaste(e) {
+  async handlePaste(e: ClipboardEvent): Promise<void> {
     if (!this.position.node) return;
 
     try {
       // Try to read clipboard data
-      const clipboardData = e.clipboardData || window.clipboardData;
+      const clipboardData = e.clipboardData || (window as any).clipboardData;
 
       if (!clipboardData) {
         // Use Clipboard API if available
@@ -449,7 +456,7 @@ export class IPCursor {
               return;
             }
           } catch (err) {
-            logToConsole(`Clipboard read error: ${err.message}`, 'error');
+            logToConsole(`Clipboard read error: ${(err as Error).message}`, 'error');
           }
         }
         logToConsole('Clipboard access not available', 'error');
@@ -467,11 +474,11 @@ export class IPCursor {
         logToConsole('No clipboard content available', 'warn');
       }
     } catch (error) {
-      logToConsole(`Paste error: ${error.message}`, 'error');
+      logToConsole(`Paste error: ${(error as Error).message}`, 'error');
     }
   }
 
-  processPaste(content) {
+  processPaste(content: string): void {
     const range = getSelectionRange();
     if (range) {
       queueCommand('paste', range, undefined, content);
@@ -479,7 +486,7 @@ export class IPCursor {
     }
   }
 
-  moveLeft() {
+  moveLeft(): void {
     if (!this.position.node) return;
 
     if (this.position.offset > 0) {
@@ -489,7 +496,7 @@ export class IPCursor {
       const prevNode = this.getPreviousTextNode(this.position.node);
       if (prevNode) {
         this.position.node = prevNode;
-        this.position.offset = prevNode.textContent.length;
+        this.position.offset = prevNode.textContent?.length || 0;
       } else {
         // At the very beginning, can't move further left
         return;
@@ -500,7 +507,7 @@ export class IPCursor {
     logToConsole(`Moved left to offset ${this.position.offset}`);
   }
 
-  moveRight() {
+  moveRight(): void {
     if (!this.position.node) return;
 
     const maxOffset = this.position.node.textContent?.length || 0;
@@ -520,10 +527,10 @@ export class IPCursor {
     //logToConsole(`Moved right to offset ${this.position.offset}`);
   }
 
-  moveUp() {
+  moveUp(): void {
     // Get current cursor position
     const range = document.createRange();
-    range.setStart(this.position.node, this.position.offset);
+    range.setStart(this.position.node!, this.position.offset);
     const rect = range.getBoundingClientRect();
 
     // Move up one line (approximately)
@@ -539,10 +546,10 @@ export class IPCursor {
     }
   }
 
-  moveDown() {
+  moveDown(): void {
     // Get current cursor position
     const range = document.createRange();
-    range.setStart(this.position.node, this.position.offset);
+    range.setStart(this.position.node!, this.position.offset);
     const rect = range.getBoundingClientRect();
 
     // Move down one line (approximately)
@@ -558,14 +565,14 @@ export class IPCursor {
     }
   }
 
-  moveToLineStart() {
+  moveToLineStart(): void {
     // Simplified: move to start of current text node
     this.position.offset = 0;
     this.updateCursorPosition();
     //logToConsole('Moved to line start');
   }
 
-  moveToLineEnd() {
+  moveToLineEnd(): void {
     // Simplified: move to end of current text node
     if (this.position.node) {
       this.position.offset = this.position.node.textContent?.length || 0;
@@ -574,7 +581,7 @@ export class IPCursor {
     //logToConsole('Moved to line end');
   }
 
-  insertCharacter(char) {
+  insertCharacter(char: string): void {
     if (!this.position.node) return;
 
     const range = getSelectionRange();
@@ -584,7 +591,7 @@ export class IPCursor {
     }
   }
 
-  deleteBackward() {
+  deleteBackward(): void {
     if (!this.position.node) return;
 
     const range = getSelectionRange();
@@ -594,7 +601,7 @@ export class IPCursor {
     }
   }
 
-  deleteForward() {
+  deleteForward(): void {
     if (!this.position.node) return;
 
     const range = getSelectionRange();
@@ -604,7 +611,7 @@ export class IPCursor {
     }
   }
 
-  getPreviousTextNode(node) {
+  getPreviousTextNode(node: Node): Node | null {
     // Simple implementation: walk backwards in tree
     const walker = document.createTreeWalker(
       this.documentEl,
@@ -616,7 +623,7 @@ export class IPCursor {
     return walker.previousNode();
   }
 
-  getNextTextNode(node) {
+  getNextTextNode(node: Node): Node | null {
     // Simple implementation: walk forwards in tree
     const walker = document.createTreeWalker(
       this.documentEl,
@@ -631,6 +638,12 @@ export class IPCursor {
 
 // Selection management
 export class Selection {
+  public active: boolean;
+  public startNode: Node | null;
+  public startOffset: number;
+  public endNode: Node | null;
+  public endOffset: number;
+
   constructor() {
     this.active = false;
     this.startNode = null;
@@ -639,7 +652,7 @@ export class Selection {
     this.endOffset = 0;
   }
 
-  set(startNode, startOffset, endNode, endOffset) {
+  set(startNode: Node | null, startOffset: number, endNode: Node | null, endOffset: number): void {
     this.active = true;
     this.startNode = startNode;
     this.startOffset = startOffset;
@@ -647,7 +660,7 @@ export class Selection {
     this.endOffset = endOffset;
   }
 
-  clear() {
+  clear(): void {
     this.active = false;
     this.startNode = null;
     this.startOffset = 0;
@@ -661,7 +674,7 @@ export class Selection {
     }
   }
 
-  getRange() {
+  getRange(): { startElement: string | null; startOffset: number; endElement: string | null; endOffset: number } | null {
     if (!this.active) return null;
 
     const startElement = findElementId(this.startNode);
