@@ -280,16 +280,12 @@ export class IPCursor {
       );
     }
 
-    // Save old position
-    const oldNode = this.position.node;
-    const oldOffset = this.position.offset;
-
     // Move cursor left
     this.moveLeft();
 
     // Update selection end
-    this.selection.endNode = this.position.node;
-    this.selection.endOffset = this.position.offset;
+    this.selection.startNode = this.position.node;
+    this.selection.startOffset = this.position.offset;
 
     // Highlight the selection visually
     this.highlightSelection();
@@ -654,6 +650,13 @@ export class Selection {
 
   set(startNode: Node | null, startOffset: number, endNode: Node | null, endOffset: number): void {
     this.active = true;
+    if (startNode === endNode) {
+      if (startOffset > endOffset) {
+        let t = endOffset;
+        endOffset = startOffset;
+        startOffset = t;
+      }
+    }
     this.startNode = startNode;
     this.startOffset = startOffset;
     this.endNode = endNode;

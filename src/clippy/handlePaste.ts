@@ -108,8 +108,8 @@ function pasteNodes(doc: YDoc, range: WRange, content: YNode[]): ActionResult {
   node.parent!.insertAfter(node, ...content);
   for (let add of content) {
     changes.push({
-      id: node.id,
-      html: makeHtml(node),
+      id: add.id,
+      html: makeHtml(add),
       op: "inserted",
       prevId: lastInsertedId
     });

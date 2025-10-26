@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { YNode } from './YNode.js';
+import { YNode, YTextContainer } from './YNode.js';
 import { YPara } from './YPara.js';
 import { YBody } from './YBody.js';
 import { YTable } from './YTable.js';
@@ -19,7 +19,7 @@ import { make31BitId } from '../make31bitid.js';
 export function loadHtml(html: string, styleStore?: YStyleStore): YNode {
   const $ = cheerio.load(html);
 
-  // Extract and parse CSS from <style> tags
+  // Extract and parse CSS from <style> tags before removing them
   if (styleStore) {
     $('style').each((_index, elem) => {
       const cssText = $(elem).text();
@@ -28,6 +28,9 @@ export function loadHtml(html: string, styleStore?: YStyleStore): YNode {
       }
     });
   }
+
+  // Remove script, style, and other non-content tags to prevent their text content from being extracted
+  $('script, style, noscript, head, meta, link, title').remove();
 
   // Try to find explicit body tag
   let body = $('body');
@@ -84,8 +87,7 @@ function parseChildren(
       const nodes = parseElement($, $child, parentProps);
       if (nodes) {
         for (const node of nodes) {
-          if (parent instanceof YBody || parent instanceof YTable ||
-            parent instanceof YRow || parent instanceof YCell) {
+          if (parent instanceof YTextContainer) {
             (parent as any).addChild(node);
           }
         }
@@ -193,79 +195,35 @@ function parseElement(
     case 'th': {
       const props = extractElementProps(element);
       const cell = new YCell(id, YPropSet.create(props));
-      parseChildren($, element, cell, props);
+      const divNodes = parseDivLike($, element, id, parentProps);
+      cell.insertAfter(undefined, ...divNodes);
       return [cell];
     }
 
+    // Ignore script, style, and other non-content tags
+    case 'script':
+    case 'style':
+    case 'noscript':
+    case 'head':
+    case 'meta':
+    case 'link':
+    case 'title':
+      return null;
+
+    // first 3 used to skip GDoc wrappers
+    case 'b':
+    case 'i':
+    case 'span':
+    case 'h1':
+    case 'h2':
+    case 'h3':
+    case 'h4':
+    case 'h5':
+    case 'h6':
+    case 'h7':
+    case 'h8':
     case 'div': {
-      // Check if div has only text content (no child elements)
-      const hasChildElements = element.children().length > 0;
-      const textContent = element.text().trim();
-
-      if (!hasChildElements && textContent.length === 0) {
-        // Empty div - don't create any node
-        return null;
-      }
-
-      if (!hasChildElements && textContent.length > 0) {
-        // Div with only text - create paragraph
-        const props = extractElementProps(element);
-        const propSet = YPropSet.create(props);
-        const str = new YStr();
-        parseTextContent($, element, str, propSet);
-        return [new YPara(id, propSet, str)];
-      }
-
-      // Div with mixed content or child elements
-      const divNodes: YNode[] = [];
-      let currentStr: YStr | null = null;
-      const parentPropSet = YPropSet.create(parentProps);
-
-      element.contents().each((_index, child) => {
-        const $child = $(child);
-
-        if (child.type === 'text') {
-          const text = $child.text();
-          if (text.trim().length > 0) {
-            // Accumulate text in current string
-            if (!currentStr) {
-              currentStr = new YStr();
-            }
-            currentStr.append(text, parentPropSet);
-          }
-        } else if (child.type === 'tag') {
-          const childTagName = $child.prop('tagName')?.toLowerCase();
-
-          // Check if this is an inline element
-          const isInline = ['span', 'b', 'strong', 'i', 'em', 'u', 'br'].includes(childTagName || '');
-
-          if (isInline) {
-            // Inline element - add to current string
-            if (!currentStr) {
-              currentStr = new YStr();
-            }
-            parseTextContent($, $child, currentStr, parentPropSet);
-          } else {
-            // Block element - flush current string as paragraph first
-            if (currentStr && currentStr.length > 0) {
-              divNodes.push(new YPara(make31BitId(), parentPropSet, currentStr));
-              currentStr = null;
-            }
-
-            // Parse block element
-            const nodes = parseElement($, $child, parentProps);
-            if (nodes) {
-              divNodes.push(...nodes);
-            }
-          }
-        }
-      });
-
-      // Flush remaining text
-      // @ts-ignore
-      if (currentStr && currentStr.length > 0) {
-        divNodes.push(new YPara(make31BitId(), parentPropSet, currentStr));
-      }
+      const divNodes = parseDivLike($, element, id, parentProps);
 
       return divNodes.length > 0 ? divNodes : null;
     }
@@ -274,6 +232,84 @@ function parseElement(
       // Unknown element - skip
       return null;
   }
+}
+
+function parseDivLike(
+  $: cheerio.CheerioAPI,
+  element: cheerio.Cheerio<any>,
+  id: string,
+  parentProps: { [key: string]: any } = {}
+): YNode[] {
+  // Check if div has only text content (no child elements)
+  const hasChildElements = element.children().length > 0;
+  const textContent = element.text().trim();
+
+  if (!hasChildElements && textContent.length === 0) {
+    // Empty div - don't create any node
+    return [];
+  }
+
+  if (!hasChildElements && textContent.length > 0) {
+    // Div with only text - create paragraph
+    const props = extractElementProps(element);
+    const propSet = YPropSet.create(props);
+    const str = new YStr();
+    parseTextContent($, element, str, propSet);
+    return [new YPara(id, propSet, str)];
+  }
+
+  // Div with mixed content or child elements
+  const divNodes: YNode[] = [];
+  let currentStr: YStr | null = null;
+  const parentPropSet = YPropSet.create(parentProps);
+
+  for (const child of element.contents()) {
+    const $child = $(child);
+
+    if (child.type === 'text') {
+      const text = $child.text();
+      if (text.trim().length > 0) {
+        // Accumulate text in current string
+        if (!currentStr) {
+          currentStr = new YStr();
+        }
+        currentStr.append(text, parentPropSet);
+      }
+    } else if (child.type === 'tag') {
+      const childTagName = $child.prop('tagName')?.toLowerCase();
+
+      // Check if this is an inline element
+      const isInline = ['span', 'b', 'strong', 'i', 'em', 'u', 'br'].includes(childTagName || '');
+
+      if (isInline) {
+        // Inline element - add to current string
+        if (!currentStr) {
+          currentStr = new YStr();
+        }
+        parseTextContent($, $child, currentStr, parentPropSet);
+      } else {
+        // Block element - flush current string as paragraph first
+        if (currentStr && currentStr.length > 0) {
+          divNodes.push(new YPara(make31BitId(), parentPropSet, currentStr));
+          currentStr = null;
+        }
+
+        // Parse block element
+        const nodes = parseElement($, $child, parentProps);
+        if (nodes) {
+          divNodes.push(...nodes);
+        }
+      }
+    }
+  }
+
+  // Flush remaining text
+  // @ts-ignore
+  if (currentStr && currentStr.length > 0) {
+    divNodes.push(new YPara(make31BitId(), parentPropSet, currentStr));
+  }
+
+  return divNodes;
 }
 
 /**
@@ -303,7 +339,7 @@ function parseTextContent(
   str: YStr,
   basePropSet: YPropSet = YPropSet.create({})
 ): void {
-  element.contents().each((_index, node) => {
+  for (const node of element.contents()) {
     if (node.type === 'text') {
       // Plain text node
       const text = $(node).text();
@@ -341,7 +377,7 @@ function parseTextContent(
       // Recursively parse content
       parseTextContent($, $node, str, propSet);
     }
-  });
+  }
 }
 
 /**
