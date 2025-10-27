@@ -4,6 +4,7 @@ import { Database } from './database.js';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
 import { Session } from './clippy/session.js';
 import type { MCPFunctionTool } from './mcptools.js';
+import { JsonChunkedParser } from './json-chunked-parser.js';
 
 type TrackerEntry =
   | { kind: 'message'; role: string; tag?: string; length: number; timestamp: number }
@@ -12,11 +13,11 @@ type TrackerEntry =
 type AssistantToolCall = {
   id: string;
   name: string;
-  arguments: string;
+  args?: any;
+  __parser?: JsonChunkedParser;
   __locked?: boolean;
   __debounce?: number;
   __blankCount?: number;
-  __parsed?: any;
 };
 
 type ResponseMessageParam =
@@ -454,7 +455,8 @@ export class OpenAIClient {
       }
 
       if (toolCalls.length > 0) {
-        const signature = toolCalls.map(tc => `${tc?.name}:${tc?.arguments}`).join('|');
+        //const signature = toolCalls.map(tc => `${tc?.name}:${tc?.arguments}`).join('|');
+        const signature = toolCalls.map(tc => `${tc?.name}`).join('|');
         recentToolCalls.push(signature);
         if (recentToolCalls.length > MAX_SAME_TOOL_CALLS) {
           recentToolCalls.shift();
@@ -678,7 +680,7 @@ export class OpenAIClient {
           toolCallsMap.set(callId, {
             id: callId,
             name: funcName,
-            arguments: ''
+            args: {}
           });
           continue;
         } else if (type === 'response.tool_calls.arguments.delta' || type === 'response.function_call_arguments.delta') {
@@ -693,7 +695,7 @@ export class OpenAIClient {
             toolCallsMap.set(callId, {
               id: callId,
               name: funcName,
-              arguments: ''
+              args: {}
             });
           }
 
@@ -702,6 +704,11 @@ export class OpenAIClient {
           if (accResult === 'break') {
             break streamLoop;
           }
+          continue;
+        } else if (type === 'response.tool_calls.arguments.done' || type === 'response.function_call_arguments.done') {
+          const callId = event.tool_call_id ?? event.item_id ?? event.call_id ?? event.id;
+          const t = callId && toolCallsMap.get(callId);
+          if (t) { t.__locked = true; t.__debounce = 0; }
           continue;
         } else if (type === 'response.usage.delta') {
           const delta = event.delta ?? {};
@@ -780,54 +787,12 @@ export class OpenAIClient {
       // }
 
       const functionName = toolCall?.name ?? toolCall.name ?? 'unknown';
-      const preParsed = (toolCall as any).__parsed;
       // Use __arguments if it exists (from streaming), otherwise fall back to function.arguments
-      const rawArgs = (toolCall as any).__arguments ?? toolCall?.arguments ?? toolCall.arguments ?? '{}';
-
-      let parsedArgs: Record<string, unknown> = {};
-      if (preParsed && typeof preParsed === 'object') {
-        parsedArgs = preParsed as Record<string, unknown>;
-      } else if (typeof rawArgs === 'string') {
-        const trimmed = rawArgs.trim();
-        if (trimmed.length > 0) {
-          try {
-            parsedArgs = JSON.parse(trimmed);
-          } catch (error) {
-            try {
-              const slice = tryParseFirstJson(trimmed);
-              if (slice.ok) {
-                parsedArgs = slice.value;
-                // Don't try to modify the readonly property
-                // toolCall.function.arguments = slice.slice;
-                (toolCall as any).__parsed = slice.value;
-              } else {
-                throw error;
-              }
-            } catch (err2) {
-              // Log the actual malformed JSON for debugging
-              console.error(`Error parsing arguments for ${functionName}`);
-              console.error(`Trimmed parameter JSON invalid: ${JSON.stringify(trimmed)}`);
-              console.error(`Error: ${error}`);
-
-              const errText = `Error parsing arguments for ${functionName}: ${error}. Arguments were: ${trimmed.substring(0, 200)}`;
-              messages.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: errText
-              });
-              conversationState.recordMessage('tool', errText, `${functionName}-error`);
-              continue;
-            }
-          }
-        }
-      } else if (rawArgs && typeof rawArgs === 'object') {
-        parsedArgs = rawArgs as Record<string, unknown>;
-      }
 
       try {
         const result = await this.mcpClient.executeTool(session, {
           name: functionName,
-          arguments: parsedArgs
+          arguments: toolCall.args
         });
 
         messages.push({
@@ -851,66 +816,6 @@ export class OpenAIClient {
   }
 }
 
-function looksLikeJson(s: string) {
-  const t = s.trim();
-  return (t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'));
-}
-
-function isBalancedJsonish(s: string) {
-  // Cheap guard for streams that aren’t strict JSON yet.
-  let depth = 0, inStr = false, esc = false;
-  for (const ch of s) {
-    if (inStr) {
-      if (esc) { esc = false; continue; }
-      if (ch === '\\') { esc = true; continue; }
-      if (ch === '"') inStr = false;
-      continue;
-    }
-    if (ch === '"') { inStr = true; continue; }
-    if (ch === '{' || ch === '[') depth++;
-    if (ch === '}' || ch === ']') depth--;
-  }
-  return depth === 0 && !inStr;
-}
-
-function parseIfReady(s: string): { ok: true; value: any } | { ok: false } {
-  const t = s.trim();
-  if (!looksLikeJson(t)) return { ok: false };
-  if (!isBalancedJsonish(t)) return { ok: false };
-  try { return { ok: true, value: JSON.parse(t) }; } catch { return { ok: false }; }
-}
-
-
-function extractFirstBalancedJson(s: string): string | null {
-  const start = s.search(/[\{\[]/);
-  if (start === -1) return null;
-
-  let depth = 0, inStr = false, esc = false;
-  const open = s[start];
-  const close = open === '{' ? '}' : ']';
-
-  for (let i = start; i < s.length; i++) {
-    const ch = s[i];
-    if (inStr) {
-      if (esc) { esc = false; continue; }
-      if (ch === '\\') { esc = true; continue; }
-      if (ch === '"') inStr = false;
-      continue;
-    }
-    if (ch === '"') { inStr = true; continue; }
-    if (ch === open) depth++;
-    else if (ch === close && --depth === 0) return s.slice(start, i + 1);
-  }
-  return null;
-}
-
-function tryParseFirstJson(s: string): { ok: true; slice: string; value: any } | { ok: false } {
-  const slice = extractFirstBalancedJson(s);
-  if (!slice) return { ok: false };
-  try { return { ok: true, slice, value: JSON.parse(slice) }; }
-  catch { return { ok: false }; }
-}
-
 function accumulateCallParams(
   event: any,
   callId: string,
@@ -919,54 +824,35 @@ function accumulateCallParams(
   toolCall.__blankCount ??= 0;
   toolCall.__locked ??= false;
   toolCall.__debounce ??= 0;
+  toolCall.__parser = new JsonChunkedParser();
 
   const rawDelta = typeof event.delta === 'string'
     ? event.delta
     : (event.delta?.arguments ?? '');
 
+  // we hope to get done
   if (toolCall.__locked) {
     if (typeof rawDelta === 'string' && rawDelta.trim().length === 0) {
       if (++toolCall.__debounce >= 2) return "break";
+    } else {
+      return "break";
     }
-    return "continue";
   }
 
-  if (typeof rawDelta !== 'string') return "continue";
+  if (typeof rawDelta !== 'string') return "break";
 
   if (rawDelta.trim().length > 0) {
-    toolCall.arguments += rawDelta;
-    toolCall.__blankCount = 0;
+    const res = toolCall.__parser.process(rawDelta);
 
-    const parsed = tryParseFirstJson(toolCall.arguments);
-    if (parsed.ok) {
+    if (res.complete) {
       // keep ONLY the valid slice; drop trailing junk
-      toolCall.arguments = parsed.slice;
-      toolCall.__parsed = parsed.value;
+      toolCall.args = res.value;
       toolCall.__locked = true;
       toolCall.__debounce = 0;
       return "continue";
     }
   } else {
-    const blanks = ++toolCall.__blankCount;
-
-    const slice = extractFirstBalancedJson(toolCall.arguments);
-    if (slice && blanks >= 3) {
-      try { toolCall.__parsed = JSON.parse(slice); } catch { }
-      toolCall.arguments = slice;
-      toolCall.__locked = true;
-      toolCall.__debounce = 0;
-      return "continue";
-    }
-
-    if (toolCall.arguments.length === 0 && blanks > 20) {
-      throw new Error(`Tool call ${toolCall.name || callId} produced only whitespace arguments.`);
-    }
-    if (toolCall.arguments.length > 0 && blanks > 50) {
-      console.warn(`⚠️ Excessive whitespace for tool ${toolCall.name || callId}; locking by timeout.`);
-      toolCall.__locked = true;
-      toolCall.__debounce = 0;
-      return "continue";
-    }
+    ++toolCall.__blankCount;
   }
 
   return "continue";

@@ -1,4 +1,4 @@
-import { youAreShadow } from "../chatprompt.js";
+import { youAreShadow } from "./chatprompt.js";
 import { Database } from "../database.js";
 import { OpenAIClient, ConversationState } from "../openai-client.js";
 import { CORE_SKILLS } from "./coreskills.js";

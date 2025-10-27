@@ -12,7 +12,7 @@ import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getChatPrompt } from "./chatprompt.js";
+import { getChatPrompt } from "./skills/chatprompt.js";
 import { skilledWorker } from "./skilledworker.js";
 import { mcpTools } from "./mcptools.js";
 import { Session } from "./clippy/session.js";

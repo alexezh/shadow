@@ -1,6 +1,6 @@
 import path from 'path';
 import { promises as fs } from 'fs';
-import { Database } from './database.js';
+import { Database } from '../database.js';
 
 export const youAreShadow = 'You are Shadow, a word processing software agent responsible for working with documents.';
 
