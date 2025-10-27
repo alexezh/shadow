@@ -2,7 +2,8 @@ import {
   findElementId,
   getSelectionRange,
   queueCommand,
-  logToConsole
+  logToConsole,
+  getEditorContext
 } from "./dom.js"
 
 // IP Cursor (Insertion Point) management
@@ -66,8 +67,9 @@ export class IPCursor {
       }
 
       // Hide Clippy on mouse button press
-      if (window.clippyFloat) {
-        window.clippyFloat.hide();
+      const editorContext = getEditorContext();
+      if (editorContext?.clippyFloat) {
+        editorContext.clippyFloat.hide();
       }
     });
 
@@ -77,8 +79,9 @@ export class IPCursor {
       selectionAnchor = null;
 
       // Restore Clippy on mouse button release
-      if (window.clippyFloat) {
-        window.clippyFloat.show();
+      const editorContext = getEditorContext();
+      if (editorContext?.clippyFloat) {
+        editorContext.clippyFloat.show();
       }
     });
 

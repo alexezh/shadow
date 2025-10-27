@@ -10,10 +10,19 @@ import {
   showAllParts,
   setAllParts,
   setShowAllParts,
-  setCurrentPartId
+  setCurrentPartId,
+  setGetCurrentEditorContext
 } from "./dom.js"
 import { getSelectionRange } from "./dom.js"
 import { VirtualDocument, vdomCache } from "./vdom.js"
+import { EditorContext, CommentThreadRef } from "./editor-context.js"
+import { renderCommentThreads, fetchCommentThreads } from "./comments.js"
+
+// Global editor context for current document
+let currentEditorContext: EditorContext | null = null;
+
+// Set up the getter for dom.ts and ip.ts to access current editor context
+setGetCurrentEditorContext(() => currentEditorContext);
 
 // Toolbar button handlers
 const buttons = {
@@ -315,13 +324,7 @@ async function loadDocument(): Promise<void> {
   try {
     logToConsole('Fetching document from server...');
 
-    // Check if we have a sessionId stored (e.g., from previous page load)
-    // const storedSessionId = localStorage.getItem('sessionId');
     const headers: Record<string, string> = {};
-    // if (storedSessionId) {
-    //   headers['XSessionId'] = storedSessionId;
-    // }
-
     const response = await fetch('/api/getdoc', { headers });
 
     if (!response.ok) {
@@ -331,30 +334,34 @@ async function loadDocument(): Promise<void> {
     const data = await response.json();
     setSessionId(data.sessionId);
 
-    // Store sessionId for future use
-    // const currentSessionId = getSessionId();
-    // if (currentSessionId) {
-    //   localStorage.setItem('sessionId', currentSessionId);
-    // }
-
     const docContent = document.getElementById('doc-content') as HTMLElement;
     if (!docContent) return;
 
     // Create virtual document for main part
     const partId = 'main';
-    const vdom = new VirtualDocument(partId, data.html, data.styles || []);
+    const commentThreadRefs: CommentThreadRef[] = data.commentThreadRefs || [];
+    const vdom = new VirtualDocument(partId, data.html, data.styles || [], commentThreadRefs);
     vdom.applyToDOM(docContent, 'doc-styles');
+
+    // Initialize editor context
+    vdom.initializeEditorContext(docContent);
+    currentEditorContext = vdom.editorContext;
 
     // Store in cache
     vdomCache.set(partId, vdom);
     vdomCache.setCurrentPartId(partId);
     setCurrentPartId(partId);
 
-    logToConsole(`Document loaded, session: ${getSessionId()}`, 'info');
+    // Load comment threads if any
+    if (commentThreadRefs.length > 0 && currentEditorContext) {
+      const threads = await fetchCommentThreads(partId, commentThreadRefs);
+      for (const thread of threads) {
+        currentEditorContext.setCommentThread(thread);
+      }
+      renderCommentThreads(currentEditorContext);
+    }
 
-    // Initialize IP cursor after document is loaded
-    const cursor = new IPCursor(docContent);
-    window.ipCursor = cursor;
+    logToConsole(`Document loaded, session: ${getSessionId()}`, 'info');
 
     // Focus the document to show cursor
     docContent.focus();
@@ -453,7 +460,7 @@ class ClippyFloat {
   }
 
   positionBelowCursor(): void {
-    const cursor = window.ipCursor;
+    const cursor = currentEditorContext?.cursor;
     if (!cursor || !cursor.cursorEl || !cursor.visible) return;
 
     const cursorRect = cursor.cursorEl.getBoundingClientRect();
@@ -654,6 +661,9 @@ async function selectPart(partId: string): Promise<void> {
       // Load from cache
       logToConsole(`Loading part from cache: ${partId}`, 'info');
       vdom.applyToDOM(docContent, 'doc-styles');
+
+      // Restore editor context
+      currentEditorContext = vdom.editorContext;
     } else {
       // Fetch from server
       const response = await fetch(`/api/getpart?sessionId=${getSessionId()}&partId=${partId}`);
@@ -664,12 +674,30 @@ async function selectPart(partId: string): Promise<void> {
       const data = await response.json();
 
       // Create new virtual document
-      vdom = new VirtualDocument(partId, data.html, data.styles || []);
+      const commentThreadRefs: CommentThreadRef[] = data.commentThreadRefs || [];
+      vdom = new VirtualDocument(partId, data.html, data.styles || [], commentThreadRefs);
       vdom.applyToDOM(docContent, 'doc-styles');
+
+      // Initialize editor context
+      vdom.initializeEditorContext(docContent);
+      currentEditorContext = vdom.editorContext;
+
+      // Load comment threads if any
+      if (commentThreadRefs.length > 0 && currentEditorContext) {
+        const threads = await fetchCommentThreads(partId, commentThreadRefs);
+        for (const thread of threads) {
+          currentEditorContext.setCommentThread(thread);
+        }
+      }
 
       // Store in cache
       vdomCache.set(partId, vdom);
       logToConsole(`Fetched and cached part: ${partId}`, 'info');
+    }
+
+    // Render comments for this part
+    if (currentEditorContext) {
+      renderCommentThreads(currentEditorContext);
     }
 
     // Update current part ID
@@ -682,9 +710,9 @@ async function selectPart(partId: string): Promise<void> {
     logToConsole(`Switched to part: ${partId}`, 'info');
 
     // Reinitialize cursor for new content
-    if (window.ipCursor) {
-      window.ipCursor.position = { node: null, offset: 0 };
-      window.ipCursor.selection.clear();
+    if (currentEditorContext?.cursor) {
+      currentEditorContext.cursor.position = { node: null, offset: 0 };
+      currentEditorContext.cursor.selection.clear();
       docContent.focus();
     }
   } catch (error) {
@@ -753,15 +781,20 @@ window.addEventListener('DOMContentLoaded', () => {
   initQueue(applyAction);
   loadDocument();
 
-  // Initialize Clippy after a short delay to ensure cursor is ready
+  // Initialize Clippy after a short delay to ensure editor context is ready
   setTimeout(() => {
-    window.clippyFloat = new ClippyFloat();
+    const clippyFloat = new ClippyFloat();
+
+    // Store clippy in editor context when available
+    if (currentEditorContext) {
+      currentEditorContext.clippyFloat = clippyFloat;
+    }
 
     // Show Clippy when cursor becomes visible
     const checkCursor = setInterval(() => {
-      const cursor = window.ipCursor;
+      const cursor = currentEditorContext?.cursor;
       if (cursor && cursor.visible) {
-        window.clippyFloat?.show();
+        clippyFloat.show();
         clearInterval(checkCursor);
       }
     }, 100);

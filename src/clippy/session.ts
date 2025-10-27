@@ -19,6 +19,19 @@ export interface PromptRequest {
   selectionRange?: unknown;
 }
 
+export type CommentThreadRef = {
+  threadId: string;
+  comments: { commentPartId: string, paraId: string }[];
+}
+
+export type GetDocResponse = {
+  sessionId: string,
+  partId: string,
+  html: string,
+  styles: any
+  comments?: CommentThreadRef[]
+};
+
 export type GetChangesResponse = { kind: "console" | "action", data: ActionResult | ConsoleResult };
 
 export interface ConsoleResult {

@@ -154,6 +154,111 @@
       min-height: calc(100vh - 160px);
     }
 
+    /* Paragraph with comments */
+    #doc-content p.has-comments {
+      background-color: rgba(251, 191, 36, 0.1);
+      border-left: 3px solid #fbbf24;
+      padding-left: 12px;
+      cursor: pointer;
+    }
+
+    #doc-content p.has-comments:hover {
+      background-color: rgba(251, 191, 36, 0.15);
+    }
+
+    /* Comments sidebar */
+    .comments-panel {
+      width: 25%;
+      min-width: 280px;
+      max-width: 400px;
+      background: linear-gradient(180deg, #fefce8 0%, #fef3c7 100%);
+      border-left: 1px solid rgba(245, 158, 11, 0.2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .comments-header {
+      padding: 20px;
+      border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+      font-size: 14px;
+      font-weight: 600;
+      color: #78350f;
+    }
+
+    .comments-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .comment-thread {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      border: 1px solid rgba(245, 158, 11, 0.15);
+    }
+
+    .comment-thread-header {
+      font-size: 11px;
+      color: #92400e;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .comment-thread-id {
+      background: rgba(251, 191, 36, 0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+    .comment {
+      border-top: 1px solid rgba(245, 158, 11, 0.1);
+      padding: 10px 0;
+    }
+
+    .comment:first-child {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .comment-author {
+      font-size: 12px;
+      font-weight: 600;
+      color: #78350f;
+      margin-bottom: 4px;
+    }
+
+    .comment-timestamp {
+      font-size: 10px;
+      color: #92400e;
+      margin-left: 6px;
+    }
+
+    .comment-text {
+      font-size: 12px;
+      color: #1f2937;
+      line-height: 1.5;
+    }
+
+    .comment-resolved {
+      opacity: 0.6;
+    }
+
+    .comments-body::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .comments-body::-webkit-scrollbar-thumb {
+      background: rgba(251, 191, 36, 0.4);
+      border-radius: 999px;
+    }
+
     .console-line {
       margin-bottom: 6px;
       color: #334155;
@@ -448,6 +553,14 @@
         </div>
       </div>
     </div>
+
+    <!-- Comments panel on the right -->
+    <aside class="comments-panel" id="comments-panel">
+      <div class="comments-header">Comments</div>
+      <div class="comments-body" id="comments-body">
+        <!-- Comment threads will be populated here -->
+      </div>
+    </aside>
   </div>
 
   <!-- Clippy floating assistant -->

@@ -11,9 +11,15 @@ export let currentPartId: string = 'main';
 export let allParts: Array<{ id: string; kind: string; title: string }> = [];
 export let showAllParts: boolean = false;
 
-export type EditorContext = {
-  
-  ipCursor: IPCursor;
+// EditorContext getter - will be set by clippy.ts
+let getCurrentEditorContext: () => any = () => null;
+
+export function setGetCurrentEditorContext(getter: () => any): void {
+  getCurrentEditorContext = getter;
+}
+
+export function getEditorContext(): any {
+  return getCurrentEditorContext();
 }
 
 export function setCurrentPartId(_partId: string): void {
@@ -62,7 +68,8 @@ export function findElementId(node: Node | null): string | null {
 
 // Get current selection range
 export function getSelectionRange(): { startElement: string | null; startOffset: number; endElement: string | null; endOffset: number } | null {
-  const cursor = window.ipCursor;
+  const editorContext = getCurrentEditorContext();
+  const cursor = editorContext?.cursor;
   if (!cursor || !cursor.position.node) {
     return null;
   }

@@ -4,6 +4,7 @@ import { YPropCache, YPropSet } from './YPropSet.js';
 import { YStr } from './YStr.js';
 
 export const paraProp = "--data-para";
+export const markerTypeProp = "data-y-markertype";
 
 /**
  * WPara - Paragraph node that points to WStr

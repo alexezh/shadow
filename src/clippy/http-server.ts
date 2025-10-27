@@ -6,7 +6,7 @@ import { YDoc } from '../om/YDoc.js';
 import { executePrompt } from '../executeprompt.js';
 import { OpenAIClient } from '../openai-client.js';
 import { handleRunAction, RunActionRequest } from './handleRunAction.js';
-import { PromptRequest, Session } from './session.js';
+import { GetDocResponse, PromptRequest, Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
 import { makeHtml } from '../om/makeHtml.js';
 import { SessionImpl } from './sessionimpl.js';
@@ -192,8 +192,9 @@ export class HttpServer {
       // Get styles as JSON array
       const styles = session.doc.getStyleStore().toJson();
 
+      const response: GetDocResponse = { sessionId: session.id, partId: "main", html, styles };
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ sessionId: session.id, html, styles }));
+      res.end(JSON.stringify(response));
     } catch (error) {
       console.error('Error handling getdoc:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
