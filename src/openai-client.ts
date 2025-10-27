@@ -11,12 +11,12 @@ type TrackerEntry =
 
 type AssistantToolCall = {
   id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string;
-  };
-  [key: string]: unknown;
+  name: string;
+  arguments: string;
+  __locked?: boolean;
+  __debounce?: number;
+  __blankCount?: number;
+  __parsed?: any;
 };
 
 type ResponseMessageParam =
@@ -369,11 +369,11 @@ export class OpenAIClient {
 
       for (const toolCall of toolCalls) {
         if (!toolCall?.id) {
-          console.warn(`⚠️ Unable to respond to tool call without id (tool=${toolCall?.function?.name || 'unknown'})`);
+          console.warn(`⚠️ Unable to respond to tool call without id (tool=${toolCall?.name || 'unknown'})`);
           continue;
         }
 
-        console.warn(`respondToToolCallsWithError: (tool=${toolCall?.function?.name || 'unknown'}) (reason=${reason})`);
+        console.warn(`respondToToolCallsWithError: (tool=${toolCall?.name || 'unknown'}) (reason=${reason})`);
 
         pushToolMessage(
           toolCall.id,
@@ -381,7 +381,7 @@ export class OpenAIClient {
             success: false,
             error: reason
           }, null, 2),
-          toolCall?.function?.name || 'tool-error'
+          toolCall?.name || 'tool-error'
         );
       }
     };
@@ -411,7 +411,7 @@ export class OpenAIClient {
       const elapsedSeconds = (performance.now() - startAt) / 1000;
       const preview = assistantMessage.content
         ? String(assistantMessage.content).slice(0, 120)
-        : (toolCalls.length > 0 ? `[tool calls: ${toolCalls.map(tc => tc.function?.name).join(', ')}]` : '[no content]');
+        : (toolCalls.length > 0 ? `[tool calls: ${toolCalls.map(tc => tc?.name).join(', ')}]` : '[no content]');
       console.log(`assistant: [elapsed ${elapsedSeconds.toFixed(2)}s] [prompt ${totalPromptTokens}] ${preview}`);
       if (refusal) {
         console.warn(`assistant refusal: ${refusal}`);
@@ -454,14 +454,14 @@ export class OpenAIClient {
       }
 
       if (toolCalls.length > 0) {
-        const signature = toolCalls.map(tc => `${tc.function?.name}:${tc.function?.arguments}`).join('|');
+        const signature = toolCalls.map(tc => `${tc?.name}:${tc?.arguments}`).join('|');
         recentToolCalls.push(signature);
         if (recentToolCalls.length > MAX_SAME_TOOL_CALLS) {
           recentToolCalls.shift();
         }
 
         if (recentToolCalls.length === MAX_SAME_TOOL_CALLS && recentToolCalls.every(sig => sig === signature)) {
-          const repeatingCall = toolCalls[0]?.function?.name ?? 'unknown';
+          const repeatingCall = toolCalls[0]?.name ?? 'unknown';
           console.error(`❌ Detected infinite loop: ${repeatingCall} called ${MAX_SAME_TOOL_CALLS} times with same arguments`);
           pushSystemMessage(`You have called ${repeatingCall} ${MAX_SAME_TOOL_CALLS} times with the same arguments. Process the tool results before repeating the same call.`);
           respondToToolCallsWithError(toolCalls, 'Infinite loop detected - same tool called repeatedly');
@@ -479,7 +479,7 @@ export class OpenAIClient {
           console.warn('⚠️ Assistant invoked tools without providing a control envelope; synthesizing one with phase="action".');
           controlEnvelope = {
             phase: 'action',
-            control: { allowed_tools: toolCalls.map(tc => tc.function?.name).filter((name): name is string => !!name) },
+            control: { allowed_tools: toolCalls.map(tc => tc?.name).filter((name): name is string => !!name) },
             envelope: { type: 'text', content: '' }
           };
           lastPhase = 'action';
@@ -496,7 +496,7 @@ export class OpenAIClient {
         const allowedTools = controlEnvelope.control?.allowed_tools ?? [];
         const allowToolUse = controlEnvelope.control?.allow_tool_use;
         let disallowed = toolCalls
-          .map(tc => tc.function?.name || '')
+          .map(tc => tc?.name || '')
           .filter(name => name.length > 0 && allowedTools.length > 0 && !allowedTools.includes(name));
 
         disallowed = [];
@@ -677,11 +677,8 @@ export class OpenAIClient {
 
           toolCallsMap.set(callId, {
             id: callId,
-            type: 'function',
-            function: {
-              name: funcName,
-              arguments: ''
-            }
+            name: funcName,
+            arguments: ''
           });
           continue;
         } else if (type === 'response.tool_calls.arguments.delta' || type === 'response.function_call_arguments.delta') {
@@ -695,11 +692,8 @@ export class OpenAIClient {
             const funcName = event.tool_call?.function?.name ?? event.tool_call?.name ?? event.name ?? '';
             toolCallsMap.set(callId, {
               id: callId,
-              type: 'function',
-              function: {
-                name: funcName,
-                arguments: ''
-              }
+              name: funcName,
+              arguments: ''
             });
           }
 
@@ -780,15 +774,15 @@ export class OpenAIClient {
     for (const toolCall of toolCalls ?? []) {
       const toolStartAt = performance.now();
 
-      if (toolCall?.type !== 'function') {
-        console.warn(`⚠️ Unsupported tool call type "${toolCall?.type}", skipping.`);
-        continue;
-      }
+      // if (toolCall?.type !== 'function') {
+      //   console.warn(`⚠️ Unsupported tool call type "${toolCall?.name}", skipping.`);
+      //   continue;
+      // }
 
-      const functionName = toolCall.function?.name ?? toolCall.name ?? 'unknown';
+      const functionName = toolCall?.name ?? toolCall.name ?? 'unknown';
       const preParsed = (toolCall as any).__parsed;
       // Use __arguments if it exists (from streaming), otherwise fall back to function.arguments
-      const rawArgs = (toolCall as any).__arguments ?? toolCall.function?.arguments ?? toolCall.arguments ?? '{}';
+      const rawArgs = (toolCall as any).__arguments ?? toolCall?.arguments ?? toolCall.arguments ?? '{}';
 
       let parsedArgs: Record<string, unknown> = {};
       if (preParsed && typeof preParsed === 'object') {
@@ -802,10 +796,10 @@ export class OpenAIClient {
             try {
               const slice = tryParseFirstJson(trimmed);
               if (slice.ok) {
-                parsedArgs = slice.json;
+                parsedArgs = slice.value;
                 // Don't try to modify the readonly property
                 // toolCall.function.arguments = slice.slice;
-                (toolCall as any).__parsed = slice.json;
+                (toolCall as any).__parsed = slice.value;
               } else {
                 throw error;
               }
@@ -921,73 +915,59 @@ function accumulateCallParams(
   event: any,
   callId: string,
   toolCall: AssistantToolCall
-): 'continue' | 'break' {
-  (toolCall as any).__blankCount ??= 0;
-  (toolCall as any).__locked ??= false;
-  // Initialize our own accumulator to avoid modifying readonly property
-  (toolCall as any).__arguments ??= toolCall.function.arguments || '';
+): "continue" | "break" {
+  toolCall.__blankCount ??= 0;
+  toolCall.__locked ??= false;
+  toolCall.__debounce ??= 0;
 
   const rawDelta = typeof event.delta === 'string'
     ? event.delta
     : (event.delta?.arguments ?? '');
 
-  // If locked, wait for a couple of whitespace ticks, then break stream loop.
-  if ((toolCall as any).__locked) {
+  if (toolCall.__locked) {
     if (typeof rawDelta === 'string' && rawDelta.trim().length === 0) {
-      (toolCall as any).__blankCount++;
-      if ((toolCall as any).__blankCount >= 2) {
-        return 'break';
-      }
+      if (++toolCall.__debounce >= 2) return "break";
     }
-    return 'continue';
+    return "continue";
   }
 
-  if (typeof rawDelta === 'string') {
-    if (rawDelta.trim().length > 0) {
-      // Accumulate in our custom property
-      (toolCall as any).__arguments += rawDelta;
-      (toolCall as any).__blankCount = 0;
+  if (typeof rawDelta !== 'string') return "continue";
 
-      // Try to parse the FIRST balanced JSON slice only.
-      const parsed = tryParseFirstJson((toolCall as any).__arguments);
-      if (parsed.ok) {
-        // Keep only the valid JSON slice; drop any trailing chatter.
-        (toolCall as any).__arguments = parsed.slice;
-        (toolCall as any).__parsed = parsed.json;
-        (toolCall as any).__locked = true;
-        (toolCall as any).__blankCount = 0;
-        return 'break';
-      }
-    } else {
-      // Whitespace heartbeat
-      (toolCall as any).__blankCount++;
-      // If the buffer ALREADY contains a balanced slice (even if parse failed before),
-      // and we've seen a few blanks, lock by balance to move on.
-      const slice = extractFirstBalancedJson((toolCall as any).__arguments);
-      if (slice && (toolCall as any).__blankCount >= 3) {
-        try {
-          (toolCall as any).__parsed = JSON.parse(slice);
-        } catch {
-          // As a last resort, still accept balanced slice and let caller validate.
-        }
-        (toolCall as any).__arguments = slice;
-        (toolCall as any).__locked = true;
-        (toolCall as any).__blankCount = 0;
-        return 'break';
-      }
+  if (rawDelta.trim().length > 0) {
+    toolCall.arguments += rawDelta;
+    toolCall.__blankCount = 0;
 
-      // Nothing but whitespace forever?
-      const argsLength = (toolCall as any).__arguments.length;
-      if (argsLength === 0 && (toolCall as any).__blankCount > 20) {
-        throw new Error(`Tool call ${toolCall.function.name || callId} produced only whitespace arguments.`);
-      }
-      if (argsLength > 0 && (toolCall as any).__blankCount > 50) {
-        console.warn(`⚠️ Excessive whitespace for tool ${toolCall.function.name || callId}; locking by timeout.`);
-        (toolCall as any).__locked = true;
-        return 'break';
-      }
+    const parsed = tryParseFirstJson(toolCall.arguments);
+    if (parsed.ok) {
+      // keep ONLY the valid slice; drop trailing junk
+      toolCall.arguments = parsed.slice;
+      toolCall.__parsed = parsed.value;
+      toolCall.__locked = true;
+      toolCall.__debounce = 0;
+      return "continue";
+    }
+  } else {
+    const blanks = ++toolCall.__blankCount;
+
+    const slice = extractFirstBalancedJson(toolCall.arguments);
+    if (slice && blanks >= 3) {
+      try { toolCall.__parsed = JSON.parse(slice); } catch { }
+      toolCall.arguments = slice;
+      toolCall.__locked = true;
+      toolCall.__debounce = 0;
+      return "continue";
+    }
+
+    if (toolCall.arguments.length === 0 && blanks > 20) {
+      throw new Error(`Tool call ${toolCall.name || callId} produced only whitespace arguments.`);
+    }
+    if (toolCall.arguments.length > 0 && blanks > 50) {
+      console.warn(`⚠️ Excessive whitespace for tool ${toolCall.name || callId}; locking by timeout.`);
+      toolCall.__locked = true;
+      toolCall.__debounce = 0;
+      return "continue";
     }
   }
 
-  return 'continue';
+  return "continue";
 }
