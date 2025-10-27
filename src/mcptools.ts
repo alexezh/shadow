@@ -1,14 +1,21 @@
-import { ChatCompletionTool } from "openai/resources/chat";
-
 export interface MCPToolCall {
   name: string;
   arguments: any;
 }
 
+export interface MCPFunctionTool {
+  type: 'function';
+  function: {
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+  };
+}
+
 // Define MCP tools configuration for OpenAI function calling
-export const mcpTools: ChatCompletionTool[] = [
+export const mcpTools: MCPFunctionTool[] = [
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'get_skills',
       description: 'Get stored instructions by name. Returns instruction text and available steps if applicable.',
@@ -29,7 +36,7 @@ export const mcpTools: ChatCompletionTool[] = [
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'get_contentrange',
       description: 'Read range of document content from HTML parts stored in the database. Omit start_para and end_para to read entire document from start to end',
@@ -46,7 +53,7 @@ export const mcpTools: ChatCompletionTool[] = [
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'replace_contentrange',
       description: 'Replaces range of document content from HTML parts stored in the database. Omit start_para and end_para to read entire document from start to end',
@@ -64,7 +71,7 @@ export const mcpTools: ChatCompletionTool[] = [
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'store_asset',
       description: `Store document data with embeddings. 
@@ -96,7 +103,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'load_asset',
       description: 'Load stored asset by context keywords (keyword + optional semantic match).',
@@ -115,7 +122,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'find_ranges',
       description: 'Find ranges in document that match a search pattern. Searches within HTML parts stored in the database. Returns array of ranges with unique range_id that can be used for operations like set_formatting(range_id).',
@@ -139,7 +146,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'get_context',
       description: 'Get context information based on terms like last_file_name, last_range, current_document, etc.',
@@ -157,7 +164,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'set_context',
       description: 'Set context value based on terms. The terms will be used to look up the context name, then store the value.',
@@ -179,7 +186,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'find_file',
       description: 'Find files in the content directory using glob patterns (* for any characters, ? for single character)',
@@ -193,7 +200,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'store_history',
       description: 'Store work history with current prompt and summary of work performed',
@@ -207,7 +214,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'load_history',
       description: 'Load recent work history entries',
@@ -221,7 +228,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'make_id',
       description: 'Generate a random 31-bit ID as a string',
@@ -233,7 +240,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'document_create',
       description: 'Create a new document in the database. Returns the document ID. Use this at the start of document creation workflow.',
@@ -247,7 +254,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'store_htmlpart',
       description: 'Store an HTML part/fragment for a document. Supports chunking for parts larger than 1000 tokens. When eos=true, automatically adds IDs to HTML elements (p, table, tr, td, th, etc.) that lack them and returns the complete HTML with all IDs for selection purposes. Use this to break large HTML content into manageable sections, subsections, tables, or cells.',
@@ -265,7 +272,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'load_htmlpart',
       description: 'Load a previously stored HTML part by document ID and part ID',
@@ -280,7 +287,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'get_dictionary',
       description: 'Get a unique list of all words in a document. Returns array of words sorted alphabetically. Useful for finding specific words, analyzing vocabulary, or identifying terms that match user criteria.',
@@ -294,7 +301,7 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
     }
   },
   {
-    type: 'function' as const,
+    type: 'function',
     function: {
       name: 'format_range',
       description: 'Apply character-level formatting to one or more ranges in a document. Ranges can be specified using range_id from find_ranges OR by providing exact text boundaries with paragraph IDs. For single-paragraph selections use {start_id, end_id, text}. For multi-paragraph selections use {start_id, start_text, end_id, end_text}. Properties are applied as an array of {prop, value} pairs supporting font, color, style, and Word-specific formatting options.',
@@ -338,6 +345,6 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
 ];
 
 // Create a map of tools by name for efficient lookup
-export const mcpToolsMap = new Map<string, ChatCompletionTool>(
+export const mcpToolsMap = new Map<string, MCPFunctionTool>(
   mcpTools.map(tool => [tool.function.name, tool])
 );

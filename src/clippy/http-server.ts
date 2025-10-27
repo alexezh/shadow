@@ -85,6 +85,17 @@ export class HttpServer {
       case '/ip.js':
         await this.serveFile(res, 'dist/ip.js', 'application/javascript');
         return;
+      case '/vdom.js':
+        await this.serveFile(res, 'dist/vdom.js', 'application/javascript');
+        return;
+
+      case '/comments.js':
+        await this.serveFile(res, 'dist/comments.js', 'application/javascript');
+        return;
+
+      case '/editor-context.js':
+        await this.serveFile(res, 'dist/editor-context.js', 'application/javascript');
+        return;
 
       // Serve image files
       case '/bullet.png':

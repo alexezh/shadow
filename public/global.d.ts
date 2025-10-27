@@ -1,13 +1,10 @@
-import type { IPCursor } from './ip'
+// Global type declarations
+// Note: ipCursor and clippyFloat are now managed through EditorContext
+// and are no longer attached to window
 
 declare global {
   interface Window {
-    clippyFloat?: {
-      hide(): void;
-      show(): void;
-      positionBelowCursor(): void;
-    };
-    ipCursor?: IPCursor;
+    // Reserved for future use
   }
 }
 

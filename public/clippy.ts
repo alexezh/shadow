@@ -73,7 +73,7 @@ function applyAction(result: ActionResult): void {
 
 // Update cursor position from server response
 function updateCursorPosition(newPosition: { element: string; offset: number }): void {
-  const cursor = window.ipCursor;
+  const cursor = currentEditorContext?.cursor;
   if (!cursor) return;
 
   const element = document.getElementById(newPosition.element);
@@ -97,7 +97,7 @@ function updateCursorPosition(newPosition: { element: string; offset: number }):
 
 // Update selection from server response
 function updateSelection(newRange: { startElement: string; startOffset: number; endElement: string; endOffset: number }): void {
-  const cursor = window.ipCursor;
+  const cursor = currentEditorContext?.cursor;
   if (!cursor) return;
 
   const startElement = document.getElementById(newRange.startElement);
@@ -401,6 +401,7 @@ class ClippyFloat {
     // Prevent mousedown on clippy from affecting document selection
     this.floatEl.addEventListener('mousedown', (e) => {
       e.stopPropagation();
+      logToConsole("floaty mouse down");
     });
 
     // Click on icon to expand
@@ -479,6 +480,7 @@ class ClippyFloat {
   }
 
   expand(): void {
+    logToConsole("floaty expand");
     this.isExpanded = true;
     this.floatEl.classList.remove('collapsed');
     this.floatEl.classList.add('expanded');

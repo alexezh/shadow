@@ -31,6 +31,12 @@ export function handleRunAction(session: Session, req: RunActionRequest): Action
     case 'backspace':
       return handleDelete(doc, req.range, "backspace");
 
+    case 'bold':
+      return handleDelete(doc, req.range, "backspace");
+
+    case 'italic':
+      return handleDelete(doc, req.range, "backspace");
+
     case 'delete':
       return handleDelete(doc, req.range, "delete");
 
@@ -50,6 +56,15 @@ export function handleRunAction(session: Session, req: RunActionRequest): Action
         newPosition: { element: req.range.startElement, offset: req.range.startOffset }
       };
   }
+}
+
+function formatRange(doc: YDoc, range: WRange, func: () => YPropSet): ActionResult {
+  let items = [...doc.getBody().getChildrenRange(range)];
+  
+  return {
+    changes: [],
+    newPosition: { element: range.startElement, offset: range.startOffset }
+  };
 }
 
 function handleDelete(doc: YDoc, range: WRange, key: "backspace" | "delete"): ActionResult {

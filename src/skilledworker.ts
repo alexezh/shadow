@@ -1,8 +1,7 @@
-import { ChatCompletionTool } from "openai/resources/chat/completions";
 import { ConversationState, OpenAIClient, TokenUsage } from "./openai-client.js";
 import { PhaseGatedEnvelope } from "./phase-envelope.js";
-import { Session } from "./clippy/session.js";
 import type { ExecutePromptContext } from "./executepromptcontext.js";
+import type { MCPFunctionTool } from "./mcptools.js";
 
 interface StepCompletion {
   next_step?: string | null;
@@ -50,7 +49,7 @@ function extractNextPrompt(envelope: PhaseGatedEnvelope | null): string | null {
 
 export async function skilledWorker(
   ctx: ExecutePromptContext,
-  mcpTools: Array<ChatCompletionTool>,
+  mcpTools: Array<MCPFunctionTool>,
   systemPrompt: string,
 ): Promise<{ response: string; conversationState: ConversationState; usage: TokenUsage }> {
   const startAt = performance.now();

@@ -1,13 +1,35 @@
 import OpenAI from 'openai';
 import { ToolDispatcher } from './tooldispatcher.js';
 import { Database } from './database.js';
-import { ChatCompletionTool } from 'openai/resources/index.js';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
 import { Session } from './clippy/session.js';
+import type { MCPFunctionTool } from './mcptools.js';
 
 type TrackerEntry =
   | { kind: 'message'; role: string; tag?: string; length: number; timestamp: number }
   | { kind: 'usage'; tag: string; promptTokens: number; completionTokens: number; totalTokens: number; timestamp: number };
+
+type AssistantToolCall = {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+  [key: string]: unknown;
+};
+
+type ResponseMessageParam =
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string }
+  | {
+    role: 'assistant';
+    content: string | null;
+    tool_calls?: AssistantToolCall[];
+    refusal?: string | null;
+    [key: string]: unknown;
+  }
+  | { role: 'tool'; tool_call_id: string; content: string;[key: string]: unknown };
 
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
@@ -78,7 +100,7 @@ export async function generateEmbedding(client: OpenAI, terms: string | string[]
 }
 
 export class ConversationState {
-  public messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  public messages: ResponseMessageParam[];
   public systemPrompt: string;
   public lastPhase: Phase | null;
   public createdAt: Date;
@@ -162,7 +184,7 @@ type ResponsesInputMessage = {
   // Tool results must be sent as input_text with the result embedded in the text
 };
 
-function toResponseInput(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): ResponsesInputMessage[] {
+function toResponseInput(messages: ResponseMessageParam[]): ResponsesInputMessage[] {
   const result: ResponsesInputMessage[] = [];
 
   for (let i = 0; i < messages.length; i++) {
@@ -225,24 +247,11 @@ function toResponseInput(messages: OpenAI.Chat.Completions.ChatCompletionMessage
     }
 
     // Handle regular messages
+    // In OpenAI SDK 6.6, content is always string or null, never an array
     if (typeof msg.content === 'string' && msg.content !== null) {
       if (msg.content.length > 0) {
         const type = msg.role === 'assistant' ? 'output_text' : 'input_text';
         blocks.push({ type, text: msg.content });
-      }
-    } else if (Array.isArray(msg.content)) {
-      for (const entry of msg.content) {
-        const entryAny = entry as any;
-        if (typeof entryAny === 'string') {
-          if (entryAny.length > 0) {
-            const type = msg.role === 'assistant' ? 'output_text' : 'input_text';
-            blocks.push({ type, text: entryAny });
-          }
-        } else if (entryAny && typeof entryAny === 'object' && 'text' in entryAny) {
-          const text = entryAny.text ?? '';
-          const type = msg.role === 'assistant' ? 'output_text' : 'input_text';
-          blocks.push({ type, text: String(text) });
-        }
       }
     }
 
@@ -308,7 +317,7 @@ export class OpenAIClient {
 
   async chatWithMCPTools(
     session: Session | undefined,
-    mcpTools: Array<ChatCompletionTool>,
+    mcpTools: Array<MCPFunctionTool>,
     conversationState: ConversationState,
     userMessage: string,
     options?: {
@@ -353,7 +362,7 @@ export class OpenAIClient {
       conversationState.recordMessage('tool', content, tag);
     };
 
-    const respondToToolCallsWithError = (toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[], reason: string): void => {
+    const respondToToolCallsWithError = (toolCalls: AssistantToolCall[], reason: string): void => {
       if (!toolCalls || toolCalls.length === 0) {
         return;
       }
@@ -603,7 +612,7 @@ export class OpenAIClient {
     };
   }
 
-  private toResponseTools(mcpTools: Array<ChatCompletionTool>): Array<{
+  private toResponseTools(mcpTools: Array<MCPFunctionTool>): Array<{
     type: 'function';
     name: string;
     description?: string;
@@ -621,9 +630,9 @@ export class OpenAIClient {
     input: ResponsesInputMessage[],
     tools: Array<{ type: 'function'; name: string; description?: string; parameters?: Record<string, unknown> | undefined; }>
   ): Promise<{
-    message: OpenAI.Chat.Completions.ChatCompletionMessageParam;
+    message: ResponseMessageParam;
     rawContent: string;
-    toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
+    toolCalls: AssistantToolCall[];
     usage: TokenUsage;
     refusal: string | null;
   }> {
@@ -638,7 +647,7 @@ export class OpenAIClient {
 
     let assistantContent = '';
     let refusalContent = '';
-    const toolCallsMap = new Map<string, OpenAI.Chat.Completions.ChatCompletionMessageToolCall>();
+    const toolCallsMap = new Map<string, AssistantToolCall>();
     let promptTokens = 0;
     let completionTokens = 0;
     let totalTokens = 0;
@@ -695,7 +704,10 @@ export class OpenAIClient {
           }
 
           const toolCall = toolCallsMap.get(callId)!;
-          accumulateCallParams(event, callId, toolCall);
+          const accResult = accumulateCallParams(event, callId, toolCall);
+          if (accResult === 'break') {
+            break streamLoop;
+          }
           continue;
         } else if (type === 'response.usage.delta') {
           const delta = event.delta ?? {};
@@ -739,7 +751,7 @@ export class OpenAIClient {
     }
 
     const toolCalls = Array.from(toolCallsMap.values());
-    const message: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
+    const message: ResponseMessageParam = {
       role: 'assistant',
       content: assistantContent || null,
       ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {})
@@ -760,8 +772,8 @@ export class OpenAIClient {
 
   private async executeTools(
     session: Session,
-    toolCalls: any,
-    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    toolCalls: AssistantToolCall[] | undefined,
+    messages: ResponseMessageParam[],
     conversationState: ConversationState
   ): Promise<void> {
     // Execute tool calls
@@ -775,7 +787,8 @@ export class OpenAIClient {
 
       const functionName = toolCall.function?.name ?? toolCall.name ?? 'unknown';
       const preParsed = (toolCall as any).__parsed;
-      const rawArgs = toolCall.function?.arguments ?? toolCall.arguments ?? '{}';
+      // Use __arguments if it exists (from streaming), otherwise fall back to function.arguments
+      const rawArgs = (toolCall as any).__arguments ?? toolCall.function?.arguments ?? toolCall.arguments ?? '{}';
 
       let parsedArgs: Record<string, unknown> = {};
       if (preParsed && typeof preParsed === 'object') {
@@ -786,15 +799,31 @@ export class OpenAIClient {
           try {
             parsedArgs = JSON.parse(trimmed);
           } catch (error) {
-            const errText = `Error parsing arguments for ${functionName}: ${error}`;
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: errText
-            });
-            conversationState.recordMessage('tool', errText, `${functionName}-error`);
-            console.error(errText);
-            continue;
+            try {
+              const slice = tryParseFirstJson(trimmed);
+              if (slice.ok) {
+                parsedArgs = slice.json;
+                // Don't try to modify the readonly property
+                // toolCall.function.arguments = slice.slice;
+                (toolCall as any).__parsed = slice.json;
+              } else {
+                throw error;
+              }
+            } catch (err2) {
+              // Log the actual malformed JSON for debugging
+              console.error(`Error parsing arguments for ${functionName}`);
+              console.error(`Trimmed parameter JSON invalid: ${JSON.stringify(trimmed)}`);
+              console.error(`Error: ${error}`);
+
+              const errText = `Error parsing arguments for ${functionName}: ${error}. Arguments were: ${trimmed.substring(0, 200)}`;
+              messages.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: errText
+              });
+              conversationState.recordMessage('tool', errText, `${functionName}-error`);
+              continue;
+            }
           }
         }
       } else if (rawArgs && typeof rawArgs === 'object') {
@@ -857,15 +886,12 @@ function parseIfReady(s: string): { ok: true; value: any } | { ok: false } {
   try { return { ok: true, value: JSON.parse(t) }; } catch { return { ok: false }; }
 }
 
+
 function extractFirstBalancedJson(s: string): string | null {
-  // Find first '{' or '['
   const start = s.search(/[\{\[]/);
   if (start === -1) return null;
 
-  let depth = 0;
-  let inStr = false;
-  let esc = false;
-  let end = -1;
+  let depth = 0, inStr = false, esc = false;
   const open = s[start];
   const close = open === '{' ? '}' : ']';
 
@@ -879,30 +905,28 @@ function extractFirstBalancedJson(s: string): string | null {
     }
     if (ch === '"') { inStr = true; continue; }
     if (ch === open) depth++;
-    else if (ch === close) {
-      depth--;
-      if (depth === 0) { end = i; break; }
-    }
+    else if (ch === close && --depth === 0) return s.slice(start, i + 1);
   }
-
-  if (end === -1) return null;
-  return s.slice(start, end + 1); // exact JSON slice; ignore any trailing junk
+  return null;
 }
 
-function tryParseFirstJson(s: string): { ok: true; json: any; slice: string } | { ok: false } {
+function tryParseFirstJson(s: string): { ok: true; slice: string; value: any } | { ok: false } {
   const slice = extractFirstBalancedJson(s);
   if (!slice) return { ok: false };
-  try { return { ok: true, json: JSON.parse(slice), slice }; }
+  try { return { ok: true, slice, value: JSON.parse(slice) }; }
   catch { return { ok: false }; }
 }
 
 function accumulateCallParams(
   event: any,
   callId: string,
-  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall
-) {
+  toolCall: AssistantToolCall
+): 'continue' | 'break' {
   (toolCall as any).__blankCount ??= 0;
   (toolCall as any).__locked ??= false;
+  // Initialize our own accumulator to avoid modifying readonly property
+  (toolCall as any).__arguments ??= toolCall.function.arguments || '';
+
   const rawDelta = typeof event.delta === 'string'
     ? event.delta
     : (event.delta?.arguments ?? '');
@@ -911,50 +935,59 @@ function accumulateCallParams(
   if ((toolCall as any).__locked) {
     if (typeof rawDelta === 'string' && rawDelta.trim().length === 0) {
       (toolCall as any).__blankCount++;
+      if ((toolCall as any).__blankCount >= 2) {
+        return 'break';
+      }
     }
-    return;
+    return 'continue';
   }
 
   if (typeof rawDelta === 'string') {
     if (rawDelta.trim().length > 0) {
-      toolCall.function.arguments += rawDelta;
+      // Accumulate in our custom property
+      (toolCall as any).__arguments += rawDelta;
       (toolCall as any).__blankCount = 0;
 
       // Try to parse the FIRST balanced JSON slice only.
-      const parsed = tryParseFirstJson(toolCall.function.arguments);
+      const parsed = tryParseFirstJson((toolCall as any).__arguments);
       if (parsed.ok) {
         // Keep only the valid JSON slice; drop any trailing chatter.
-        toolCall.function.arguments = parsed.slice;
+        (toolCall as any).__arguments = parsed.slice;
         (toolCall as any).__parsed = parsed.json;
         (toolCall as any).__locked = true;
-        return;
+        (toolCall as any).__blankCount = 0;
+        return 'break';
       }
     } else {
       // Whitespace heartbeat
       (toolCall as any).__blankCount++;
       // If the buffer ALREADY contains a balanced slice (even if parse failed before),
       // and we've seen a few blanks, lock by balance to move on.
-      const slice = extractFirstBalancedJson(toolCall.function.arguments);
+      const slice = extractFirstBalancedJson((toolCall as any).__arguments);
       if (slice && (toolCall as any).__blankCount >= 3) {
         try {
           (toolCall as any).__parsed = JSON.parse(slice);
         } catch {
           // As a last resort, still accept balanced slice and let caller validate.
         }
-        toolCall.function.arguments = slice;
+        (toolCall as any).__arguments = slice;
         (toolCall as any).__locked = true;
-        return;
+        (toolCall as any).__blankCount = 0;
+        return 'break';
       }
 
       // Nothing but whitespace forever?
-      if (toolCall.function.arguments.length === 0 && (toolCall as any).__blankCount > 20) {
+      const argsLength = (toolCall as any).__arguments.length;
+      if (argsLength === 0 && (toolCall as any).__blankCount > 20) {
         throw new Error(`Tool call ${toolCall.function.name || callId} produced only whitespace arguments.`);
       }
-      if (toolCall.function.arguments.length > 0 && (toolCall as any).__blankCount > 50) {
+      if (argsLength > 0 && (toolCall as any).__blankCount > 50) {
         console.warn(`⚠️ Excessive whitespace for tool ${toolCall.function.name || callId}; locking by timeout.`);
         (toolCall as any).__locked = true;
-        return;
+        return 'break';
       }
     }
   }
+
+  return 'continue';
 }

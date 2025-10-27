@@ -191,8 +191,9 @@ export class IPCursor {
     this.cursorEl.style.height = `${rect.height || 20}px`;
 
     // Update Clippy position if it exists and is visible
-    if ((window as any).clippyFloat && this.visible) {
-      (window as any).clippyFloat.positionBelowCursor();
+    const editorContext = getEditorContext();
+    if (editorContext?.clippyFloat && this.visible) {
+      editorContext.clippyFloat.positionBelowCursor();
     }
   }
 
@@ -200,12 +201,25 @@ export class IPCursor {
     this.visible = true;
     this.cursorEl.style.display = 'block';
     this.startBlinking();
+
+    // Show clippy at cursor position
+    const editorContext = getEditorContext();
+    if (editorContext?.clippyFloat) {
+      editorContext.clippyFloat.positionBelowCursor();
+      editorContext.clippyFloat.show();
+    }
   }
 
   hide(): void {
     this.visible = false;
     this.cursorEl.style.display = 'none';
     this.stopBlinking();
+
+    // Hide clippy when cursor is hidden
+    const editorContext = getEditorContext();
+    if (editorContext?.clippyFloat) {
+      editorContext.clippyFloat.hide();
+    }
   }
 
   startBlinking(): void {
@@ -312,7 +326,7 @@ export class IPCursor {
 
   extendSelectionLeft(): void {
     if (!this.selection.active) {
-      // Start selection from current position
+      // Start selection from current position (anchor stays here)
       this.selection.set(
         this.position.node,
         this.position.offset,
@@ -324,19 +338,19 @@ export class IPCursor {
     // Move cursor left
     this.moveLeft();
 
-    // Update selection end
-    this.selection.startNode = this.position.node;
-    this.selection.startOffset = this.position.offset;
+    // Update selection focus (the moving end)
+    this.selection.focusNode = this.position.node;
+    this.selection.focusOffset = this.position.offset;
 
     // Highlight the selection visually
     this.highlightSelection();
 
-    //logToConsole(`Extended selection left: ${this.selection.startOffset}-${this.selection.endOffset}`);
+    //logToConsole(`Extended selection left`);
   }
 
   extendSelectionRight(): void {
     if (!this.selection.active) {
-      // Start selection from current position
+      // Start selection from current position (anchor stays here)
       this.selection.set(
         this.position.node,
         this.position.offset,
@@ -344,26 +358,23 @@ export class IPCursor {
         this.position.offset
       );
     }
-
-    // Save old position
-    const oldNode = this.position.node;
-    const oldOffset = this.position.offset;
 
     // Move cursor right
     this.moveRight();
 
-    // Update selection end
-    this.selection.endNode = this.position.node;
-    this.selection.endOffset = this.position.offset;
+    // Update selection focus (the moving end)
+    this.selection.focusNode = this.position.node;
+    this.selection.focusOffset = this.position.offset;
 
     // Highlight the selection visually
     this.highlightSelection();
 
-    //logToConsole(`Extended selection right: ${this.selection.startOffset}-${this.selection.endOffset}`);
+    //logToConsole(`Extended selection right`);
   }
 
   extendSelectionUp(): void {
     if (!this.selection.active) {
+      // Start selection from current position (anchor stays here)
       this.selection.set(
         this.position.node,
         this.position.offset,
@@ -372,9 +383,12 @@ export class IPCursor {
       );
     }
 
+    // Move cursor up
     this.moveUp();
-    this.selection.endNode = this.position.node;
-    this.selection.endOffset = this.position.offset;
+
+    // Update selection focus (the moving end)
+    this.selection.focusNode = this.position.node;
+    this.selection.focusOffset = this.position.offset;
 
     // Highlight the selection visually
     this.highlightSelection();
@@ -384,6 +398,7 @@ export class IPCursor {
 
   extendSelectionDown(): void {
     if (!this.selection.active) {
+      // Start selection from current position (anchor stays here)
       this.selection.set(
         this.position.node,
         this.position.offset,
@@ -392,9 +407,12 @@ export class IPCursor {
       );
     }
 
+    // Move cursor down
     this.moveDown();
-    this.selection.endNode = this.position.node;
-    this.selection.endOffset = this.position.offset;
+
+    // Update selection focus (the moving end)
+    this.selection.focusNode = this.position.node;
+    this.selection.focusOffset = this.position.offset;
 
     // Highlight the selection visually
     this.highlightSelection();
@@ -676,40 +694,126 @@ export class IPCursor {
 // Selection management
 export class Selection {
   public active: boolean;
-  public startNode: Node | null;
-  public startOffset: number;
-  public endNode: Node | null;
-  public endOffset: number;
+  public anchorNode: Node | null;
+  public anchorOffset: number;
+  public focusNode: Node | null;
+  public focusOffset: number;
+
+  // Legacy properties for compatibility
+  public get startNode(): Node | null {
+    const ordered = this.getOrderedRange();
+    return ordered.startNode;
+  }
+
+  public get startOffset(): number {
+    const ordered = this.getOrderedRange();
+    return ordered.startOffset;
+  }
+
+  public get endNode(): Node | null {
+    const ordered = this.getOrderedRange();
+    return ordered.endNode;
+  }
+
+  public get endOffset(): number {
+    const ordered = this.getOrderedRange();
+    return ordered.endOffset;
+  }
+
+  public set startNode(node: Node | null) {
+    this.anchorNode = node;
+  }
+
+  public set startOffset(offset: number) {
+    this.anchorOffset = offset;
+  }
+
+  public set endNode(node: Node | null) {
+    this.focusNode = node;
+  }
+
+  public set endOffset(offset: number) {
+    this.focusOffset = offset;
+  }
 
   constructor() {
     this.active = false;
-    this.startNode = null;
-    this.startOffset = 0;
-    this.endNode = null;
-    this.endOffset = 0;
+    this.anchorNode = null;
+    this.anchorOffset = 0;
+    this.focusNode = null;
+    this.focusOffset = 0;
   }
 
-  set(startNode: Node | null, startOffset: number, endNode: Node | null, endOffset: number): void {
+  set(anchorNode: Node | null, anchorOffset: number, focusNode: Node | null, focusOffset: number): void {
     this.active = true;
-    if (startNode === endNode) {
-      if (startOffset > endOffset) {
-        let t = endOffset;
-        endOffset = startOffset;
-        startOffset = t;
+    this.anchorNode = anchorNode;
+    this.anchorOffset = anchorOffset;
+    this.focusNode = focusNode;
+    this.focusOffset = focusOffset;
+  }
+
+  /**
+   * Get the ordered range (start before end) regardless of selection direction
+   */
+  private getOrderedRange(): { startNode: Node | null; startOffset: number; endNode: Node | null; endOffset: number } {
+    if (!this.anchorNode || !this.focusNode) {
+      return {
+        startNode: this.anchorNode,
+        startOffset: this.anchorOffset,
+        endNode: this.focusNode,
+        endOffset: this.focusOffset
+      };
+    }
+
+    // If same node, compare offsets
+    if (this.anchorNode === this.focusNode) {
+      if (this.anchorOffset <= this.focusOffset) {
+        return {
+          startNode: this.anchorNode,
+          startOffset: this.anchorOffset,
+          endNode: this.focusNode,
+          endOffset: this.focusOffset
+        };
+      } else {
+        return {
+          startNode: this.focusNode,
+          startOffset: this.focusOffset,
+          endNode: this.anchorNode,
+          endOffset: this.anchorOffset
+        };
       }
     }
-    this.startNode = startNode;
-    this.startOffset = startOffset;
-    this.endNode = endNode;
-    this.endOffset = endOffset;
+
+    // Different nodes - use compareDocumentPosition
+    const position = this.anchorNode.compareDocumentPosition(this.focusNode);
+
+    if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
+      // focusNode comes after anchorNode
+      return {
+        startNode: this.anchorNode,
+        startOffset: this.anchorOffset,
+        endNode: this.focusNode,
+        endOffset: this.focusOffset
+      };
+    } else {
+      // focusNode comes before anchorNode
+      return {
+        startNode: this.focusNode,
+        startOffset: this.focusOffset,
+        endNode: this.anchorNode,
+        endOffset: this.anchorOffset
+      };
+    }
   }
 
   clear(): void {
     this.active = false;
-    this.startNode = null;
-    this.startOffset = 0;
-    this.endNode = null;
-    this.endOffset = 0;
+    this.anchorNode = null;
+    this.anchorOffset = 0;
+    this.focusNode = null;
+    this.focusOffset = 0;
+
+    logToConsole("sel clear");
 
     // Clear browser selection
     const browserSel = window.getSelection();
@@ -721,14 +825,15 @@ export class Selection {
   getRange(): { startElement: string | null; startOffset: number; endElement: string | null; endOffset: number } | null {
     if (!this.active) return null;
 
-    const startElement = findElementId(this.startNode);
-    const endElement = findElementId(this.endNode);
+    const ordered = this.getOrderedRange();
+    const startElement = findElementId(ordered.startNode);
+    const endElement = findElementId(ordered.endNode);
 
     return {
       startElement,
-      startOffset: this.startOffset,
+      startOffset: ordered.startOffset,
       endElement,
-      endOffset: this.endOffset
+      endOffset: ordered.endOffset
     };
   }
 }
