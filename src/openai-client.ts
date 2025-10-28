@@ -114,17 +114,28 @@ export class ConversationState {
   public messageCount: number = 0;
   public entries: TrackerEntry[] = [];
 
-  constructor(systemPrompt: string, initialUserMessage: string) {
+  constructor(systemPrompt: string, initialUserMessage: string, contextMessage?: { role: 'user'; content: string }) {
     this.messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: initialUserMessage }
+      { role: 'system', content: systemPrompt }
     ];
+
+    // Add context message if provided (labeled as **ctx**)
+    if (contextMessage) {
+      this.messages.push(contextMessage);
+    }
+
+    // Add initial user message
+    this.messages.push({ role: 'user', content: initialUserMessage });
+
     this.systemPrompt = systemPrompt;
     this.lastPhase = null;
     this.createdAt = new Date();
 
     // Record initial messages
     this.recordMessage('system', systemPrompt, 'system');
+    if (contextMessage) {
+      this.recordMessage('user', contextMessage.content, 'ctx');
+    }
     this.recordMessage('user', initialUserMessage, 'user');
   }
 
@@ -824,7 +835,7 @@ function accumulateCallParams(
   toolCall.__blankCount ??= 0;
   toolCall.__locked ??= false;
   toolCall.__debounce ??= 0;
-  toolCall.__parser = new JsonChunkedParser();
+  toolCall.__parser ??= new JsonChunkedParser();
 
   const rawDelta = typeof event.delta === 'string'
     ? event.delta
@@ -849,6 +860,8 @@ function accumulateCallParams(
       toolCall.args = res.value;
       toolCall.__locked = true;
       toolCall.__debounce = 0;
+      // we will continue just in case if system will send few blanks and move on
+      // break will happen from above
       return "continue";
     }
   } else {

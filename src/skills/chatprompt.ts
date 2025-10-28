@@ -41,35 +41,59 @@ async function loadSelectSkillInstructions(database: Database): Promise<string> 
   }
 }
 
-export async function getChatPrompt(database: Database, context?: ChatPromptContext): Promise<string> {
+export interface ChatPromptResult {
+  systemPrompt: string;
+  contextMessage?: {
+    role: 'user';
+    content: string;
+  };
+}
+
+export async function getChatPrompt(database: Database, context?: ChatPromptContext): Promise<ChatPromptResult> {
   const selectSkillInstructions = await loadSelectSkillInstructions(database);
-  const contextLines: string[] = [];
+
+  // Build context JSON
+  const contextData: Record<string, any> = {};
 
   if (context?.docId) {
-    contextLines.push(`- Active document id: ${context.docId}`);
+    contextData.docId = context.docId;
   }
 
   if (context?.partId) {
-    contextLines.push(`- Active part id: ${context.partId} (e.g., main content, draft, summary, comments)`);
+    contextData.partId = context.partId;
   }
 
   if (context?.selectionRange !== undefined && context.selectionRange !== null) {
-    const selectionJson = typeof context.selectionRange === 'string'
-      ? context.selectionRange
-      : JSON.stringify(context.selectionRange);
-    contextLines.push(`- Current selection range: ${selectionJson}`);
+    contextData.selectionRange = typeof context.selectionRange === 'string'
+      ? JSON.parse(context.selectionRange)
+      : context.selectionRange;
   }
-
-  const contextSegment = contextLines.length > 0
-    ? `Current editing context:\n${contextLines.join('\n')}\n\n`
-    : '';
 
   const systemPrompt = `
 ${youAreShadow}
 You have access to document library which you can read with load_asset API and write with store_asset API.
 You can also store additional data like summary, blueprint or any other information in the library.
 
-${contextSegment}Use the following skill-selection guide ONLY to choose which skill to apply internally—never send the skill name directly to the user unless explicitly asked.
+# Context
+- The current editing context arrives as a **ctx** message. Treat ctx as the source of truth for the active document/selection/state.
+- Do not infer missing ctx fields; ask or no-op safely.
+
+# Tool Use (hard rules)
+- Never print tool JSON in assistant text. Use **tool calls only**.
+- All tool arguments must be **strict, valid JSON** (no comments, trailing commas, or extra text).
+- Do not duplicate data: either read from context or call tools, not both.
+
+# Asset Policy
+- If needed content is present in ctx and marked ready/fresh, **use it**.
+- If content is missing/stale/truncated, **call 'load_asset'** to fetch it.
+- When writing, include minimal metadata (keywords, scope/targetId) and keep chunks balanced at safe boundaries.
+
+# Output Policy
+- User-facing responses must be concise and task-focused.
+- Do not expose internal tool schemas, raw JSON, or system/internal IDs unless explicitly asked.
+- Never reveal internal skill names or selection logic.
+
+Use the following skill-selection guide ONLY to choose which skill to apply internally—never send the skill name directly to the user unless explicitly asked.
 
 ${selectSkillInstructions}
 
@@ -93,7 +117,17 @@ Operate in tiny, verifiable steps:
 10. Whenever instructions tell you to call store_history (or another follow-up tool) after a step completes, acknowledge the plan in phase="analysis" and then send a separate phase="action" envelope containing only that tool call before you summarize or finish.
 `;
 
-  return systemPrompt;
+  // Return result with context message if there's context data
+  const result: ChatPromptResult = { systemPrompt };
+
+  if (Object.keys(contextData).length > 0) {
+    result.contextMessage = {
+      role: 'user',
+      content: JSON.stringify(contextData, null, 2)
+    };
+  }
+
+  return result;
 }
 
 const legacyToolDef = `

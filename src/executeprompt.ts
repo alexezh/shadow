@@ -207,7 +207,7 @@ async function handleChatMessage(
   ctx: ExecutePromptContext
 ): Promise<void> {
   try {
-    const systemPrompt = await getChatPrompt(ctx.database, {
+    const chatPrompt = await getChatPrompt(ctx.database, {
       docId: ctx.docId ?? ctx.session?.id,
       partId: ctx.partId ?? ctx.session?.currentPartId,
       selectionRange: ctx.selectionRange
@@ -215,7 +215,7 @@ async function handleChatMessage(
     const result = await skilledWorker(
       ctx,
       mcpTools,
-      systemPrompt,
+      chatPrompt,
     );
 
     // Note: conversationState is now returned instead of conversationId

@@ -49,21 +49,30 @@ export class IPCursor {
       isMouseDown = true;
       isShiftDown = e.shiftKey;
 
+      // Get position at click
+      const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      if (!range || !range.startContainer) return;
+
       if (isShiftDown && this.position.node) {
-        // Start selection from current position
+        // Extend selection from current position to click
         selectionAnchor = { node: this.position.node, offset: this.position.offset };
-        if (!this.selection.active) {
-          this.selection.set(
-            this.position.node,
-            this.position.offset,
-            this.position.node,
-            this.position.offset
-          );
-        }
+        this.selection.set(
+          selectionAnchor.node,
+          selectionAnchor.offset,
+          range.startContainer,
+          range.startOffset
+        );
+        this.position.node = range.startContainer;
+        this.position.offset = range.startOffset;
+        this.updateCursorPosition();
+        this.highlightSelection();
       } else {
-        // Clear selection and position cursor normally
-        selectionAnchor = null;
-        this.positionAtClick(e);
+        // Clear selection and start new selection anchor
+        this.selection.clear();
+        selectionAnchor = { node: range.startContainer, offset: range.startOffset };
+        this.position.node = range.startContainer;
+        this.position.offset = range.startOffset;
+        this.updateCursorPosition();
       }
 
       // Hide Clippy on mouse button press
@@ -86,28 +95,23 @@ export class IPCursor {
     });
 
     this.documentEl.addEventListener('mousemove', (e) => {
-      if (isMouseDown) {
-        if (isShiftDown && selectionAnchor) {
-          // Extend selection to current mouse position
-          const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-          if (range && range.startContainer) {
-            this.position.node = range.startContainer;
-            this.position.offset = range.startOffset;
+      if (isMouseDown && selectionAnchor) {
+        // Create/extend selection while dragging
+        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (range && range.startContainer) {
+          this.position.node = range.startContainer;
+          this.position.offset = range.startOffset;
 
-            // Update selection end to current position
-            this.selection.set(
-              selectionAnchor.node,
-              selectionAnchor.offset,
-              this.position.node,
-              this.position.offset
-            );
+          // Update selection from anchor to current position
+          this.selection.set(
+            selectionAnchor.node,
+            selectionAnchor.offset,
+            this.position.node,
+            this.position.offset
+          );
 
-            this.updateCursorPosition();
-            this.highlightSelection();
-          }
-        } else {
-          // Normal cursor positioning
-          this.positionAtClick(e);
+          this.updateCursorPosition();
+          this.highlightSelection();
         }
       }
     });
@@ -424,16 +428,24 @@ export class IPCursor {
     if (!this.selection.active) return;
 
     try {
-      // Use browser's native selection to highlight
-      const browserSel = window.getSelection();
-      if (!browserSel) return;
-      browserSel.removeAllRanges();
+      const ordered = this.selection['getOrderedRange']();
+      if (!ordered.startNode || !ordered.endNode) return;
 
       const range = document.createRange();
-      range.setStart(this.selection.startNode!, this.selection.startOffset);
-      range.setEnd(this.selection.endNode!, this.selection.endOffset);
+      range.setStart(ordered.startNode, ordered.startOffset);
+      range.setEnd(ordered.endNode, ordered.endOffset);
 
-      browserSel.addRange(range);
+      // Use CSS Custom Highlight API if available (persists when focus is lost)
+      if (CSS.highlights) {
+        const highlight = new Highlight(range);
+        CSS.highlights.set(this.selection['highlightName'], highlight);
+      } else {
+        // Fallback to browser's native selection (disappears on blur)
+        const browserSel = window.getSelection();
+        if (!browserSel) return;
+        browserSel.removeAllRanges();
+        browserSel.addRange(range);
+      }
     } catch (e) {
       logToConsole(`Error highlighting selection: ${(e as Error).message}`, 'error');
     }
@@ -698,6 +710,7 @@ export class Selection {
   public anchorOffset: number;
   public focusNode: Node | null;
   public focusOffset: number;
+  private highlightName: string = 'editor-selection';
 
   // Legacy properties for compatibility
   public get startNode(): Node | null {
@@ -742,6 +755,31 @@ export class Selection {
     this.anchorOffset = 0;
     this.focusNode = null;
     this.focusOffset = 0;
+
+    // Initialize CSS highlight styles
+    this.initHighlightStyles();
+  }
+
+  private initHighlightStyles(): void {
+    // Check if CSS highlights API is supported
+    if (!CSS.highlights) {
+      console.warn('CSS Custom Highlights API not supported');
+      return;
+    }
+
+    // Add CSS rule for the highlight if not already present
+    const styleId = 'selection-highlight-style';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        ::highlight(${this.highlightName}) {
+          background-color: rgba(180, 215, 255, 0.5);
+          color: inherit;
+        }
+      `;
+      document.head.appendChild(style);
+    }
   }
 
   set(anchorNode: Node | null, anchorOffset: number, focusNode: Node | null, focusOffset: number): void {
@@ -815,7 +853,12 @@ export class Selection {
 
     logToConsole("sel clear");
 
-    // Clear browser selection
+    // Clear CSS highlight
+    if (CSS.highlights) {
+      CSS.highlights.delete(this.highlightName);
+    }
+
+    // Clear browser selection (fallback for browsers without CSS highlights)
     const browserSel = window.getSelection();
     if (browserSel) {
       browserSel.removeAllRanges();

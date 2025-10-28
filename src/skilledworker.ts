@@ -2,6 +2,7 @@ import { ConversationState, OpenAIClient, TokenUsage } from "./openai-client.js"
 import { PhaseGatedEnvelope } from "./phase-envelope.js";
 import type { ExecutePromptContext } from "./executepromptcontext.js";
 import type { MCPFunctionTool } from "./mcptools.js";
+import type { ChatPromptResult } from "./skills/chatprompt.js";
 
 interface StepCompletion {
   next_step?: string | null;
@@ -50,10 +51,14 @@ function extractNextPrompt(envelope: PhaseGatedEnvelope | null): string | null {
 export async function skilledWorker(
   ctx: ExecutePromptContext,
   mcpTools: Array<MCPFunctionTool>,
-  systemPrompt: string,
+  chatPrompt: ChatPromptResult,
 ): Promise<{ response: string; conversationState: ConversationState; usage: TokenUsage }> {
   const startAt = performance.now();
-  const conversationState = new ConversationState(systemPrompt, ctx.prompt);
+  const conversationState = new ConversationState(
+    chatPrompt.systemPrompt,
+    ctx.prompt,
+    chatPrompt.contextMessage
+  );
 
   let currentPrompt = ctx.prompt;
   let lastResponse = '';
