@@ -32,10 +32,24 @@ export function handleRunAction(session: Session, req: RunActionRequest): Action
       return handleDelete(doc, req.range, "backspace");
 
     case 'bold':
-      return handleDelete(doc, req.range, "backspace");
+      return formatRange(doc, req.range, (props: { [key: string]: any }) => {
+        const c = props["font-weight"];
+        if (!c || c === "normal") {
+          props["font-weight"] = "bold";
+        } else {
+          delete props["font-weight"];
+        }
+      });
 
     case 'italic':
-      return handleDelete(doc, req.range, "backspace");
+      return formatRange(doc, req.range, (props: { [key: string]: any }) => {
+        const c = props["font-style"];
+        if (!c || c === "normal") {
+          props["font-style"] = "italic";
+        } else {
+          delete props["font-style"];
+        }
+      });
 
     case 'delete':
       return handleDelete(doc, req.range, "delete");
@@ -58,11 +72,28 @@ export function handleRunAction(session: Session, req: RunActionRequest): Action
   }
 }
 
-function formatRange(doc: YDoc, range: WRange, func: () => YPropSet): ActionResult {
+function formatRange(doc: YDoc, range: WRange, func: (props: { [key: string]: any }) => void): ActionResult {
   let items = [...doc.getBody().getChildrenRange(range)];
-  
+
+  const changeRecords: ContentChangeRecord[] = [];
+  if (items.length > 1) {
+    //items[0].applyFormat(range.startOffset, -1, func);
+  } else {
+    const item = items[0];
+    if (item instanceof YPara) {
+      item.applyFormat(range.startOffset, range.endOffset - range.startOffset, func);
+
+      const html = makeHtml(item);
+      changeRecords.push({
+        id: item.id,
+        html: html,
+        op: "changed"
+      })
+    }
+  }
+
   return {
-    changes: [],
+    changes: changeRecords,
     newPosition: { element: range.startElement, offset: range.startOffset }
   };
 }
@@ -85,9 +116,8 @@ function handleDelete(doc: YDoc, range: WRange, key: "backspace" | "delete"): Ac
         id: c.node.id,
         html: html,
         op: c.op
-      })
+      });
     }
-
   }
 
   return {

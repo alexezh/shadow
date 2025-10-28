@@ -46,6 +46,9 @@ export class IPCursor {
     let selectionAnchor: { node: Node | null; offset: number } | null = null;
 
     this.documentEl.addEventListener('mousedown', (e) => {
+      // Prevent browser default selection
+      e.preventDefault();
+
       isMouseDown = true;
       isShiftDown = e.shiftKey;
 
@@ -75,7 +78,11 @@ export class IPCursor {
         this.updateCursorPosition();
       }
 
-      // Hide Clippy on mouse button press
+      // Show cursor but hide Clippy during mouse operations
+      this.visible = true;
+      this.cursorEl.style.display = 'block';
+      this.startBlinking();
+
       const editorContext = getEditorContext();
       if (editorContext?.clippyFloat) {
         editorContext.clippyFloat.hide();
@@ -96,6 +103,9 @@ export class IPCursor {
 
     this.documentEl.addEventListener('mousemove', (e) => {
       if (isMouseDown && selectionAnchor) {
+        // Prevent browser default selection
+        e.preventDefault();
+
         // Create/extend selection while dragging
         const range = document.caretRangeFromPoint(e.clientX, e.clientY);
         if (range && range.startContainer) {
@@ -123,6 +133,41 @@ export class IPCursor {
 
     this.documentEl.addEventListener('dblclick', (e) => {
       e.preventDefault();
+
+      // Select word at double-click position
+      const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      if (!range || !range.startContainer) return;
+
+      const node = range.startContainer;
+      if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+        const text = node.textContent;
+        const offset = range.startOffset;
+
+        // Find word boundaries
+        const wordBoundary = /[\s\p{P}]/u;
+
+        // Find start of word
+        let start = offset;
+        while (start > 0 && !wordBoundary.test(text[start - 1])) {
+          start--;
+        }
+
+        // Find end of word
+        let end = offset;
+        while (end < text.length && !wordBoundary.test(text[end])) {
+          end++;
+        }
+
+        // Set selection to the word
+        if (start !== end) {
+          this.selection.set(node, start, node, end);
+          this.position.node = node;
+          this.position.offset = end;
+          this.updateCursorPosition();
+          this.highlightSelection();
+          this.show();
+        }
+      }
     });
 
     // Keyboard input

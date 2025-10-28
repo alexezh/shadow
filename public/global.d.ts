@@ -38,8 +38,6 @@ declare global {
   interface CSS {
     highlights: HighlightRegistry;
   }
-
-  var CSS: CSS;
 }
 
-export {}
+export { }

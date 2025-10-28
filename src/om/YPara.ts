@@ -46,6 +46,25 @@ export class YPara extends YNode {
     return null;
   }
 
+  public applyFormat(startAt: number, count: number, func: (props: { [key: string]: any }) => void) {
+    const end = (count > 0) ? startAt + count : this._str.length + count;
+
+    // small optimization to avoid allocs
+    let prevProp = undefined;
+    let prevUpdProp = undefined
+    for (let idx = startAt; idx < end; idx++) {
+      const prop = this._str.getPropsAt(idx);
+      if (prop === prevProp) {
+        this._str.setPropAt(idx, prevUpdProp!);
+      } else {
+        const updProp = YPropCache.instance.update(prop, func);
+        this._str.setPropAt(idx, updProp);
+        prevProp = prop;
+        prevUpdProp = updProp;
+      }
+    }
+  }
+
   public splitParagraph(pos: number): YPara {
     const newStr = this._str.split(pos);
 

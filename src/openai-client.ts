@@ -650,11 +650,12 @@ export class OpenAIClient {
     refusal: string | null;
   }> {
     const stream = await retryWithBackoff(async () => {
-      return this.client.responses.stream({
-        model: 'gpt-4.1',
+      return this.client.responses.create({
+        model: 'gpt-5',
         input: input as any,
         tools: tools as any,
-        temperature: 0.7
+        //temperature: 0.7,
+        stream: true,
       });
     });
 
@@ -674,6 +675,7 @@ export class OpenAIClient {
 
         const type = event.type as string | undefined;
 
+        console.log("event: " + type)
         if (type === 'response.output_text.delta') {
           assistantContent += event.delta ?? '';
           continue;
@@ -797,7 +799,7 @@ export class OpenAIClient {
       //   continue;
       // }
 
-      const functionName = toolCall?.name ?? toolCall.name ?? 'unknown';
+      const functionName = toolCall.name ?? 'unknown';
       // Use __arguments if it exists (from streaming), otherwise fall back to function.arguments
 
       try {

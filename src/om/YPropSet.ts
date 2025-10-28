@@ -71,7 +71,7 @@ export class YPropCache {
   }
 
   update(set: YPropSet, func: (props: { [key: string]: any }) => void): YPropSet {
-    let newProps = { ...set.propsInternal }
+    let newProps = { ...set }
     func(newProps);
     return YPropSet.create(newProps);
   }
