@@ -39,7 +39,7 @@ export class YDoc {
     this.linkTree();
   }
 
-  public createPart(kind: YDocPartKind): string {
+  public createPart(kind: YDocPartKind): YDocPart {
     // Generate a unique part ID
     const partId = `${kind}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -52,7 +52,7 @@ export class YDoc {
     const part = new YDocPart(this, partId, kind, title, partBody);
     this._parts.set(partId, part);
 
-    return partId;
+    return part;
   }
 
   // Set doc reference on all nodes in the tree

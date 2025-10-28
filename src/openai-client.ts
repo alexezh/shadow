@@ -651,7 +651,7 @@ export class OpenAIClient {
   }> {
     const stream = await retryWithBackoff(async () => {
       return this.client.responses.create({
-        model: 'gpt-5',
+        model: 'gpt-4.1',
         input: input as any,
         tools: tools as any,
         //temperature: 0.7,
@@ -675,13 +675,20 @@ export class OpenAIClient {
 
         const type = event.type as string | undefined;
 
-        console.log("event: " + type)
+        //console.log("event: " + type)
         if (type === 'response.output_text.delta') {
           assistantContent += event.delta ?? '';
           continue;
         } else if (type === 'response.refusal.delta') {
           refusalContent += event.delta ?? '';
           continue;
+        } else if (type === 'response.output_item.added') {
+          const item = event.item;
+          if (item?.type === 'tool_call' || item?.type === 'function_call') {
+            const id = item.id ?? event.item_id ?? 'tool-0';
+            const name = item.function?.name ?? item.name ?? 'unknown';
+            toolCallsMap.set(id, { id, name, args: {} });
+          }
         } else if (type === 'response.tool_calls.created' || type === 'response.function_call.created') {
           const call = event.tool_call ?? event;
           const callId = call?.id ?? event.item_id ?? event.call_id;

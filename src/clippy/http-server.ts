@@ -10,6 +10,10 @@ import { GetDocResponse, PromptRequest, Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
 import { makeHtml } from '../om/makeHtml.js';
 import { SessionImpl } from './sessionimpl.js';
+import { YPara } from '../om/YPara.js';
+import { make31BitId } from '../make31bitid.js';
+import { YPropSet } from '../om/YPropSet.js';
+import { YStr } from '../om/YStr.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -405,11 +409,16 @@ export class HttpServer {
         }
 
         // Create a new part
-        const partId = session.doc.createPart(kind);
-        console.log(`Created part: ${partId} (kind: ${kind})`);
+        const part = session.doc.createPart(kind);
+
+        const para = new YPara(make31BitId(), YPropSet.create({}),
+          new YStr('Draft content will appear here. Click to position cursor.\n', YPropSet.create({})))
+        part.body!.addChild(para);
+
+        console.log(`Created part: ${part.id} (kind: ${kind})`);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, partId }));
+        res.end(JSON.stringify({ success: true, id: part.id }));
       } catch (error) {
         console.error('Error handling createpart:', error);
         res.writeHead(400, { 'Content-Type': 'application/json' });
