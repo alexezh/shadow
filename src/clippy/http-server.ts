@@ -6,7 +6,7 @@ import { YDoc } from '../om/YDoc.js';
 import { executePrompt } from '../executeprompt.js';
 import { OpenAIClient } from '../openai-client.js';
 import { handleRunAction, RunActionRequest } from '../om/handleRunAction.js';
-import { GetDocResponse, PromptRequest, Session } from './session.js';
+import { GetDocResponse, Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
 import { makeHtml } from '../om/makeHtml.js';
 import { SessionImpl } from './sessionimpl.js';
@@ -14,6 +14,8 @@ import { YPara } from '../om/YPara.js';
 import { make31BitId } from '../make31bitid.js';
 import { YPropSet } from '../om/YPropSet.js';
 import { YStr } from '../om/YStr.js';
+import { getSelectionKind } from '../om/YNode.js';
+import { PromptRequest } from './promptrequest.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -273,7 +275,19 @@ export class HttpServer {
         console.log(`Execute command: session=${request.sessionId}, prompt="${request.prompt}"`);
 
         // Execute the command
-        const result = await this.executeCommand(session, request);
+        const result =
+          executePrompt({
+            session: session,
+            database: this.database,
+            openaiClient: this.openaiClient,
+            prompt: request.prompt,
+            partId: request.partId,
+            docId: request.docId,
+            selection: { ...request.selectionRange!, kind: getSelectionKind(request.selectionRange!) }
+          });
+        // Notify waiting clients
+        //this.notifyChangeListeners(session.id);
+        return "success";
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, result }));
@@ -283,21 +297,6 @@ export class HttpServer {
         res.end(JSON.stringify({ error: 'Invalid request' }));
       }
     });
-  }
-
-  private async executeCommand(session: Session, prompt: PromptRequest): Promise<string> {
-    executePrompt({
-      session: session,
-      database: this.database,
-      openaiClient: this.openaiClient,
-      prompt: prompt.prompt,
-      partId: prompt.partId,
-      docId: prompt.docId,
-      selectionRange: prompt.selectionRange
-    });
-    // Notify waiting clients
-    //this.notifyChangeListeners(session.id);
-    return "success";
   }
 
   private async handleGetChanges(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {

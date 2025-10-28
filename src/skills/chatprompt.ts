@@ -1,11 +1,12 @@
 import path from 'path';
 import { promises as fs } from 'fs';
 import { Database } from '../database.js';
+import { YRange } from '../om/YNode.js';
 
 export const youAreShadow = 'You are Shadow, a word processing software agent responsible for working with documents.';
 
 export interface ChatPromptContext {
-  selectionRange?: unknown;
+  selection?: YRange & { kind: "point" | "range" };
   docId?: string;
   partId?: string;
 }
@@ -63,10 +64,10 @@ export async function getChatPrompt(database: Database, context?: ChatPromptCont
     contextData.partId = context.partId;
   }
 
-  if (context?.selectionRange !== undefined && context.selectionRange !== null) {
-    contextData.selectionRange = typeof context.selectionRange === 'string'
-      ? JSON.parse(context.selectionRange)
-      : context.selectionRange;
+  if (context?.selection !== undefined && context.selection !== null) {
+    contextData.selectionRange = typeof context.selection === 'string'
+      ? JSON.parse(context.selection)
+      : context.selection;
   }
 
   const systemPrompt = `

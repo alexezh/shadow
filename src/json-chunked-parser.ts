@@ -4,6 +4,8 @@
  * Processes incoming string chunks and detects when a complete JSON object
  * has been received by tracking brace/bracket depth. Automatically handles
  * single-quote to double-quote conversion for JSON compatibility.
+ *
+ * Skips junk characters before the first { or [ up to maxJunkChars limit.
  */
 export class JsonChunkedParser {
   private buffer: string = '';
@@ -12,6 +14,15 @@ export class JsonChunkedParser {
   private escaped: boolean = false;
   private started: boolean = false;
   private openChar: '{' | '[' | null = null;
+  private junkChars: number = 0;
+  private maxJunkChars: number;
+
+  /**
+   * @param maxJunkChars - Maximum number of characters to skip before finding { or [ (default: 200)
+   */
+  constructor(maxJunkChars: number = 10) {
+    this.maxJunkChars = maxJunkChars;
+  }
 
   /**
    * Process a chunk of data
@@ -21,6 +32,29 @@ export class JsonChunkedParser {
   process(chunk: string): JsonChunkedParserResult {
     for (let i = 0; i < chunk.length; i++) {
       const ch = chunk[i];
+
+      // Before starting, skip junk and look for { or [
+      if (!this.started) {
+        if (ch === '{' || ch === '[') {
+          this.started = true;
+          this.openChar = ch;
+          this.depth++;
+          this.buffer += ch;
+          continue;
+        }
+
+        // Track junk characters (whitespace is ok, other chars count toward limit)
+        if (ch !== ' ' && ch !== '\t' && ch !== '\n' && ch !== '\r') {
+          this.junkChars++;
+          if (this.junkChars > this.maxJunkChars) {
+            return {
+              complete: true,
+              error: `No JSON start found after ${this.junkChars} non-whitespace characters`
+            };
+          }
+        }
+        continue;
+      }
 
       // Handle escape sequences inside strings
       if (this.inString) {
@@ -66,12 +100,8 @@ export class JsonChunkedParser {
         continue;
       }
 
-      // Track opening braces/brackets
+      // Track opening braces/brackets (nested ones after the first)
       if (ch === '{' || ch === '[') {
-        if (!this.started) {
-          this.started = true;
-          this.openChar = ch;
-        }
         this.depth++;
         this.buffer += ch;
         continue;
@@ -83,13 +113,13 @@ export class JsonChunkedParser {
         this.buffer += ch;
 
         // Check if we've completed the top-level object
-        if (this.started && this.depth === 0) {
+        if (this.depth === 0) {
           return this.tryParse();
         }
         continue;
       }
 
-      // Regular character - just append
+      // Regular character - just append (only after started)
       this.buffer += ch;
     }
 
@@ -150,6 +180,7 @@ export class JsonChunkedParser {
     this.escaped = false;
     this.started = false;
     this.openChar = null;
+    this.junkChars = 0;
   }
 
   /**
@@ -161,7 +192,8 @@ export class JsonChunkedParser {
       depth: this.depth,
       inString: this.inString,
       started: this.started,
-      openChar: this.openChar
+      openChar: this.openChar,
+      junkChars: this.junkChars
     };
   }
 }
@@ -179,4 +211,5 @@ export interface JsonChunkedParserStats {
   inString: boolean;
   started: boolean;
   openChar: '{' | '[' | null;
+  junkChars: number;
 }

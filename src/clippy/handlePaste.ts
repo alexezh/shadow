@@ -1,5 +1,5 @@
 import { ActionResult, ContentChangeRecord } from './session.js';
-import { WRange, YNode, YTextContainer } from '../om/YNode.js';
+import { YRange, YNode, YTextContainer } from '../om/YNode.js';
 import { YDoc } from '../om/YDoc.js';
 import { YPara } from '../om/YPara.js';
 import { YBody } from '../om/YBody.js';
@@ -17,7 +17,7 @@ import { YPropSet } from '../om/YPropSet.js';
  * @param content - HTML or plain text content to paste
  * @returns ActionResult with updated HTML blocks
  */
-export function handlePaste(doc: YDoc, range: WRange, content: string): ActionResult {
+export function handlePaste(doc: YDoc, range: YRange, content: string): ActionResult {
   const body = doc.getBody();
   const node = doc.getNodeById(range.startElement);
 
@@ -59,7 +59,7 @@ export function handlePaste(doc: YDoc, range: WRange, content: string): ActionRe
 }
 
 
-function pasteNodes(doc: YDoc, range: WRange, content: YNode[]): ActionResult {
+function pasteNodes(doc: YDoc, range: YRange, content: YNode[]): ActionResult {
   const body = doc.getBody();
   const node = doc.getNodeById(range.startElement);
 

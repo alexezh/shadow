@@ -1,6 +1,6 @@
 import { ActionResult, ContentChangeRecord, Session } from '../clippy/session.js';
 import { make31BitId } from '../make31bitid.js';
-import { WRange } from './YNode.js';
+import { YRange } from './YNode.js';
 import { YPara } from './YPara.js';
 import { YStr } from './YStr.js';
 import { makeHtml } from './makeHtml.js';
@@ -13,7 +13,7 @@ import { YPropSet } from './YPropSet.js';
 export type RunActionRequest = {
   sessionId: string;
   action: string;
-  range: WRange;
+  range: YRange;
   text?: string; // For type action
   content?: string; // For paste action
   partId?: string; // Optional part ID, defaults to 'main'
@@ -72,7 +72,7 @@ export function handleRunAction(session: Session, req: RunActionRequest): Action
   }
 }
 
-function formatRange(doc: YDoc, range: WRange, func: (props: { [key: string]: any }) => void): ActionResult {
+function formatRange(doc: YDoc, range: YRange, func: (props: { [key: string]: any }) => void): ActionResult {
   let items = [...doc.getBody().getChildrenRange(range)];
 
   const changeRecords: ContentChangeRecord[] = [];
@@ -98,7 +98,7 @@ function formatRange(doc: YDoc, range: WRange, func: (props: { [key: string]: an
   };
 }
 
-function handleDelete(doc: YDoc, range: WRange, key: "backspace" | "delete"): ActionResult {
+function handleDelete(doc: YDoc, range: YRange, key: "backspace" | "delete"): ActionResult {
   const node = doc.getNodeById(range.startElement);
   let changedNodes = deleteRange(doc, range);
 
@@ -126,7 +126,7 @@ function handleDelete(doc: YDoc, range: WRange, key: "backspace" | "delete"): Ac
   };
 }
 
-function handleType(doc: YDoc, range: WRange, text: string): ActionResult {
+function handleType(doc: YDoc, range: YRange, text: string): ActionResult {
   const node = doc.getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
@@ -152,7 +152,7 @@ function handleType(doc: YDoc, range: WRange, text: string): ActionResult {
   };
 }
 
-function handleSplit(doc: YDoc, range: WRange): ActionResult {
+function handleSplit(doc: YDoc, range: YRange): ActionResult {
   const body = doc.getBody();
   const node = doc.getNodeById(range.startElement);
 

@@ -17,6 +17,7 @@ import { getSelectionRange } from "./dom.js"
 import { VirtualDocument, vdomCache } from "./vdom.js"
 import { EditorContext, CommentThreadRef } from "./editor-context.js"
 import { renderCommentThreads, fetchCommentThreads } from "./comments.js"
+import { PromptRequest } from "../dist/clippy/promptrequest.js"
 
 // Global editor context for current document
 let currentEditorContext: EditorContext | null = null;
@@ -561,8 +562,8 @@ class ClippyFloat {
     try {
       const sessionId = getSessionId();
       const selectionRange = getSelectionRange();
-      const payload: Record<string, any> = {
-        sessionId,
+      const payload: PromptRequest = {
+        sessionId: sessionId!,
         prompt: question,
         partId: currentPartId
       };

@@ -210,7 +210,7 @@ async function handleChatMessage(
     const chatPrompt = await getChatPrompt(ctx.database, {
       docId: ctx.docId ?? ctx.session?.id,
       partId: ctx.partId ?? ctx.session?.currentPartId,
-      selectionRange: ctx.selectionRange
+      selection: ctx.selection
     });
     const result = await skilledWorker(
       ctx,

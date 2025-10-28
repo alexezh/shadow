@@ -407,7 +407,9 @@ export class OpenAIClient {
         toolCalls,
         usage: iterationUsage,
         refusal
-      } = await this.streamAssistantIteration(responsesInput, responsesTools);
+      } = await retryWithBackoff(async () => {
+        return this.streamAssistantIteration(responsesInput, responsesTools);
+      });
 
       totalPromptTokens += iterationUsage.promptTokens;
       totalCompletionTokens += iterationUsage.completionTokens;
@@ -649,14 +651,12 @@ export class OpenAIClient {
     usage: TokenUsage;
     refusal: string | null;
   }> {
-    const stream = await retryWithBackoff(async () => {
-      return this.client.responses.create({
-        model: 'gpt-4.1',
-        input: input as any,
-        tools: tools as any,
-        //temperature: 0.7,
-        stream: true,
-      });
+    const stream = await this.client.responses.create({
+      model: 'gpt-4.1',
+      input: input as any,
+      tools: tools as any,
+      //temperature: 0.7,
+      stream: true,
     });
 
     let assistantContent = '';

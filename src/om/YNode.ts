@@ -1,11 +1,19 @@
 import type { YDoc } from "./YDoc";
 import { YPropSet } from "./YPropSet";
 
-export type WRange = {
+export type YRange = {
   startElement: string;
   startOffset: number;
   endElement: string;
   endOffset: number;
+}
+
+export function getSelectionKind(range: YRange): "point" | "range" {
+  if (range.startOffset === range.endOffset && range.startElement === range.endElement) {
+    return "point"
+  } else {
+    return "range";
+  }
 }
 
 /**
@@ -103,8 +111,18 @@ export class YTextContainer extends YNode {
    * @param range Optional range to filter children
    * @param shallow If true, only return direct children; if false, return all descendants
    */
-  getChildrenRange(range?: WRange, shallow?: boolean): IterableIterator<YNode>;
-  getChildrenRange(range?: WRange, shallow: boolean = true): YNode[] | IterableIterator<YNode> {
+  getChildrenRange(
+    range: {
+      startElement?: string;
+      endElement?: string;
+    }
+    , shallow?: boolean): IterableIterator<YNode>;
+  getChildrenRange(
+    range: {
+      startElement?: string;
+      endElement?: string;
+    }
+    , shallow: boolean = true): YNode[] | IterableIterator<YNode> {
     if (!range) {
       return this.children;
     }
@@ -116,17 +134,25 @@ export class YTextContainer extends YNode {
   /**
    * Get iterator for children in range
    */
-  private *getChildrenIterator(range: WRange, shallow: boolean): IterableIterator<YNode> {
+  private *getChildrenIterator(
+    range: {
+      startElement?: string;
+      endElement?: string;
+    },
+    shallow: boolean): IterableIterator<YNode> {
     // Find start and end indices
     let startIndex = -1;
-    let endIndex = this.children.length;
 
-    // Find start node index
-    for (let i = 0; i < this.children.length; i++) {
-      if (this.children[i].id === range.startElement) {
-        startIndex = i;
-        break;
+    if (range.startElement) {
+      // Find start node index
+      for (let i = 0; i < this.children.length; i++) {
+        if (this.children[i].id === range.startElement) {
+          startIndex = i;
+          break;
+        }
       }
+    } else {
+      startIndex = 0;
     }
 
     // If start element not found, yield nothing
@@ -134,18 +160,16 @@ export class YTextContainer extends YNode {
       return;
     }
 
-    // Find end node index
-    for (let i = startIndex; i < this.children.length; i++) {
-      if (this.children[i].id === range.endElement) {
-        endIndex = i + 1; // Include the end element
-        break;
-      }
-    }
-
     // Yield children in range
-    for (let i = startIndex; i < endIndex; i++) {
+    for (let i = startIndex; ; i++) {
       const child = this.children[i];
       yield child;
+
+      if (range.endElement) {
+        if (child.id === range.endElement) {
+          break;
+        }
+      }
 
       // If deep, yield all descendants
       if (!shallow) {

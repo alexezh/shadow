@@ -7,7 +7,7 @@ import { findRanges as findRangesStandalone } from './skills/findRange.js';
 import { formatRange as formatRangeStandalone, cacheRange } from './skills/formatRange.js';
 import { getSkills } from "./skills/getSkills.js";
 import { getContext, setContext } from './skills/context.js';
-import { getContentRange } from './om/contentrange.js';
+import { getContentRange } from './om/getContentRange.js';
 import { ContentBuffer, loadAsset, storeAsset } from './asset.js';
 import { make31BitId } from './make31bitid.js';
 import { documentCreate, loadHtmlPart, storeHtmlPart } from './htmlparts.js';

@@ -1,5 +1,6 @@
 import type { Session } from "./clippy/session";
 import type { Database } from "./database";
+import { YRange } from "./om/YNode";
 import type { OpenAIClient } from "./openai-client";
 
 export type ExecutePromptContext = {
@@ -9,5 +10,5 @@ export type ExecutePromptContext = {
   prompt: string,
   partId?: string;
   docId?: string;
-  selectionRange?: unknown;
+  selection?: YRange & { kind: "point" | "range" };
 }

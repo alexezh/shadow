@@ -1,5 +1,5 @@
 import type { YDoc } from "../om/YDoc";
-import type { WRange } from "../om/YNode";
+import type { YRange } from "../om/YNode";
 
 export interface Session {
   id: string;
@@ -9,14 +9,6 @@ export interface Session {
   doc: YDoc;
   currentPartId: string;
   sendConsole(html: string): void;
-}
-
-export interface PromptRequest {
-  sessionId: string;
-  prompt: string;
-  partId?: string;
-  docId?: string;
-  selectionRange?: unknown;
 }
 
 export type CommentThreadRef = {
@@ -48,5 +40,5 @@ export interface ContentChangeRecord {
 export interface ActionResult {
   changes: ContentChangeRecord[];
   newPosition?: { element: string; offset: number };
-  newRange?: WRange;
+  newRange?: YRange;
 }
