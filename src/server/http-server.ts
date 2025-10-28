@@ -283,7 +283,7 @@ export class HttpServer {
             prompt: request.prompt,
             partId: request.partId,
             docId: request.docId,
-            selection: { ...request.selectionRange!, kind: getSelectionKind(request.selectionRange!) }
+            selection: { ...request.selection!, kind: getSelectionKind(request.selection!) }
           });
         // Notify waiting clients
         //this.notifyChangeListeners(session.id);

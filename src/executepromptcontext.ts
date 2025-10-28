@@ -1,4 +1,4 @@
-import type { Session } from "./clippy/session";
+import type { Session } from "./server/session";
 import type { Database } from "./database";
 import { YRange } from "./om/YNode";
 import type { OpenAIClient } from "./openai-client";

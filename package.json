@@ -6,8 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "build:public": "tsc -p tsconfig.public.json",
-    "watch:public": "tsc -p tsconfig.public.json --watch",
+    "build:clippy": "tsc -p tsconfig.public.json",
+    "watch:clippy": "tsc -p tsconfig.public.json --watch",
     "start": "node dist/index.js",
     "console": "node dist/index.js --console",
     "dev": "ts-node src/index.ts",

@@ -1,4 +1,4 @@
-import { Session } from "../clippy/session.js";
+import { Session } from "../server/session.js";
 import { makeHtml } from "./makeHtml.js";
 import { YNode } from "./YNode.js";
 

@@ -8,8 +8,7 @@ declare global {
   }
 
   // CSS Custom Highlight API
-  class Highlight {
-    constructor(...ranges: AbstractRange[]);
+  interface Highlight {
     add(range: AbstractRange): void;
     clear(): void;
     delete(range: AbstractRange): boolean;
@@ -21,6 +20,11 @@ declare global {
     size: number;
     priority: number;
   }
+
+  var Highlight: {
+    prototype: Highlight;
+    new(...ranges: AbstractRange[]): Highlight;
+  };
 
   interface HighlightRegistry {
     set(name: string, highlight: Highlight): void;

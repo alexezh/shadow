@@ -7,8 +7,8 @@
       "ES2020",
       "DOM"
     ],
-    "outDir": "./public/dist",
-    "rootDir": "./public",
+    "outDir": "./clippy/dist",
+    "rootDir": "./clippy",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -16,10 +16,10 @@
     "sourceMap": true
   },
   "include": [
-    "public/**/*.ts"
+    "clippy/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "public/dist"
+    "clippy/dist"
   ]
 }

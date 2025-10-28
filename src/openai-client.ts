@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import { ToolDispatcher } from './tooldispatcher.js';
 import { Database } from './database.js';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
-import { Session } from './clippy/session.js';
+import { Session } from './server/session.js';
 import type { MCPFunctionTool } from './mcptools.js';
 import { JsonChunkedParser } from './json-chunked-parser.js';
 

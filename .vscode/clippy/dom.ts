@@ -1,3 +1,4 @@
+import type { YRange } from "../../dist/om/YNode";
 import type { IPCursor } from "./ip";
 
 // Console logging
@@ -67,7 +68,7 @@ export function findElementId(node: Node | null): string | null {
 }
 
 // Get current selection range
-export function getSelectionRange(): { startElement: string | null; startOffset: number; endElement: string | null; endOffset: number } | null {
+export function getSelectionRange(): YRange | null {
   const editorContext = getCurrentEditorContext();
   const cursor = editorContext?.cursor;
   if (!cursor || !cursor.position.node) {
@@ -95,9 +96,9 @@ export function getSelectionRange(): { startElement: string | null; startOffset:
     const endElement = findElementId(cursor.selection.endNode);
 
     return {
-      startElement,
+      startElement: startElement!,
       startOffset: cursor.selection.startOffset,
-      endElement,
+      endElement: endElement!,
       endOffset: cursor.selection.endOffset
     };
   }

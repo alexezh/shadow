@@ -8,10 +8,11 @@ import { formatRange as formatRangeStandalone, cacheRange } from './skills/forma
 import { getSkills } from "./skills/getSkills.js";
 import { getContext, setContext } from './skills/context.js';
 import { getContentRange } from './om/getContentRange.js';
+import { replaceContentRange } from './om/replaceContentRange.js';
 import { ContentBuffer, loadAsset, storeAsset } from './asset.js';
 import { make31BitId } from './make31bitid.js';
 import { documentCreate, loadHtmlPart, storeHtmlPart } from './htmlparts.js';
-import { Session } from './clippy/session.js';
+import { Session } from './server/session.js';
 
 export interface MCPToolCall {
   name: string;
@@ -38,6 +39,9 @@ export class ToolDispatcher {
 
       case 'get_contentrange':
         return await getContentRange(session, toolCall.arguments);
+
+      case 'replace_contentrange':
+        return await replaceContentRange(session, toolCall.arguments);
 
       case 'store_asset':
         return await storeAsset(this.database, this.openaiClient, this.contentBuffer, toolCall.arguments);

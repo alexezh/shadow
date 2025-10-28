@@ -112,13 +112,12 @@ Execution rules:
 {
   "step": "revise_text",
   "goal": "Rewrite the previously selected content produced in the earlier step.",
-  "done_when": "replaceContentRange completes for the stored selection and the updated range is reflected in context.",
+  "done_when": "replace-contentrange completes for the stored selection and the updated range is reflected in context.",
   "actions": [
     "Confirm edit_mode=='revise_text' and read the active selection from context.",
-    "Call getContentRange with that selection to capture the current text for reference.",
+    "Call get_content_range with that selection to capture the current text for reference.",
     "Draft the replacement content, preserving inline IDs and anchors when possible.",
-    "Invoke replaceContentRange({ range: selection, content: <updated html/text> }) to overwrite the selection in a single call.",
-    "Update set_context(['last_action'], summary) and refresh set_context(['selection']) to describe the post-edit range."
+    "Invoke replace-contentrange({ range: selection, content: <updated html/text> }) to overwrite the selection in a single call.",
   ],
   "completion_format": {
     "status": "revise_text-complete",

@@ -5,6 +5,6 @@ export interface PromptRequest {
   prompt: string;
   partId?: string;
   docId?: string;
-  selectionRange?: YRange;
+  selection?: YRange;
 }
 

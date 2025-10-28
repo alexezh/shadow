@@ -1,11 +1,11 @@
-import { ActionResult, ContentChangeRecord, Session } from '../clippy/session.js';
+import { ActionResult, ContentChangeRecord, Session } from '../server/session.js';
 import { make31BitId } from '../make31bitid.js';
 import { YRange } from './YNode.js';
 import { YPara } from './YPara.js';
 import { YStr } from './YStr.js';
 import { makeHtml } from './makeHtml.js';
 import { YBody } from './YBody.js';
-import { handlePaste } from '../clippy/handlePaste.js';
+import { handlePaste } from '../server/handlePaste.js';
 import { deleteRange } from './deleteRange.js';
 import { YDoc } from './YDoc.js';
 import { YPropSet } from './YPropSet.js';

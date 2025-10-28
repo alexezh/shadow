@@ -15,8 +15,8 @@ import * as os from 'os';
 import { getChatPrompt } from "./skills/chatprompt.js";
 import { skilledWorker } from "./skilledworker.js";
 import { mcpTools } from "./mcptools.js";
-import { Session } from "./clippy/session.js";
-import { loadDoc } from "./clippy/loaddoc.js";
+import { Session } from "./server/session.js";
+import { loadDoc } from "./server/loaddoc.js";
 import type { ExecutePromptContext } from "./executepromptcontext.js";
 
 type PromptMetadata = {

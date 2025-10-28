@@ -3,8 +3,8 @@ import { OpenAIClient, ConversationState } from "./openai-client.js";
 import * as cheerio from 'cheerio';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SessionImpl } from './clippy/sessionimpl.js';
-import { makeDefaultDoc } from './clippy/loaddoc.js';
+import { SessionImpl } from './server/sessionimpl.js';
+import { makeDefaultDoc } from './server/loaddoc.js';
 import { loadHtml } from './om/loadHtml.js';
 
 /*
