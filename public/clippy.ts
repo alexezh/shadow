@@ -117,36 +117,72 @@ function updateSelection(newRange: { startElement: string; startOffset: number; 
   }
 }
 
-buttons.bold.addEventListener('click', async () => {
+buttons.bold.addEventListener('click', async (e) => {
+  e.preventDefault();
+  buttons.bold.blur(); // Remove focus from button
+
   buttons.bold.classList.toggle('active');
   const range = getSelectionRange();
   if (range) {
     queueCommand('bold', range);
   }
+
+  // Refocus document to restore keyboard handling
+  const docContent = document.getElementById('doc-content');
+  if (docContent) {
+    docContent.focus();
+  }
   //logToConsole('Bold toggled');
 });
 
-buttons.italic.addEventListener('click', async () => {
+buttons.italic.addEventListener('click', async (e) => {
+  e.preventDefault();
+  buttons.italic.blur(); // Remove focus from button
+
   buttons.italic.classList.toggle('active');
   const range = getSelectionRange();
   if (range) {
     queueCommand('italic', range);
   }
+
+  // Refocus document to restore keyboard handling
+  const docContent = document.getElementById('doc-content');
+  if (docContent) {
+    docContent.focus();
+  }
   //logToConsole('Italic toggled');
 });
 
-buttons.bullet.addEventListener('click', async () => {
+buttons.bullet.addEventListener('click', async (e) => {
+  e.preventDefault();
+  buttons.bullet.blur(); // Remove focus from button
+
   const range = getSelectionRange();
   if (range) {
     queueCommand('bullet', range);
   }
+
+  // Refocus document to restore keyboard handling
+  const docContent = document.getElementById('doc-content');
+  if (docContent) {
+    docContent.focus();
+  }
   //logToConsole('Bullet list clicked');
 });
 
-buttons.number.addEventListener('click', async () => {
+buttons.number.addEventListener('click', async (e) => {
+  e.preventDefault();
+  buttons.number.blur(); // Remove focus from button
+
   const range = getSelectionRange();
   if (range) {
     queueCommand('number', range);
+  }
+
+  // Refocus document to restore keyboard handling
+  const docContent = document.getElementById('doc-content');
+  if (docContent) {
+    docContent.focus();
   }
   //logToConsole('Numbered list clicked');
 });
@@ -466,9 +502,16 @@ class ClippyFloat {
 
     const cursorRect = cursor.cursorEl.getBoundingClientRect();
 
-    // Check if cursor has a valid position (not at 0,0)
-    if (cursorRect.left === 0 && cursorRect.top === 0) {
-      logToConsole('Warning: Cursor at invalid position (0,0)', 'warn');
+    // Check if cursor has a valid position (not at 0,0 or collapsed)
+    if (cursorRect.left === 0 && cursorRect.top === 0 && cursorRect.width === 0 && cursorRect.height === 0) {
+      // Cursor not positioned yet, defer to next frame
+      requestAnimationFrame(() => {
+        const retryRect = cursor.cursorEl.getBoundingClientRect();
+        if (retryRect.left !== 0 || retryRect.top !== 0 || retryRect.width !== 0 || retryRect.height !== 0) {
+          this.floatEl.style.left = `${retryRect.left + 2}px`;
+          this.floatEl.style.top = `${retryRect.bottom + 2}px`;
+        }
+      });
       return;
     }
 

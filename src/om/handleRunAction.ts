@@ -1,14 +1,14 @@
-import { ActionResult, ContentChangeRecord, Session } from './session.js';
+import { ActionResult, ContentChangeRecord, Session } from '../clippy/session.js';
 import { make31BitId } from '../make31bitid.js';
-import { WRange } from '../om/YNode.js';
-import { YPara } from '../om/YPara.js';
-import { YStr } from '../om/YStr.js';
-import { makeHtml } from '../om/makeHtml.js';
-import { YBody } from '../om/YBody.js';
-import { handlePaste } from './handlePaste.js';
-import { deleteRange } from '../om/deleteRange.js';
-import { YDoc } from '../om/YDoc.js';
-import { YPropSet } from '../om/YPropSet.js';
+import { WRange } from './YNode.js';
+import { YPara } from './YPara.js';
+import { YStr } from './YStr.js';
+import { makeHtml } from './makeHtml.js';
+import { YBody } from './YBody.js';
+import { handlePaste } from '../clippy/handlePaste.js';
+import { deleteRange } from './deleteRange.js';
+import { YDoc } from './YDoc.js';
+import { YPropSet } from './YPropSet.js';
 
 export type RunActionRequest = {
   sessionId: string;
@@ -133,12 +133,13 @@ function handleType(doc: YDoc, range: WRange, text: string): ActionResult {
     return { changes: [] };
   }
 
-  const str = node as YPara;
+  const para = node as YPara;
   const offset = range.startOffset;
+  const prop = (offset === 0) ? para.getAttrAt(1) : para.getAttrAt(offset - 1);
 
   // Insert text at cursor position
   // TODO: Get current property ID at cursor position for formatting
-  str.insertTextAt(offset, text, YPropSet.create({}));
+  para.insertTextAt(offset, text, prop);
 
   // Regenerate HTML
   const html = makeHtml(node);

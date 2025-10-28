@@ -5,7 +5,7 @@ import { Database } from '../database.js';
 import { YDoc } from '../om/YDoc.js';
 import { executePrompt } from '../executeprompt.js';
 import { OpenAIClient } from '../openai-client.js';
-import { handleRunAction, RunActionRequest } from './handleRunAction.js';
+import { handleRunAction, RunActionRequest } from '../om/handleRunAction.js';
 import { GetDocResponse, PromptRequest, Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
 import { makeHtml } from '../om/makeHtml.js';

@@ -35,7 +35,11 @@ export class YPara extends YNode {
   }
 
   getTextAttrs(): ReadonlyArray<YPropSet> {
-    return this._str.getProps();
+    return this._str.getAttr();
+  }
+
+  getAttrAt(pos: number): YPropSet {
+    return this._str.getAttrAt(pos);
   }
 
   hasChildren(): boolean {
@@ -53,7 +57,7 @@ export class YPara extends YNode {
     let prevProp = undefined;
     let prevUpdProp = undefined
     for (let idx = startAt; idx < end; idx++) {
-      const prop = this._str.getPropsAt(idx);
+      const prop = this._str.getAttrAt(idx);
       if (prop === prevProp) {
         this._str.setPropAt(idx, prevUpdProp!);
       } else {
@@ -68,7 +72,7 @@ export class YPara extends YNode {
   public splitParagraph(pos: number): YPara {
     const newStr = this._str.split(pos);
 
-    this._str.append("\n", newStr.getPropsAt(-1));
+    this._str.append("\n", newStr.getAttrAt(-1));
 
     // Create new paragraph for second part
     const newId = make31BitId();
@@ -101,7 +105,7 @@ export class YPara extends YNode {
   }
 
   private updateEopProps(paraProps: YPropSet): void {
-    const eopProps = this._str.getPropsAt(-1);
+    const eopProps = this._str.getAttrAt(-1);
     this._str.setPropAt(-1, YPropCache.instance.update(eopProps, (props: { [key: string]: any }) => {
       props[paraProp] = paraProps;
     }));

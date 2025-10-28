@@ -234,6 +234,26 @@ export class IPCursor {
     // Get the bounding rect of the range
     const rect = range.getBoundingClientRect();
 
+    // Check if rect is valid (not at 0,0 or completely collapsed)
+    if (rect.left === 0 && rect.top === 0 && rect.width === 0 && rect.height === 0) {
+      logToConsole('Warning: Invalid cursor rect, deferring position update', 'warn');
+      // Defer update to next frame when DOM might be ready
+      requestAnimationFrame(() => {
+        const retryRect = range.getBoundingClientRect();
+        if (retryRect.left !== 0 || retryRect.top !== 0 || retryRect.width !== 0 || retryRect.height !== 0) {
+          this.cursorEl.style.left = `${retryRect.left}px`;
+          this.cursorEl.style.top = `${retryRect.top}px`;
+          this.cursorEl.style.height = `${retryRect.height || 20}px`;
+
+          const editorContext = getEditorContext();
+          if (editorContext?.clippyFloat && this.visible) {
+            editorContext.clippyFloat.positionBelowCursor();
+          }
+        }
+      });
+      return;
+    }
+
     // Position the cursor
     this.cursorEl.style.left = `${rect.left}px`;
     this.cursorEl.style.top = `${rect.top}px`;
@@ -291,6 +311,12 @@ export class IPCursor {
   }
 
   handleKeyDown(e: KeyboardEvent): void {
+    // Ensure cursor is visible for keyboard navigation
+    if (!this.visible) {
+      this.visible = true;
+      this.cursorEl.style.display = 'block';
+    }
+
     // Reset blink on any key
     this.stopBlinking();
     this.startBlinking();
@@ -306,6 +332,7 @@ export class IPCursor {
         this.selection.clear();
         this.moveLeft();
       }
+      this.show();
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
       if (shiftKey) {
@@ -314,6 +341,7 @@ export class IPCursor {
         this.selection.clear();
         this.moveRight();
       }
+      this.show();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (shiftKey) {
@@ -322,6 +350,7 @@ export class IPCursor {
         this.selection.clear();
         this.moveUp();
       }
+      this.show();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (shiftKey) {
@@ -330,14 +359,17 @@ export class IPCursor {
         this.selection.clear();
         this.moveDown();
       }
+      this.show();
     } else if (e.key === 'Home') {
       e.preventDefault();
       this.selection.clear();
       this.moveToLineStart();
+      this.show();
     } else if (e.key === 'End') {
       e.preventDefault();
       this.selection.clear();
       this.moveToLineEnd();
+      this.show();
     } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
       // Regular character input
       e.preventDefault();
@@ -896,7 +928,7 @@ export class Selection {
     this.focusNode = null;
     this.focusOffset = 0;
 
-    logToConsole("sel clear");
+    // logToConsole("sel clear");
 
     // Clear CSS highlight
     if (CSS.highlights) {

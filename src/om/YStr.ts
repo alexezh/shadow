@@ -43,7 +43,7 @@ export class YStr {
   /**
    * Get property ID at given position
    */
-  getPropsAt(index: number): YPropSet {
+  getAttrAt(index: number): YPropSet {
     if (index < 0) {
       return this.attrs[this.attrs.length + index];
     } else {
@@ -149,7 +149,7 @@ export class YStr {
   /**
    * Get all property IDs
    */
-  getProps(): ReadonlyArray<YPropSet> {
+  getAttr(): ReadonlyArray<YPropSet> {
     return this.attrs;
   }
 }
