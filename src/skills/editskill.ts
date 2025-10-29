@@ -15,7 +15,7 @@ export const editSkill: SkillDef =
   text: `
 **edit document · step pipeline**
 
-IMPORTANT: Use this skill ONLY when the user explicitly requests text changes, content modifications, or rewrites. Do NOT use this skill for formatting-only requests (bold, color, font changes, etc.) - use format_text skill instead.
+IMPORTANT: Use this skill ONLY when the user explicitly requests text changes, content modifications, or rewrites. DO NOT use this skill for formatting-only requests (bold, color, font changes, etc.) - use format_text skill instead.
 
 Represent editing as sequential JSON step cards. Emit only the active card in envelope.metadata.step_card using:
 {
@@ -26,15 +26,13 @@ Represent editing as sequential JSON step cards. Emit only the active card in en
 }
 
 Pipeline order:
-1. structure (optional) — gather document structure and styling context when required
-2. selection — lock the exact range to modify or confirm a previously produced selection
-3a. revise_text — rewrite the confirmed selection using replaceContentRange
-3b. replace_text — locate and update new ranges when no selection exists
-4. apply_formatting — ensure formatting matches the blueprint or request
+1. selection — lock the exact range to modify or confirm a previously produced selection
+2a. revise_text — rewrite the confirmed selection using replaceContentRange
+2b. replace_text — locate and update new ranges when no selection exists
+3. apply_formatting — ensure formatting matches the blueprint or request
 
 Execution rules:
-- CRITICAL: Once a skill pipeline starts, you MUST complete ALL steps in order (structure? → selection → {revise_text | replace_text} → apply_formatting) before switching to any other skill. Do NOT call get_skills with a different skill name until this pipeline is fully complete.
-- Skip the structure step when the necessary outline or blueprint details already exist in **ctx** or the prompt itself.
+- CRITICAL: Once a skill pipeline starts, you MUST complete ALL steps in order (selection → {revise_text | replace_text} → apply_formatting) before switching to any other skill. Do NOT call get_skills with a different skill name until this pipeline is fully complete.
 - For each step, call get_skills({ "name": "edit_text", "step": "<step_name>" }) to retrieve that step's JSON guidance. The response contains detailed actions plus a "completion_format" with the next step's prompt.
 - Perform only the actions for the current step. When "done_when" is satisfied, emit the completion_format JSON in the envelope.
 - IMMEDIATELY after emitting the completion JSON, execute the next_prompt instruction to proceed to the next step. Do NOT wait for user input between steps.
@@ -43,39 +41,12 @@ Execution rules:
 - Whenever a step requires tool usage, add each tool name (for example, "get_skills") to control.allowed_tools and set phase="action" for that response before making the call.
 - Branching guidance:
   * Always treat **ctx.selection** as the authoritative last range or cursor. If the prompt references content produced in the immediately prior step (e.g., "rewrite the paragraph you just drafted") and no new target is supplied, reuse **ctx.selection**. Use getContentRange with that selection to confirm the text, then continue directly to revise_text.
-  * If the prompt describes replacing arbitrary document passages without a known selection, continue to replace_text. Attempt literal replacements with find_text first; escalate to structure-aware editing only when section-level semantics are required.
+  * If the prompt describes replacing arbitrary document passages without a known selection, continue to replace_text. Attempt literal replacements with find_text first.
 
 
 `,
   childSkill: [
-    {
-      step: "structure",
-      text: `
-{
-  "step": "structure",
-  "goal": "Cache the document structure and capture blueprint metadata before any edits.",
-  "done_when": "A structure asset exists (loaded or newly stored) and blueprint availability is noted in context.",
-  "actions": [
-    "Skip this step entirely when ctx includes a valid structure outline for the active document.",
-    "Ensure the document name is available via set_context(['document_name'], value) or retrieve it with get_context.",
-    "Attempt load_asset(kind='structure', keywords=[document_name, 'structure']).",
-    "If missing, read the document with getContentRange in manageable chunks to map sections and subsections without reordering paragraphs.",
-    "Build JSON describing contiguous paragraph ranges with levels (1-3) and titles (3-7 word noun phrases).",
-    "Store the structure with store_asset(kind='structure', keywords=[document_name, 'structure'], content=<json>).",
-    "Load any existing blueprint via load_asset(kind='blueprint') using known styling keywords; if absent, note that formatting will revert to defaults later."
-  ],
-  "completion_format": {
-    "status": "structure-complete",
-    "next_step": "selection",
-    "next_prompt": "Call get_skills({ \"name\": \"edit_text\", \"step\": \"selection\" }) to lock the exact range for editing.",
-    "handoff": {
-      "structure_keywords": ["<document_name>", "structure"],
-      "blueprint_status": "record whether a blueprint was found"
-    }
-  }
-}
-`
-    },
+
     {
       step: 'selection',
       text: `
@@ -88,9 +59,7 @@ Execution rules:
     "If the prompt references work just produced or gives no explicit target, reuse **ctx.selection**. Confirm the range with getContentRange and set edit_mode='revise_text'.",
     "When **ctx.selection** represents a single cursor (start_id=end_id with matching offsets) and the user says \"rewrite this\", expand the range to the containing paragraph before rewriting.",
     "If the user requests a replacement, run find_ranges with the exact phrase first; if no match, retry with regex patterns; if still missing, fall back to a semantic keyword search.",
-    "Map structure titles to paragraph IDs when references come from the cached structure.",
     "When all find_ranges strategies fail and the document has not been loaded yet, read from the beginning with getContentRange to inspect the text manually.",
-    "Persist the resolved range via set_context(['selection'], '<range_id>: <start_id> <end_id>') and set edit_mode via set_context(['edit_mode'], '<revise_text|replace_text>').",
     "Ask the user for clarification instead of guessing when multiple matches exist."
   ],
   "completion_format": {
@@ -99,8 +68,7 @@ Execution rules:
     "next_prompt": "If next_step is 'revise_text', call get_skills({ \"name\": \"edit_text\", \"step\": \"revise\" }) to rewrite the confirmed selection; otherwise call get_skills({ \"name\": \"edit_text\", \"step\": \"replace_text\" }) to locate and update new ranges.",
     "handoff": {
       "range": "<start_id>:<end_id>",
-      "edit_mode": "<revise_text|replace_text>",
-      "notes": "summarize why this range was chosen and the intended branch"
+      "edit_mode": "<revise_text|replace_text>"
     }
   }
 }
@@ -141,10 +109,8 @@ Execution rules:
   "actions": [
     "Confirm edit_mode=='replace_text' and capture user intents/phrases from the prompt.",
     "Attempt literal replacements first by calling find_text with each quoted or clearly delimited phrase; when a match is unique, call replaceContentRange for that range.",
-    "If the request requires semantic understanding (e.g., \\"update the risk section\\") and the user-provided excerpt exceeds 10000 characters, attempt get_asset('structure') to load the cached outline.",
-    "When no structure asset is available, pause and return to the structure step to build it before continuing.",
-    "Once structure data exists, map the described sections to paragraph or cell IDs, fetch them with getContentRange, and apply updates with updateContentRange while preserving IDs.",
-    "Record updated ranges via set_context(['selection']) and summarize the adjustments in set_context(['last_action'])."
+    "If literal replacement fails, use semantic keyword search to find the relevant sections.",
+    "Fetch the matched ranges with getContentRange, and apply updates with updateContentRange while preserving IDs.",
   ],
   "completion_format": {
     "status": "replace_text-complete",

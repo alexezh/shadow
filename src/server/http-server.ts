@@ -18,6 +18,8 @@ import { getSelectionKind } from '../om/YNode.js';
 import { GetDocResponse, PromptRequest, GetThreadRequest, GetThreadResponse, GetChatRequest, GetChatResponse, CreateChatRequest, CreateChatResponse } from './messages.js';
 import { handleGetThread } from './handleGetThead.js';
 import { handleGetChat, handleCreateChat } from './handleChat.js';
+import { OpenAIClientChat } from '../openai-chatclient.js';
+import { OpenAIClientResponses } from '../openai-responsesclient.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -28,7 +30,7 @@ export class HttpServer {
 
   constructor(database: Database, port: number = 3000) {
     this.database = database;
-    this.openaiClient = new OpenAIClient(database);
+    this.openaiClient = new OpenAIClientResponses(database);
     this.port = port;
     this.sessions = new Map();
   }

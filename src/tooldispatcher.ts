@@ -2,7 +2,6 @@ import { Database } from './database.js';
 import * as fs from 'fs/promises';
 import OpenAI from 'openai';
 import * as path from 'path';
-import { generateEmbedding } from './openai-client.js';
 import { findRanges as findRangesStandalone } from './skills/findRange.js';
 import { formatRange as formatRangeStandalone, cacheRange } from './skills/formatRange.js';
 import { getSkills } from "./skills/getSkills.js";

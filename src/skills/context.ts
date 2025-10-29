@@ -1,6 +1,6 @@
 import { Database } from '../database.js';
 import OpenAI from 'openai';
-import { generateEmbedding, OpenAIClient, ConversationState } from '../openai-client.js';
+import { generateEmbeddingChat, OpenAIClient, ConversationState } from '../openai-client.js';
 import { youAreShadow } from './chatprompt.js';
 
 export const CONTEXT_VALUES = [
