@@ -8,7 +8,7 @@
       "DOM"
     ],
     "outDir": "./clippy/dist",
-    "rootDir": "./clippy",
+    "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -16,7 +16,9 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "../src/server/*": ["dist/server/*"]
+      "../src/server/*": [
+        "dist/server/*"
+      ]
     }
   },
   "include": [

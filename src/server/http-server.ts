@@ -15,7 +15,7 @@ import { make31BitId } from '../make31bitid.js';
 import { YPropSet } from '../om/YPropSet.js';
 import { YStr } from '../om/YStr.js';
 import { getSelectionKind } from '../om/YNode.js';
-import { PromptRequest } from './promptrequest.js';
+import { PromptRequest } from './messages.js';
 
 export class HttpServer {
   private server: http.Server | null = null;

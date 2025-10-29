@@ -1,5 +1,6 @@
 import type { YDoc } from "../om/YDoc.js";
-import type { ActionResult, ConsoleResult, GetChangesResponse, Session } from "./session.js";
+import { ConsoleResult, GetChangesResponse } from "./messages.js";
+import type { Session } from "./session.js";
 
 export class SessionImpl implements Session {
   public id: string;

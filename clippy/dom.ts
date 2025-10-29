@@ -1,4 +1,4 @@
-import type { YRange } from "../dist/om/YNode";
+import type { YRange } from "../src/om/YRange";
 import type { IPCursor } from "./ip";
 
 // Console logging

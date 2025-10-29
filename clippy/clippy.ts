@@ -550,6 +550,12 @@ class ClippyFloat {
     // Reposition and show the icon
     this.show();
 
+    // Restore focus to document to re-enable keyboard input
+    const docContent = document.getElementById('doc-content');
+    if (docContent) {
+      docContent.focus();
+    }
+
     //logToConsole('Clippy collapsed');
   }
 
