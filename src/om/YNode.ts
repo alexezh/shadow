@@ -1,4 +1,4 @@
-import type { YDoc } from "./YDoc";
+import type { YDoc, YDocPart } from "./YDoc";
 import { YPropSet } from "./YPropSet";
 import { YRange } from "./YRange";
 
@@ -16,14 +16,14 @@ export function getSelectionKind(range: YRange): "point" | "range" {
 export abstract class YNode {
   protected _id: string;
   protected cachedHash: number | null = null;
-  protected _doc: YDoc | null = null; // Reference to parent WDoc
+  protected _doc: YDocPart | null = null; // Reference to parent WDoc
   protected _parent: YTextContainer | null = null;
   protected _props: YPropSet;
 
   public get id(): string {
     return this._id;
   }
-  public get doc(): YDoc | null {
+  public get doc(): YDocPart | null {
     return this._doc;
   }
   public get parent(): YTextContainer | null {
@@ -41,7 +41,7 @@ export abstract class YNode {
   /**
    * Set the parent document reference
    */
-  setParent(doc: YDoc | null, parent: YTextContainer | null): void {
+  setParent(doc: YDocPart | null, parent: YTextContainer | null): void {
     this._doc = doc;
     this._parent = parent;
   }

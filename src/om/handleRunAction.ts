@@ -1,4 +1,5 @@
-import { ActionResult, ContentChangeRecord, Session } from '../server/session.js';
+import { Session } from '../server/session.js';
+import { ActionResult, ContentChangeRecord } from '../server/messages.js';
 import { make31BitId } from '../make31bitid.js';
 import { YRange } from "./YRange.js";
 import { YPara } from './YPara.js';
@@ -99,7 +100,7 @@ function formatRange(doc: YDoc, range: YRange, func: (props: { [key: string]: an
 }
 
 function handleDelete(doc: YDoc, range: YRange, key: "backspace" | "delete"): ActionResult {
-  const node = doc.getNodeById(range.startElement);
+  const node = doc.getBodyPart().getNodeById(range.startElement);
   let changedNodes = deleteRange(doc, range);
 
   const changeRecords: ContentChangeRecord[] = [];
@@ -127,7 +128,7 @@ function handleDelete(doc: YDoc, range: YRange, key: "backspace" | "delete"): Ac
 }
 
 function handleType(doc: YDoc, range: YRange, text: string): ActionResult {
-  const node = doc.getNodeById(range.startElement);
+  const node = doc.getBodyPart().getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
     return { changes: [] };
@@ -154,7 +155,7 @@ function handleType(doc: YDoc, range: YRange, text: string): ActionResult {
 
 function handleSplit(doc: YDoc, range: YRange): ActionResult {
   const body = doc.getBody();
-  const node = doc.getNodeById(range.startElement);
+  const node = doc.getBodyPart().getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
     return { changes: [] };

@@ -6,7 +6,7 @@ import { YDoc } from '../om/YDoc.js';
 import { executePrompt } from '../executeprompt.js';
 import { OpenAIClient } from '../openai-client.js';
 import { handleRunAction, RunActionRequest } from '../om/handleRunAction.js';
-import { GetDocResponse, Session } from './session.js';
+import { Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
 import { makeHtml } from '../om/makeHtml.js';
 import { SessionImpl } from './sessionimpl.js';
@@ -15,7 +15,7 @@ import { make31BitId } from '../make31bitid.js';
 import { YPropSet } from '../om/YPropSet.js';
 import { YStr } from '../om/YStr.js';
 import { getSelectionKind } from '../om/YNode.js';
-import { PromptRequest } from './messages.js';
+import { GetDocResponse, PromptRequest } from './messages.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -209,7 +209,12 @@ export class HttpServer {
       // Get styles as JSON array
       const styles = session.doc.getStyleStore().toJson();
 
-      const response: GetDocResponse = { sessionId: session.id, partId: "main", html, styles };
+      const response: GetDocResponse = {
+        sessionId: session.id,
+        partId: "main",
+        html,
+        styles
+      };
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(response));
     } catch (error) {
@@ -460,9 +465,15 @@ export class HttpServer {
 
     // Get styles as JSON array
     const styles = session.doc.getStyleStore().toJson();
+    const response: GetDocResponse = {
+      sessionId: sessionId,
+      partId: partId,
+      html,
+      styles
+    }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ html, styles }));
+    res.end(JSON.stringify(response));
   }
 
   private async serveFile(res: http.ServerResponse, filename: string, contentType: string): Promise<void> {

@@ -6,6 +6,9 @@ import { YPara } from "../om/YPara.js";
 import { YPropSet } from "../om/YPropSet.js";
 import { YStr } from "../om/YStr.js";
 import { Session } from "./session.js";
+import { YComment } from "../om/YComment.js";
+import { YBody } from "../om/YBody.js";
+import { YCommentThread } from "../om/YCommentThread.js";
 
 export function loadDoc(session: Session | undefined, htmlContent: string): string {
   if (!session) {
@@ -60,5 +63,14 @@ export function makeDefaultDoc(): YDoc {
   const para = new YPara(make31BitId(), YPropSet.create({}),
     new YStr('Document content will appear here. Click to position cursor.\n', YPropSet.create({})))
   body.addChild(para);
+
+  const thread = new YCommentThread(doc);
+  const comment = thread.createComment();
+
+  const commentPara = new YPara(make31BitId(), YPropSet.create({}),
+    new YStr('comment text.\n', YPropSet.create({})))
+  comment.body!.addChild(para);
+
+  doc.getBodyPart().threads.push(thread);
   return doc;
 }

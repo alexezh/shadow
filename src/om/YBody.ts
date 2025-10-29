@@ -10,6 +10,5 @@ export class YBody extends YTextContainer {
   constructor(id: string = 'body', props: YPropSet, children?: YNode[]) {
     super(id, props, children);
   }
-
 }
 

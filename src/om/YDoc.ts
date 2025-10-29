@@ -2,62 +2,33 @@ import { YNode, YTextContainer } from './YNode.js';
 import { YBody } from './YBody.js';
 import { YStyleStore } from './YStyleStore.js';
 import { YPropSet } from './YPropSet.js';
+import type { YCommentThread } from './YCommentThread.js';
 
-export type YDocPartKind = "main" | "draft" | "summary" | "chat";
+export type YDocPartKind = "main" | "draft" | "summary" | "chat" | "comment";
 
 export class YDocPart {
-  public readonly body?: YBody;
+  public body?: YBody;
   public readonly doc: YDoc;
   public readonly id: string;
   public readonly kind: YDocPartKind;
   public readonly title: string;
+  public readonly threads: YCommentThread[] = [];
+  private nodeMap: Map<string, YNode>;
 
-  public constructor(doc: YDoc, id: string, kind: YDocPartKind, title: string, body?: YBody) {
+  public constructor(doc: YDoc, id: string, kind: YDocPartKind, title?: string, body?: YBody) {
     this.doc = doc;
     this.id = id;
     this.kind = kind;
-    this.title = title;
+    this.title = title ?? "";
     this.body = body;
-  }
-}
 
-export class YDoc {
-  private body: YBody;
-  private styleStore: YStyleStore;
-  private nodeMap: Map<string, YNode>;
-  private readonly _parts = new Map<string, YDocPart>();
-
-  public get parts(): ReadonlyMap<string, YDocPart> {
-    return this._parts;
-  }
-
-  constructor() {
-    this.body = new YBody('body', YPropSet.create({}));
-    this._parts.set("main", new YDocPart(this, "main", "main", "Main content", this.body))
-    this.styleStore = new YStyleStore();
     this.nodeMap = new Map();
     this.linkTree();
   }
 
-  public createPart(kind: YDocPartKind): YDocPart {
-    // Generate a unique part ID
-    const partId = `${kind}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // Create a new body for the part
-    const partBody = new YBody(`body_${partId}`, YPropSet.create({}));
-    this.linkNodeInternal(null, partBody);
-
-    // Create the part
-    const title = `${kind.charAt(0).toUpperCase() + kind.slice(1)} ${this._parts.size}`;
-    const part = new YDocPart(this, partId, kind, title, partBody);
-    this._parts.set(partId, part);
-
-    return part;
-  }
-
   // Set doc reference on all nodes in the tree
   private linkTree(): void {
-    this.linkNodeInternal(null, this.body);
+    this.linkNodeInternal(null, this.body!);
   }
 
   public linkNodeInternal(parent: YTextContainer | null, node: YNode): void {
@@ -90,15 +61,6 @@ export class YDoc {
         this.unlinkNodeInternal(child);
       }
     }
-
-  }
-
-  getBody(): YBody {
-    return this.body;
-  }
-
-  getStyleStore(): YStyleStore {
-    return this.styleStore;
   }
 
   getNodeById(id: string): YNode | undefined {
@@ -113,7 +75,7 @@ export class YDoc {
     }
 
     // Find parent of old node
-    const parent = this.findParent(this.body, oldNode);
+    const parent = this.findParent(this.body!, oldNode);
     if (!parent) {
       // Node is the root body itself
       if (oldNode === this.body && newNode instanceof YBody) {
@@ -167,6 +129,53 @@ export class YDoc {
 
   // Get hash of entire document
   getHash(): number {
-    return this.body.getHash();
+    return this.body!.getHash();
+  }
+}
+
+export class YDoc {
+  private styleStore: YStyleStore;
+  private readonly _parts = new Map<string, YDocPart>();
+
+  public get parts(): ReadonlyMap<string, YDocPart> {
+    return this._parts;
+  }
+
+  constructor() {
+    const body = new YBody('body', YPropSet.create({}));
+    const bodyPart = new YDocPart(this, "main", "main", "Main content", body)
+    this._parts.set("main", bodyPart)
+    this.styleStore = new YStyleStore();
+  }
+
+  public createPart(kind: YDocPartKind): YDocPart {
+    // Generate a unique part ID
+    const partId = `${kind}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Create a new body for the part
+    const partBody = new YBody(`body_${partId}`, YPropSet.create({}));
+
+    // Create the part
+    const title = `${kind.charAt(0).toUpperCase() + kind.slice(1)} ${this._parts.size}`;
+    const part = new YDocPart(this, partId, kind, title, partBody);
+    this._parts.set(partId, part);
+
+    return part;
+  }
+
+  getBody(): YBody {
+    return this._parts.get("main")!.body!;
+  }
+
+  addPart(part: YDocPart) {
+    this._parts.set(part.id, part);
+  }
+
+  getBodyPart(): YDocPart {
+    return this._parts.get("main")!;
+  }
+
+  getStyleStore(): YStyleStore {
+    return this.styleStore;
   }
 }

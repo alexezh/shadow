@@ -5,7 +5,7 @@ import { YPara } from "./YPara.js";
 
 export function deleteRange(doc: YDoc, range: YRange): { node: YNode, op: "changed" | "deleted" }[] {
   const body = doc.getBody();
-  const node = doc.getNodeById(range.startElement);
+  const node = doc.getBodyPart().getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
     return [];

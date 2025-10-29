@@ -1,4 +1,4 @@
-import { ActionResult, ContentChangeRecord } from './session.js';
+import { ActionResult, ContentChangeRecord } from './messages.js';
 import { YNode, YTextContainer } from '../om/YNode.js';
 import { YRange } from "../om/YRange.js";
 import { YDoc } from '../om/YDoc.js';
@@ -19,8 +19,7 @@ import { YPropSet } from '../om/YPropSet.js';
  * @returns ActionResult with updated HTML blocks
  */
 export function handlePaste(doc: YDoc, range: YRange, content: string): ActionResult {
-  const body = doc.getBody();
-  const node = doc.getNodeById(range.startElement);
+  const node = doc.getBodyPart().getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
     return { changes: [] };
@@ -62,7 +61,7 @@ export function handlePaste(doc: YDoc, range: YRange, content: string): ActionRe
 
 function pasteNodes(doc: YDoc, range: YRange, content: YNode[]): ActionResult {
   const body = doc.getBody();
-  const node = doc.getNodeById(range.startElement);
+  const node = doc.getBodyPart().getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
     return { changes: [] };

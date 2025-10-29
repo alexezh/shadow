@@ -6,6 +6,8 @@ import { YRow } from './YRow.js';
 import { YCell } from './YCell.js';
 import { HtmlWriter } from './HtmlWriter.js';
 import { YPropSet } from './YPropSet.js';
+import { CommentThreadRef } from '../server/messages.js';
+import { YDocPart } from './YDoc.js';
 
 /**
  * Convert CSS property set to inline style string
@@ -119,6 +121,20 @@ export function makeHtml(node: YNode): string {
   const writer = new HtmlWriter();
   makeHtmlRecursive(node, writer);
   return writer.toString();
+}
+
+export function makeCommentThreadHtml(docPart: YDocPart): CommentThreadRef[] {
+  const refs: CommentThreadRef[] = [];
+  for (let t of docPart.threads) {
+    let tr: CommentThreadRef = { threadId: t.id, comments: [] }
+    for (let c of t.comments) {
+      tr.comments.push({
+        commentPartId: c.id,
+        paraId: c.id
+      });
+    }
+  }
+  return refs;
 }
 
 /**

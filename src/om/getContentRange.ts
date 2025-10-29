@@ -22,7 +22,7 @@ export async function getContentRange(session: Session,
       return htmlOutput;
     }
 
-    const startNode = session.doc.getNodeById(args.start_para!);
+    const startNode = session.doc.getBodyPart().getNodeById(args.start_para!);
     if (!startNode) {
       throw "start paragraph not found"
     }

@@ -4,6 +4,10 @@ import { YPropCache, YPropSet } from './YPropSet.js';
 import { YStr } from './YStr.js';
 
 export const paraProp = "--data-para";
+/**
+ * IDs of threads
+ */
+export const threadsProp = "--data-threads";
 export const markerTypeProp = "data-y-markertype";
 
 /**
