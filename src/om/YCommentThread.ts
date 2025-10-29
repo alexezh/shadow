@@ -14,9 +14,8 @@ export class YCommentThread {
   }
 
   public createComment(): YComment {
-    let comment = new YComment(this.doc, new YBody(make31BitId(), YPropSet.create({})))
+    let comment = new YComment(this, new YBody(make31BitId(), YPropSet.create({})))
     this.comments.push(comment);
-    this.doc.addPart(comment);
     return comment;
   }
 }

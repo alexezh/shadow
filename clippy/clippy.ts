@@ -391,11 +391,14 @@ async function loadDocument(): Promise<void> {
 
     // Load comment threads if any
     if (commentThreadRefs.length > 0 && currentEditorContext) {
-      const threads = await fetchCommentThreads(partId, commentThreadRefs);
-      for (const thread of threads) {
-        currentEditorContext.setCommentThread(thread);
+      const sessionId = getSessionId();
+      if (sessionId) {
+        const threads = await fetchCommentThreads(sessionId, partId, commentThreadRefs);
+        for (const thread of threads) {
+          currentEditorContext.setCommentThread(thread);
+        }
+        renderCommentThreads(currentEditorContext);
       }
-      renderCommentThreads(currentEditorContext);
     }
 
     logToConsole(`Document loaded, session: ${getSessionId()}`, 'info');
@@ -736,9 +739,12 @@ async function selectPart(partId: string): Promise<void> {
 
       // Load comment threads if any
       if (commentThreadRefs.length > 0 && currentEditorContext) {
-        const threads = await fetchCommentThreads(partId, commentThreadRefs);
-        for (const thread of threads) {
-          currentEditorContext.setCommentThread(thread);
+        const sessionId = getSessionId();
+        if (sessionId) {
+          const threads = await fetchCommentThreads(sessionId, partId, commentThreadRefs);
+          for (const thread of threads) {
+            currentEditorContext.setCommentThread(thread);
+          }
         }
       }
 

@@ -1,5 +1,6 @@
 import { CommentThread, Comment, EditorContext } from "./editor-context.js";
 import { logToConsole, getSessionId } from "./dom.js";
+import { createChatFromThread } from "./chat.js";
 
 /**
  * Render comment threads floating next to their paragraphs
@@ -94,6 +95,81 @@ function createCommentElement(comment: Comment): HTMLElement {
 }
 
 /**
+ * Create a menu for a comment thread
+ */
+function createThreadMenu(thread: CommentThread): HTMLElement {
+  const menu = document.createElement('div');
+  menu.className = 'thread-menu';
+  menu.style.display = 'none';
+  menu.style.position = 'absolute';
+  menu.style.top = '32px';
+  menu.style.right = '8px';
+  menu.style.background = '#fff';
+  menu.style.border = '1px solid #e5e7eb';
+  menu.style.borderRadius = '6px';
+  menu.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
+  menu.style.padding = '4px';
+  menu.style.zIndex = '101';
+  menu.style.minWidth = '120px';
+
+  // Chat option
+  const chatOption = document.createElement('button');
+  chatOption.className = 'thread-menu-item';
+  chatOption.textContent = 'Chat';
+  chatOption.style.width = '100%';
+  chatOption.style.padding = '8px 12px';
+  chatOption.style.border = 'none';
+  chatOption.style.background = 'none';
+  chatOption.style.cursor = 'pointer';
+  chatOption.style.textAlign = 'left';
+  chatOption.style.fontSize = '13px';
+  chatOption.style.borderRadius = '4px';
+  chatOption.style.transition = 'background 0.2s';
+  chatOption.addEventListener('mouseenter', () => {
+    chatOption.style.background = '#f3f4f6';
+  });
+  chatOption.addEventListener('mouseleave', () => {
+    chatOption.style.background = 'none';
+  });
+  chatOption.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.style.display = 'none';
+    createChatFromThread(thread);
+  });
+
+  // Draft option
+  const draftOption = document.createElement('button');
+  draftOption.className = 'thread-menu-item';
+  draftOption.textContent = 'Draft';
+  draftOption.style.width = '100%';
+  draftOption.style.padding = '8px 12px';
+  draftOption.style.border = 'none';
+  draftOption.style.background = 'none';
+  draftOption.style.cursor = 'pointer';
+  draftOption.style.textAlign = 'left';
+  draftOption.style.fontSize = '13px';
+  draftOption.style.borderRadius = '4px';
+  draftOption.style.transition = 'background 0.2s';
+  draftOption.addEventListener('mouseenter', () => {
+    draftOption.style.background = '#f3f4f6';
+  });
+  draftOption.addEventListener('mouseleave', () => {
+    draftOption.style.background = 'none';
+  });
+  draftOption.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.style.display = 'none';
+    // TODO: Implement draft functionality
+    logToConsole('Draft functionality not yet implemented', 'info');
+  });
+
+  menu.appendChild(chatOption);
+  menu.appendChild(draftOption);
+
+  return menu;
+}
+
+/**
  * Create a floating comment thread element
  */
 function createFloatingCommentThreadElement(thread: CommentThread): HTMLElement {
@@ -119,11 +195,64 @@ function createFloatingCommentThreadElement(thread: CommentThread): HTMLElement 
   headerEl.style.fontSize = '11px';
   headerEl.style.fontWeight = '600';
   headerEl.style.color = '#6b7280';
-  headerEl.innerHTML = `
-    <span>Thread</span>
-    ${thread.resolved ? '<span style="color: #10b981;">✓ Resolved</span>' : ''}
-  `;
+
+  const headerLeft = document.createElement('span');
+  headerLeft.textContent = 'Thread';
+
+  const headerRight = document.createElement('div');
+  headerRight.style.display = 'flex';
+  headerRight.style.alignItems = 'center';
+  headerRight.style.gap = '8px';
+
+  if (thread.resolved) {
+    const resolvedSpan = document.createElement('span');
+    resolvedSpan.style.color = '#10b981';
+    resolvedSpan.textContent = '✓ Resolved';
+    headerRight.appendChild(resolvedSpan);
+  }
+
+  // Menu button
+  const menuBtn = document.createElement('button');
+  menuBtn.className = 'thread-menu-btn';
+  menuBtn.textContent = '⋯';
+  menuBtn.style.border = 'none';
+  menuBtn.style.background = 'none';
+  menuBtn.style.cursor = 'pointer';
+  menuBtn.style.fontSize = '16px';
+  menuBtn.style.color = '#6b7280';
+  menuBtn.style.padding = '2px 6px';
+  menuBtn.style.borderRadius = '4px';
+  menuBtn.style.lineHeight = '1';
+  menuBtn.style.transition = 'background 0.2s';
+  menuBtn.addEventListener('mouseenter', () => {
+    menuBtn.style.background = '#f3f4f6';
+  });
+  menuBtn.addEventListener('mouseleave', () => {
+    menuBtn.style.background = 'none';
+  });
+
+  headerRight.appendChild(menuBtn);
+
+  headerEl.appendChild(headerLeft);
+  headerEl.appendChild(headerRight);
   threadEl.appendChild(headerEl);
+
+  // Create menu
+  const menu = createThreadMenu(thread);
+  threadEl.appendChild(menu);
+
+  // Toggle menu on button click
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+  });
+
+  // Close menu when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!threadEl.contains(e.target as Node)) {
+      menu.style.display = 'none';
+    }
+  });
 
   // Comments
   for (const comment of thread.comments) {
@@ -221,32 +350,61 @@ function scrollToParagraph(paragraphId: string): void {
 }
 
 /**
+ * Fetch a single comment thread from the server
+ */
+export async function fetchCommentThread(
+  sessionId: string,
+  partId: string,
+  threadId: string
+): Promise<CommentThread | null> {
+  try {
+    const url = `/api/getthread?sessionId=${encodeURIComponent(sessionId)}&partId=${encodeURIComponent(partId)}&threadId=${encodeURIComponent(threadId)}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      logToConsole(`Failed to fetch thread ${threadId}: ${response.statusText}`, 'error');
+      return null;
+    }
+
+    const data = await response.json();
+
+    // Convert API response to CommentThread
+    const thread: CommentThread = {
+      id: data.threadId,
+      paragraphId: data.paraId,
+      comments: data.comments.map((c: any) => ({
+        id: c.commentId,
+        author: c.author,
+        text: c.html.replace(/<[^>]*>/g, ''), // Strip HTML tags for text
+        timestamp: new Date(c.timestamp)
+      })),
+      resolved: data.resolved
+    };
+
+    return thread;
+  } catch (error) {
+    logToConsole(`Error fetching thread ${threadId}: ${(error as Error).message}`, 'error');
+    return null;
+  }
+}
+
+/**
  * Fetch comment threads for a document part
  */
 export async function fetchCommentThreads(
+  sessionId: string,
   partId: string,
   commentThreadRefs: Array<{ threadId: string; paraId: string; comments: string[] }>
 ): Promise<CommentThread[]> {
   const threads: CommentThread[] = [];
 
   try {
-    // Process each comment thread reference
+    // Fetch each thread from the API
     for (const ref of commentThreadRefs) {
-      // Convert comment strings to Comment objects
-      const comments = ref.comments.map((commentText: string, index: number) => ({
-        id: `${ref.threadId}-comment-${index}`,
-        author: 'User', // TODO: Extract author from comment text or metadata
-        text: commentText,
-        timestamp: new Date() // TODO: Extract timestamp from metadata
-      }));
-
-      const thread: CommentThread = {
-        id: ref.threadId,
-        paragraphId: ref.paraId,
-        comments: comments,
-        resolved: false // TODO: Get resolved status from server
-      };
-      threads.push(thread);
+      const thread = await fetchCommentThread(sessionId, partId, ref.threadId);
+      if (thread) {
+        threads.push(thread);
+      }
     }
 
     logToConsole(`Loaded ${threads.length} comment threads for part ${partId}`, 'info');

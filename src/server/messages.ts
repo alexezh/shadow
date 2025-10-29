@@ -8,6 +8,24 @@ export interface PromptRequest {
   selection?: YRange;
 }
 
+export type GetThreadRequest = {
+  docId: string;
+  partId: string;
+  threadId: string;
+}
+
+export type GetThreadResponse = {
+  threadId: string;
+  paraId: string;
+  resolved: boolean;
+  comments: Array<{
+    commentId: string;
+    author: string;
+    html: string;
+    timestamp: string;
+  }>;
+}
+
 export type CommentThreadRef = {
   threadId: string;
   paraId: string;

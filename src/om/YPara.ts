@@ -61,7 +61,6 @@ export class YPara extends YNode {
       this._threads = [];
     }
     this._threads.push(thread);
-    this._doc?.attachThread(this, thread);
   }
 
   public applyFormat(startAt: number, count: number, func: (props: { [key: string]: any }) => void) {

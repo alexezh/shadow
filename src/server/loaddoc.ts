@@ -64,7 +64,7 @@ export function makeDefaultDoc(): YDoc {
     new YStr('Document content will appear here. Click to position cursor.\n', YPropSet.create({})))
   body.addChild(para);
 
-  const thread = new YCommentThread(doc);
+  const thread = doc.getBodyPart().createThread(para);
   const comment = thread.createComment();
 
   const commentPara = new YPara(make31BitId(), YPropSet.create({}),

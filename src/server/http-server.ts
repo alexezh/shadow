@@ -8,14 +8,15 @@ import { OpenAIClient } from '../openai-client.js';
 import { handleRunAction, RunActionRequest } from '../om/handleRunAction.js';
 import { Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
-import { makeHtml } from '../om/makeHtml.js';
+import { makeCommentThreadHtml, makeHtml } from '../om/makeHtml.js';
 import { SessionImpl } from './sessionimpl.js';
 import { YPara } from '../om/YPara.js';
 import { make31BitId } from '../make31bitid.js';
 import { YPropSet } from '../om/YPropSet.js';
 import { YStr } from '../om/YStr.js';
 import { getSelectionKind } from '../om/YNode.js';
-import { GetDocResponse, PromptRequest } from './messages.js';
+import { GetDocResponse, PromptRequest, GetThreadRequest, GetThreadResponse } from './messages.js';
+import { handleGetThread } from './handleGetThead.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -81,26 +82,30 @@ export class HttpServer {
     switch (url) {
 
       case '/clippy.js':
-        await this.serveFile(res, 'dist/clippy.js', 'application/javascript');
+        await this.serveFile(res, './dist/clippy/clippy.js', 'application/javascript');
         return;
 
       case '/dom.js':
-        await this.serveFile(res, 'dist/dom.js', 'application/javascript');
+        await this.serveFile(res, './dist/clippy/dom.js', 'application/javascript');
         return;
 
       case '/ip.js':
-        await this.serveFile(res, 'dist/ip.js', 'application/javascript');
+        await this.serveFile(res, './dist/clippy/ip.js', 'application/javascript');
         return;
       case '/vdom.js':
-        await this.serveFile(res, 'dist/vdom.js', 'application/javascript');
+        await this.serveFile(res, './dist/clippy/vdom.js', 'application/javascript');
         return;
 
       case '/comments.js':
-        await this.serveFile(res, 'dist/comments.js', 'application/javascript');
+        await this.serveFile(res, './dist/clippy/comments.js', 'application/javascript');
+        return;
+
+      case '/chat.js':
+        await this.serveFile(res, './dist/clippy/chat.js', 'application/javascript');
         return;
 
       case '/editor-context.js':
-        await this.serveFile(res, 'dist/editor-context.js', 'application/javascript');
+        await this.serveFile(res, './dist/clippy/editor-context.js', 'application/javascript');
         return;
 
       // Serve image files
@@ -170,6 +175,12 @@ export class HttpServer {
       return;
     }
 
+    // API endpoint to get thread
+    if (url.startsWith('/api/getthread') && req.method === 'GET') {
+      await handleGetThread(this.sessions, req, res);
+      return;
+    }
+
     // 404 for other routes
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not Found');
@@ -213,7 +224,8 @@ export class HttpServer {
         sessionId: session.id,
         partId: "main",
         html,
-        styles
+        styles,
+        comments: makeCommentThreadHtml(session.doc.getBodyPart())
       };
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(response));

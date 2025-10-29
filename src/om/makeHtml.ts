@@ -131,6 +131,7 @@ export function makeCommentThreadHtml(docPart: YDocPart): CommentThreadRef[] {
     for (let c of t.comments) {
       tr.comments.push(c.id);
     }
+    refs.push(tr);
   }
   return refs;
 }

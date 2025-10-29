@@ -2,7 +2,7 @@ import { YNode, YTextContainer } from './YNode.js';
 import { YBody } from './YBody.js';
 import { YStyleStore } from './YStyleStore.js';
 import { YPropSet } from './YPropSet.js';
-import type { YCommentThread } from './YCommentThread.js';
+import { YCommentThread } from './YCommentThread.js';
 import { YPara } from './YPara.js';
 
 export type YDocPartKind = "main" | "draft" | "summary" | "chat" | "comment";
@@ -34,12 +34,20 @@ export class YDocPart {
     this.linkNodeInternal(null, this.body!);
   }
 
-  public attachThread(para: YPara, thread: YCommentThread): void {
+  private attachThread(para: YPara, thread: YCommentThread): void {
     this.threadMap.set(thread.id, para);
+    para.attachThread(thread);
   }
 
   public getParaByThread(thread: YCommentThread): YPara | undefined {
     return this.threadMap.get(thread.id);
+  }
+
+  public createThread(para: YPara): YCommentThread {
+    const thread = new YCommentThread(this.doc);
+    this.attachThread(para, thread);
+    this.threads.push(thread);
+    return thread;
   }
 
   public linkNodeInternal(parent: YTextContainer | null, node: YNode): void {

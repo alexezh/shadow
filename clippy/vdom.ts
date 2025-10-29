@@ -60,7 +60,7 @@ export class VirtualDocument {
    */
   private applyCommentMarkers(containerEl: HTMLElement): void {
     for (const ref of this.commentThreadRefs) {
-      const paragraph = containerEl.querySelector(`#${ref.paragraphId}`) as HTMLElement;
+      const paragraph = containerEl.querySelector(`#${ref.paraId}`) as HTMLElement;
       if (paragraph) {
         paragraph.classList.add('has-comments');
         paragraph.setAttribute('data-thread-id', ref.threadId);
