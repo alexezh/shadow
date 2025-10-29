@@ -12,20 +12,27 @@ export function renderCommentThreads(editorContext: EditorContext): void {
 
   const threads = editorContext.getAllCommentThreads();
 
+  logToConsole(`Rendering ${threads.length} comment threads`, 'info');
+
   if (threads.length === 0) {
     return;
   }
 
   // Render each thread floating next to its paragraph
   for (const thread of threads) {
+    logToConsole(`Rendering thread ${thread.id} for paragraph ${thread.paragraphId}`, 'info');
     const paragraph = document.getElementById(thread.paragraphId);
-    if (!paragraph) continue;
+    if (!paragraph) {
+      logToConsole(`Paragraph ${thread.paragraphId} not found for thread ${thread.id}`, 'warn');
+      continue;
+    }
 
     const threadEl = createFloatingCommentThreadElement(thread);
     document.body.appendChild(threadEl);
 
     // Position thread next to paragraph
     positionThreadNextToParagraph(threadEl, paragraph);
+    logToConsole(`Thread ${thread.id} positioned at left=${threadEl.style.left}, top=${threadEl.style.top}`, 'info');
   }
 
   // Reposition threads on window resize
@@ -359,6 +366,7 @@ export async function fetchCommentThread(
 ): Promise<CommentThread | null> {
   try {
     const url = `/api/getthread?sessionId=${encodeURIComponent(sessionId)}&partId=${encodeURIComponent(partId)}&threadId=${encodeURIComponent(threadId)}`;
+    logToConsole(`Fetching thread from: ${url}`, 'info');
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -367,6 +375,7 @@ export async function fetchCommentThread(
     }
 
     const data = await response.json();
+    logToConsole(`Fetched thread ${threadId}: paraId=${data.paraId}, comments=${data.comments.length}`, 'info');
 
     // Convert API response to CommentThread
     const thread: CommentThread = {
@@ -381,6 +390,7 @@ export async function fetchCommentThread(
       resolved: data.resolved
     };
 
+    logToConsole(`Created CommentThread: id=${thread.id}, paragraphId=${thread.paragraphId}`, 'info');
     return thread;
   } catch (error) {
     logToConsole(`Error fetching thread ${threadId}: ${(error as Error).message}`, 'error');
