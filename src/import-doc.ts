@@ -5,6 +5,7 @@ import { makeDefaultDoc } from './server/loaddoc.js';
 import { loadHtml } from './om/loadHtml.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ConversationStateResponses } from "./openai-responsesclient.js";
 
 /*
   get document text
@@ -75,7 +76,7 @@ The user wants to import: ${filename}`;
 
     const userMessage = `Import the document "${filename}" into the document library`;
 
-    const conversationState = new ConversationState(systemPrompt, userMessage);
+    const conversationState = new ConversationStateResponses(systemPrompt, userMessage);
     const result = await openaiClient.chatWithMCPTools(session, mcpTools, conversationState, userMessage);
     const response = result.response;
     console.log('🤖 Shadow:', response);

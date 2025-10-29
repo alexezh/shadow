@@ -1,7 +1,9 @@
 import { Database } from '../database.js';
 import OpenAI from 'openai';
-import { generateEmbeddingChat, OpenAIClient, ConversationState } from '../openai-client.js';
+import { OpenAIClient } from '../openai-client.js';
 import { youAreShadow } from './chatprompt.js';
+import { ConversationStateResponses } from '../openai-responsesclient.js';
+import { generateEmbedding } from '../generateembedding.js';
 
 export const CONTEXT_VALUES = [
   {
@@ -67,7 +69,7 @@ Examples:
 
 Return only the terms as a comma-separated list, no explanations.`;
 
-    const conversationState = new ConversationState(systemPrompt, userPrompt);
+    const conversationState = new ConversationStateResponses(systemPrompt, userPrompt);
     const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
       requireEnvelope: false
     });

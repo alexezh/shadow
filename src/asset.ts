@@ -1,6 +1,6 @@
 import path from "path";
 import * as fs from 'fs/promises';
-import { generateEmbedding } from "./openai-client.js";
+import { generateEmbedding } from "./generateembedding.js";
 import { Database } from "./database.js";
 import OpenAI from "openai";
 

@@ -6,6 +6,7 @@ import * as path from 'path';
 import { SessionImpl } from './server/sessionimpl.js';
 import { makeDefaultDoc } from './server/loaddoc.js';
 import { loadHtml } from './om/loadHtml.js';
+import { ConversationStateResponses } from "./openai-responsesclient.js";
 
 /*
   get document text
@@ -82,7 +83,7 @@ export async function importBlueprint(filename: string, openaiClient: OpenAIClie
 
     const userMessage = `Produce blueprint and semantic map for document "${filename}"`;
 
-    const conversationState = new ConversationState(systemPrompt, userMessage);
+    const conversationState = new ConversationStateResponses(systemPrompt, userMessage);
     const result = await openaiClient.chatWithMCPTools(session, mcpTools, conversationState, userMessage);
     const response = result.response;
     console.log('🤖 Shadow:', response);

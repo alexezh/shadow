@@ -3,6 +3,7 @@ import { Database } from "../database.js";
 import { OpenAIClient, ConversationState } from "../openai-client.js";
 import { CORE_SKILLS } from "./coreskills.js";
 import { initRuleModel } from "../initRuleModel.js";
+import { ConversationStateResponses } from "../openai-responsesclient.js";
 
 export async function initInstructions(openaiClient: OpenAIClient, database: Database): Promise<number[]> {
   let successCount = 0;
@@ -89,7 +90,7 @@ Requirements:
 
 Return only the finished manual.`;
 
-  const conversationState = new ConversationState(systemPrompt, userPrompt);
+  const conversationState = new ConversationStateResponses(systemPrompt, userPrompt);
   const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
     requireEnvelope: false
   });
@@ -117,7 +118,7 @@ Examples:
 
 Return only the task - oriented terms as a comma - separated list, no explanations.`;
 
-    const conversationState = new ConversationState(systemPrompt, userPrompt);
+    const conversationState = new ConversationStateResponses(systemPrompt, userPrompt);
     const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
       requireEnvelope: false
     });

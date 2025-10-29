@@ -1,5 +1,5 @@
 import { OpenAI } from "openai/client";
-import { retryWithBackoff } from "./retrywithbackoff";
+import { retryWithBackoff } from "./retrywithbackoff.js";
 
 export async function generateEmbedding(client: OpenAI, terms: string | string[]): Promise<number[]> {
   return retryWithBackoff(async () => {

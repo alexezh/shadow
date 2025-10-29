@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { executePrompt } from './executeprompt.js';
+import { OpenAIClientResponses } from './openai-responsesclient.js';
 
 export class ConsoleApp {
   private database: Database;
@@ -15,7 +16,7 @@ export class ConsoleApp {
 
   constructor(database: Database) {
     this.database = database;
-    this.openaiClient = new OpenAIClient(database);
+    this.openaiClient = new OpenAIClientResponses(database);
     this.historyFile = path.join(os.homedir(), '.shadow_history');
 
     this.rl = readline.createInterface({

@@ -2,6 +2,7 @@ import { OpenAIClient, ConversationState } from './openai-client.js';
 import * as cheerio from 'cheerio';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { ConversationStateResponses } from './openai-responsesclient.js';
 
 function generateAlphanumericId(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -67,7 +68,7 @@ The HTML should be complete and ready to use as sample content.`;
 
 Please generate appropriate HTML elements and suggest a filename.`;
 
-    const conversationState = new ConversationState(systemPrompt, userPrompt);
+    const conversationState = new ConversationStateResponses(systemPrompt, userPrompt);
     const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
       requireEnvelope: false
     });
