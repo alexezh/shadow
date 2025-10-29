@@ -28,7 +28,7 @@ export async function handleGetThread(
   // For now, return mock data
   const response: GetThreadResponse = {
     threadId: threadId,
-    paraId: 'para-1',
+    paraId: session.doc.getBody().getChildren()[0].id,
     resolved: false,
     comments: [
       {

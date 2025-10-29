@@ -15,8 +15,9 @@ import { make31BitId } from '../make31bitid.js';
 import { YPropSet } from '../om/YPropSet.js';
 import { YStr } from '../om/YStr.js';
 import { getSelectionKind } from '../om/YNode.js';
-import { GetDocResponse, PromptRequest, GetThreadRequest, GetThreadResponse } from './messages.js';
+import { GetDocResponse, PromptRequest, GetThreadRequest, GetThreadResponse, GetChatRequest, GetChatResponse, CreateChatRequest, CreateChatResponse } from './messages.js';
 import { handleGetThread } from './handleGetThead.js';
+import { handleGetChat, handleCreateChat } from './handleChat.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -178,6 +179,18 @@ export class HttpServer {
     // API endpoint to get thread
     if (url.startsWith('/api/getthread') && req.method === 'GET') {
       await handleGetThread(this.sessions, req, res);
+      return;
+    }
+
+    // API endpoint to get chat
+    if (url.startsWith('/api/getchat') && req.method === 'GET') {
+      await handleGetChat(this.sessions, req, res);
+      return;
+    }
+
+    // API endpoint to create chat
+    if (url.startsWith('/api/createchat') && req.method === 'POST') {
+      await handleCreateChat(this.sessions, req, res);
       return;
     }
 

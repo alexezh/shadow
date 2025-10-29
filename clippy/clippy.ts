@@ -237,11 +237,13 @@ async function pollChanges(): Promise<void> {
     }
 
     // Continue polling
-    pollChanges();
+    setTimeout(async () => {
+      await pollChanges();
+    }, 0);
   } catch (error) {
     logToConsole(`Error polling changes: ${(error as Error).message}`, 'error');
     // Retry after delay
-    setTimeout(pollChanges, 2000);
+    setTimeout(pollChanges, 10000);
   }
 }
 

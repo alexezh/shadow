@@ -354,7 +354,7 @@ export class OpenAIClient {
     let invalidEnvelopeCount = 0;
     let emptyResponseCount = 0;
     const recentToolCalls: string[] = [];
-    const MAX_SAME_TOOL_CALLS = 3;
+    const MAX_SAME_TOOL_CALLS = 10;
 
     let totalPromptTokens = 0;
     let totalCompletionTokens = 0;
@@ -652,7 +652,7 @@ export class OpenAIClient {
     refusal: string | null;
   }> {
     const stream = await this.client.responses.create({
-      model: 'gpt-4.1',
+      model: 'gpt-5-mini',
       input: input as any,
       tools: tools as any,
       //temperature: 0.7,
@@ -746,10 +746,13 @@ export class OpenAIClient {
             completionTokens = usage.completion_tokens ?? completionTokens;
             totalTokens = usage.total_tokens ?? totalTokens;
           }
+          console.log("completed: " + totalTokens);
           continue;
         } else if (type === 'response.error') {
           const errMessage = event.error?.message ?? 'Unknown response stream error';
           throw new Error(errMessage);
+        } else if (type === 'response.created') {
+          console.log("created: " + totalTokens);
         } else if (type &&
           !type.startsWith('response.output_text') &&
           !type.startsWith('response.output_item') &&

@@ -58,3 +58,25 @@ export interface ActionResult {
   newPosition?: { element: string; offset: number };
   newRange?: YRange;
 }
+
+export type GetChatRequest = {
+  docId: string;
+  chatId: string;
+}
+
+export type GetChatResponse = {
+  chatId: string;
+  messages: Array<{
+    messageId: string;
+    role: 'user' | 'assistant' | 'system';
+    html: string;
+  }>;
+}
+
+export type CreateChatRequest = {
+  docId: string;
+}
+
+export type CreateChatResponse = {
+  chatId: string;
+}

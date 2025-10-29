@@ -1,6 +1,7 @@
 import { CommentThread, Comment, EditorContext } from "./editor-context.js";
 import { logToConsole, getSessionId } from "./dom.js";
 import { createChatFromThread } from "./chat.js";
+import type { GetThreadResponse } from "../src/server/messages.js";
 
 /**
  * Render comment threads floating next to their paragraphs
@@ -374,7 +375,7 @@ export async function fetchCommentThread(
       return null;
     }
 
-    const data = await response.json();
+    const data = await response.json() as GetThreadResponse;
     logToConsole(`Fetched thread ${threadId}: paraId=${data.paraId}, comments=${data.comments.length}`, 'info');
 
     // Convert API response to CommentThread

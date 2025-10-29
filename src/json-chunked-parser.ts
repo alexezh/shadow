@@ -77,6 +77,11 @@ export class JsonChunkedParser {
           this.buffer += ch;
           this.inString = false;
           continue;
+        } else if (ch === "'") {
+          // End of string
+          this.buffer += '"';
+          this.inString = false;
+          continue;
         }
 
         // Regular character inside string

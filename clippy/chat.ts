@@ -8,6 +8,7 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  html?: string;
   timestamp: Date;
 }
 
@@ -200,7 +201,8 @@ export class ChatWindow {
       bubble.style.color = '#92400e';
     }
 
-    bubble.innerHTML = message.content;
+    // Render HTML if available, otherwise use plain content
+    bubble.innerHTML = message.html || message.content;
 
     // Timestamp
     const timestamp = document.createElement('div');
@@ -298,6 +300,66 @@ export class ChatWindow {
 }
 
 /**
+ * Fetch chat messages from the server
+ */
+export async function fetchChatMessages(sessionId: string, chatId: string): Promise<ChatMessage[]> {
+  try {
+    const url = `/api/getchat?sessionId=${encodeURIComponent(sessionId)}&chatId=${encodeURIComponent(chatId)}`;
+    logToConsole(`Fetching chat from: ${url}`, 'info');
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      logToConsole(`Failed to fetch chat ${chatId}: ${response.statusText}`, 'error');
+      return [];
+    }
+
+    const data = await response.json();
+    logToConsole(`Fetched chat ${chatId}: ${data.messages.length} messages`, 'info');
+
+    // Convert API response to ChatMessage array
+    const messages: ChatMessage[] = data.messages.map((m: any) => ({
+      id: m.messageId,
+      role: m.role,
+      content: '', // Content extracted from HTML
+      html: m.html,
+      timestamp: new Date() // TODO: Add timestamp to API response
+    }));
+
+    return messages;
+  } catch (error) {
+    logToConsole(`Error fetching chat ${chatId}: ${(error as Error).message}`, 'error');
+    return [];
+  }
+}
+
+/**
+ * Create a new chat on the server
+ */
+export async function createChat(sessionId: string, docId: string): Promise<string | null> {
+  try {
+    const response = await fetch('/api/createchat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ sessionId, docId })
+    });
+
+    if (!response.ok) {
+      logToConsole(`Failed to create chat: ${response.statusText}`, 'error');
+      return null;
+    }
+
+    const data = await response.json();
+    logToConsole(`Created chat: ${data.chatId}`, 'info');
+    return data.chatId;
+  } catch (error) {
+    logToConsole(`Error creating chat: ${(error as Error).message}`, 'error');
+    return null;
+  }
+}
+
+/**
  * Create a chat window from a comment thread
  */
 export function createChatFromThread(thread: CommentThread): ChatWindow {
@@ -309,6 +371,21 @@ export function createChatFromThread(thread: CommentThread): ChatWindow {
   }));
 
   const chat = new ChatWindow(thread.id, messages);
+  chat.show();
+
+  return chat;
+}
+
+/**
+ * Create a chat window from a chat ID (fetches messages from server)
+ */
+export async function createChatFromId(sessionId: string, chatId: string): Promise<ChatWindow | null> {
+  const messages = await fetchChatMessages(sessionId, chatId);
+  if (messages.length === 0) {
+    logToConsole(`No messages found for chat ${chatId}`, 'warn');
+  }
+
+  const chat = new ChatWindow(chatId, messages);
   chat.show();
 
   return chat;

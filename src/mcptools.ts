@@ -56,13 +56,14 @@ export const mcpTools: MCPFunctionTool[] = [
     type: 'function',
     function: {
       name: 'replace_contentrange',
-      description: 'Replaces range of document content from HTML parts stored in the database. Omit start_para and end_para to read entire document from start to end',
+      description: 'Replaces range of document content. Omit start_para and end_para to replace entire document from start to end',
       parameters: {
         type: 'object',
         properties: {
           docid: { type: 'string', description: 'Document ID' },
           partid: { type: 'string', description: 'Part ID' },
           format: { type: 'string', enum: ['text', 'html'] },
+          html: { type: 'string' },
           start_para: { type: 'string', description: 'Starting paragraph ID (optional)' },
           end_para: { type: 'string', description: 'Ending paragraph ID (optional)' }
         },
