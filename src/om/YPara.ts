@@ -1,4 +1,5 @@
 import { make31BitId } from '../make31bitid.js';
+import type { YCommentThread } from './YCommentThread.js';
 import { YNode } from './YNode.js';
 import { YPropCache, YPropSet } from './YPropSet.js';
 import { YStr } from './YStr.js';
@@ -15,6 +16,7 @@ export const markerTypeProp = "data-y-markertype";
  */
 export class YPara extends YNode {
   private _str: YStr;
+  private _threads: YCommentThread[] | undefined;
 
   public get length(): number {
     return this._str.length;
@@ -52,6 +54,14 @@ export class YPara extends YNode {
 
   getChildren(): YNode[] | null {
     return null;
+  }
+
+  attachThread(thread: YCommentThread) {
+    if (!this._threads) {
+      this._threads = [];
+    }
+    this._threads.push(thread);
+    this._doc?.attachThread(this, thread);
   }
 
   public applyFormat(startAt: number, count: number, func: (props: { [key: string]: any }) => void) {

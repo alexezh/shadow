@@ -3,6 +3,7 @@ import { YBody } from './YBody.js';
 import { YStyleStore } from './YStyleStore.js';
 import { YPropSet } from './YPropSet.js';
 import type { YCommentThread } from './YCommentThread.js';
+import { YPara } from './YPara.js';
 
 export type YDocPartKind = "main" | "draft" | "summary" | "chat" | "comment";
 
@@ -14,6 +15,7 @@ export class YDocPart {
   public readonly title: string;
   public readonly threads: YCommentThread[] = [];
   private nodeMap: Map<string, YNode>;
+  private threadMap: Map<string, YPara>;
 
   public constructor(doc: YDoc, id: string, kind: YDocPartKind, title?: string, body?: YBody) {
     this.doc = doc;
@@ -23,12 +25,21 @@ export class YDocPart {
     this.body = body;
 
     this.nodeMap = new Map();
+    this.threadMap = new Map();
     this.linkTree();
   }
 
   // Set doc reference on all nodes in the tree
   private linkTree(): void {
     this.linkNodeInternal(null, this.body!);
+  }
+
+  public attachThread(para: YPara, thread: YCommentThread): void {
+    this.threadMap.set(thread.id, para);
+  }
+
+  public getParaByThread(thread: YCommentThread): YPara | undefined {
+    return this.threadMap.get(thread.id);
   }
 
   public linkNodeInternal(parent: YTextContainer | null, node: YNode): void {

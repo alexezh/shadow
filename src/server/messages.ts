@@ -10,7 +10,8 @@ export interface PromptRequest {
 
 export type CommentThreadRef = {
   threadId: string;
-  comments: { commentPartId: string, paraId: string }[];
+  paraId: string;
+  comments: string[];
 }
 
 export type GetDocResponse = {

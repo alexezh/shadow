@@ -126,12 +126,10 @@ export function makeHtml(node: YNode): string {
 export function makeCommentThreadHtml(docPart: YDocPart): CommentThreadRef[] {
   const refs: CommentThreadRef[] = [];
   for (let t of docPart.threads) {
-    let tr: CommentThreadRef = { threadId: t.id, comments: [] }
+    let para = docPart.getParaByThread(t)
+    let tr: CommentThreadRef = { threadId: t.id, paraId: para!.id, comments: [] }
     for (let c of t.comments) {
-      tr.comments.push({
-        commentPartId: c.id,
-        paraId: c.id
-      });
+      tr.comments.push(c.id);
     }
   }
   return refs;

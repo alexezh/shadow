@@ -17,7 +17,7 @@ import { getSelectionRange } from "./dom.js"
 import { VirtualDocument, vdomCache } from "./vdom.js"
 import { EditorContext, CommentThreadRef } from "./editor-context.js"
 import { renderCommentThreads, fetchCommentThreads } from "./comments.js"
-import { PromptRequest } from "../src/server/messages.js"
+import { type GetDocResponse, PromptRequest } from "../src/server/messages.js"
 
 // Global editor context for current document
 let currentEditorContext: EditorContext | null = null;
@@ -368,7 +368,7 @@ async function loadDocument(): Promise<void> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as GetDocResponse;
     setSessionId(data.sessionId);
 
     const docContent = document.getElementById('doc-content') as HTMLElement;
@@ -376,7 +376,7 @@ async function loadDocument(): Promise<void> {
 
     // Create virtual document for main part
     const partId = 'main';
-    const commentThreadRefs: CommentThreadRef[] = data.commentThreadRefs || [];
+    const commentThreadRefs: CommentThreadRef[] = data.comments || [];
     const vdom = new VirtualDocument(partId, data.html, data.styles || [], commentThreadRefs);
     vdom.applyToDOM(docContent, 'doc-styles');
 

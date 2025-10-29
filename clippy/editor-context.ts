@@ -22,10 +22,12 @@ export interface CommentThread {
 
 /**
  * Reference to a comment thread for a paragraph
+ * Matches server definition from src/server/messages.ts
  */
 export interface CommentThreadRef {
-  paragraphId: string;
   threadId: string;
+  paraId: string;
+  comments: string[];
 }
 
 /**

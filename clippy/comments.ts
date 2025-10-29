@@ -225,37 +225,28 @@ function scrollToParagraph(paragraphId: string): void {
  */
 export async function fetchCommentThreads(
   partId: string,
-  commentThreadRefs: Array<{ paragraphId: string; threadId: string }>
+  commentThreadRefs: Array<{ threadId: string; paraId: string; comments: string[] }>
 ): Promise<CommentThread[]> {
   const threads: CommentThread[] = [];
 
   try {
-    // Fetch each comment thread using getpart API
+    // Process each comment thread reference
     for (const ref of commentThreadRefs) {
-      const response = await fetch(`/api/getpart?sessionId=${getSessionId()}&partId=${ref.threadId}`);
-      if (!response.ok) {
-        logToConsole(`Failed to fetch comment thread ${ref.threadId}`, 'error');
-        continue;
-      }
+      // Convert comment strings to Comment objects
+      const comments = ref.comments.map((commentText: string, index: number) => ({
+        id: `${ref.threadId}-comment-${index}`,
+        author: 'User', // TODO: Extract author from comment text or metadata
+        text: commentText,
+        timestamp: new Date() // TODO: Extract timestamp from metadata
+      }));
 
-      const data = await response.json();
-
-      // Parse comment data from response
-      // Expected format: { html: string, comments: Comment[] }
-      if (data.comments && Array.isArray(data.comments)) {
-        const thread: CommentThread = {
-          id: ref.threadId,
-          paragraphId: ref.paragraphId,
-          comments: data.comments.map((c: any) => ({
-            id: c.id || '',
-            author: c.author || 'Unknown',
-            text: c.text || '',
-            timestamp: c.timestamp ? new Date(c.timestamp) : new Date()
-          })),
-          resolved: data.resolved || false
-        };
-        threads.push(thread);
-      }
+      const thread: CommentThread = {
+        id: ref.threadId,
+        paragraphId: ref.paraId,
+        comments: comments,
+        resolved: false // TODO: Get resolved status from server
+      };
+      threads.push(thread);
     }
 
     logToConsole(`Loaded ${threads.length} comment threads for part ${partId}`, 'info');
