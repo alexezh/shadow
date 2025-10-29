@@ -1,6 +1,6 @@
 import { ActionResult, ContentChangeRecord, Session } from '../server/session.js';
 import { make31BitId } from '../make31bitid.js';
-import { YRange } from './YNode.js';
+import { YRange } from "./YRange.js";
 import { YPara } from './YPara.js';
 import { YStr } from './YStr.js';
 import { makeHtml } from './makeHtml.js';

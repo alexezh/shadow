@@ -1,4 +1,5 @@
-import { YNode, YRange, YTextContainer } from './YNode.js';
+import { YNode, YTextContainer } from './YNode.js';
+import { YRange } from "./YRange.js";
 import { YPropSet } from './YPropSet.js';
 
 /**

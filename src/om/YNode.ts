@@ -1,12 +1,6 @@
 import type { YDoc } from "./YDoc";
 import { YPropSet } from "./YPropSet";
-
-export type YRange = {
-  startElement: string;
-  startOffset: number;
-  endElement: string;
-  endOffset: number;
-}
+import { YRange } from "./YRange";
 
 export function getSelectionKind(range: YRange): "point" | "range" {
   if (range.startOffset === range.endOffset && range.startElement === range.endElement) {

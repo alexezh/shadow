@@ -13,7 +13,11 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "../src/server/*": ["dist/server/*"]
+    }
   },
   "include": [
     "clippy/**/*.ts"

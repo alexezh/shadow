@@ -1,5 +1,6 @@
 import type { YDoc } from "./YDoc.js";
-import { YRange, YNode } from "./YNode.js";
+import { YNode } from "./YNode.js";
+import { YRange } from "./YRange.js";
 import { YPara } from "./YPara.js";
 
 export function deleteRange(doc: YDoc, range: YRange): { node: YNode, op: "changed" | "deleted" }[] {

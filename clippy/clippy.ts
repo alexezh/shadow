@@ -17,7 +17,7 @@ import { getSelectionRange } from "./dom.js"
 import { VirtualDocument, vdomCache } from "./vdom.js"
 import { EditorContext, CommentThreadRef } from "./editor-context.js"
 import { renderCommentThreads, fetchCommentThreads } from "./comments.js"
-import { PromptRequest } from "../../src/server/promptrequest.js"
+import { PromptRequest } from "../src/server/promptrequest.js"
 
 // Global editor context for current document
 let currentEditorContext: EditorContext | null = null;

@@ -1,5 +1,6 @@
 import { ActionResult, ContentChangeRecord } from './session.js';
-import { YRange, YNode, YTextContainer } from '../om/YNode.js';
+import { YNode, YTextContainer } from '../om/YNode.js';
+import { YRange } from "../om/YRange.js";
 import { YDoc } from '../om/YDoc.js';
 import { YPara } from '../om/YPara.js';
 import { YBody } from '../om/YBody.js';

@@ -1,4 +1,4 @@
-import type { YRange } from "../om/YNode";
+import type { YRange } from "../om/YRange";
 
 export interface PromptRequest {
   sessionId: string;
