@@ -40,7 +40,10 @@ export type GetDocResponse = {
   comments?: CommentThreadRef[]
 };
 
-export type GetChangesResponse = { kind: "console" | "action", data: ActionResult | ConsoleResult };
+export type GetChangesResponse = {
+  kind: "console" | "action" | "agent", 
+  data: ActionResult | ConsoleResult | AgentChange
+};
 
 export interface ConsoleResult {
   html: string;
@@ -51,6 +54,12 @@ export interface ContentChangeRecord {
   html: string | null;
   prevId?: string;
   op: "inserted" | "changed" | "deleted"
+}
+
+export interface AgentChange {
+  sessionId: string;
+  partId: string;
+  changes: ContentChangeRecord[];
 }
 
 export interface ActionResult {

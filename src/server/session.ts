@@ -1,6 +1,6 @@
 import type { YDoc } from "../om/YDoc";
 import type { YRange } from "../om/YRange";
-import { GetChangesResponse } from "./messages";
+import type { ContentChangeRecord, GetChangesResponse } from "./messages";
 
 export interface Session {
   id: string;
@@ -10,5 +10,6 @@ export interface Session {
   doc: YDoc;
   currentPartId: string;
   sendConsole(html: string): void;
+  sendUpdate(sessionId: string, partId: string, changeRecords: ContentChangeRecord[]): void;
 }
 

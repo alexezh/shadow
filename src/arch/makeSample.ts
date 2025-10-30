@@ -1,8 +1,8 @@
-import { OpenAIClient, ConversationState } from './openai-client.js';
+import { OpenAIClient, ConversationState } from '../openai-client.js';
 import * as cheerio from 'cheerio';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { ConversationStateResponses } from './openai-responsesclient.js';
+import { ConversationStateResponses } from '../openai-responsesclient.js';
 
 function generateAlphanumericId(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';

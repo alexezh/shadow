@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { Database } from './database.js';
+import { Database } from '../database.js';
 
 export interface DocPart {
   partid: string;

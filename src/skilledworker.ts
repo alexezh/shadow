@@ -4,6 +4,7 @@ import type { ExecutePromptContext } from "./executepromptcontext.js";
 import type { MCPFunctionTool } from "./mcptools.js";
 import type { ChatPromptResult } from "./skills/chatprompt.js";
 import { ConversationStateChat } from "./openai-chatclient.js";
+import { createContext } from "./openai-createclient.js";
 
 interface StepCompletion {
   next_step?: string | null;
@@ -55,7 +56,7 @@ export async function skilledWorker(
   chatPrompt: ChatPromptResult,
 ): Promise<{ response: string; conversationState: ConversationState; usage: TokenUsage }> {
   const startAt = performance.now();
-  const conversationState = new ConversationStateChat(
+  const conversationState = createContext(
     chatPrompt.systemPrompt,
     ctx.prompt,
     chatPrompt.contextMessage

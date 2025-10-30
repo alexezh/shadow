@@ -1,5 +1,5 @@
 import type { YDoc } from "../om/YDoc.js";
-import { ConsoleResult, GetChangesResponse } from "./messages.js";
+import { AgentChange, ConsoleResult, ContentChangeRecord, GetChangesResponse } from "./messages.js";
 import type { Session } from "./session.js";
 
 export class SessionImpl implements Session {
@@ -18,6 +18,32 @@ export class SessionImpl implements Session {
     this.id = id;
     this.doc = doc;
     this.currentPartId = currentPartId;
+  }
+
+  private notifyChangeListeners(): void {
+
+    // Resolve all waiting requests with the pending changes
+    while (this.changeResolvers.length > 0) {
+      const resolve = this.changeResolvers.shift();
+      if (resolve) {
+        const changes = this.pendingChanges.splice(0);
+        resolve(changes);
+      }
+    }
+  }
+
+  public sendUpdate(sessionId: string, partId: string, changeRecords: ContentChangeRecord[]) {
+    const data: AgentChange = {
+      sessionId,
+      partId,
+      changes: changeRecords
+    }
+    const response: GetChangesResponse = {
+      kind: "agent",
+      data: data
+    };
+    this.pendingChanges.push(response);
+    this.notifyChangeListeners();
   }
 
   /**

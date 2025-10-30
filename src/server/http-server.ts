@@ -20,6 +20,7 @@ import { handleGetThread } from './handleGetThead.js';
 import { handleGetChat, handleCreateChat } from './handleChat.js';
 import { OpenAIClientChat } from '../openai-chatclient.js';
 import { OpenAIClientResponses } from '../openai-responsesclient.js';
+import { createClient } from '../openai-createclient.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -30,7 +31,7 @@ export class HttpServer {
 
   constructor(database: Database, port: number = 3000) {
     this.database = database;
-    this.openaiClient = new OpenAIClientResponses(database);
+    this.openaiClient = createClient(database);
     this.port = port;
     this.sessions = new Map();
   }
@@ -275,7 +276,7 @@ export class HttpServer {
         //session.pendingChanges.push(result);
 
         // Notify any waiting getchanges requests
-        this.notifyChangeListeners(request.sessionId);
+        //session.notifyChangeListeners(request.sessionId);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, result }));
@@ -376,22 +377,6 @@ export class HttpServer {
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(changes));
-  }
-
-  private notifyChangeListeners(sessionId: string): void {
-    const session = this.sessions.get(sessionId);
-    if (!session || session.pendingChanges.length === 0) {
-      return;
-    }
-
-    // Resolve all waiting requests with the pending changes
-    while (session.changeResolvers.length > 0) {
-      const resolve = session.changeResolvers.shift();
-      if (resolve) {
-        const changes = session.pendingChanges.splice(0);
-        resolve(changes);
-      }
-    }
   }
 
   private async handleGetParts(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
