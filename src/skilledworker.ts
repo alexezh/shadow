@@ -1,10 +1,10 @@
-import { ConversationState, OpenAIClient, TokenUsage } from "./openai-client.js";
-import { PhaseGatedEnvelope } from "./phase-envelope.js";
-import type { ExecutePromptContext } from "./executepromptcontext.js";
+import { ConversationState, OpenAIClient, TokenUsage } from "./openai/openai-client.js";
+import { PhaseGatedEnvelope } from "./openai/phase-envelope.js";
+import type { ExecutePromptContext } from "./openai/executepromptcontext.js";
 import type { MCPFunctionTool } from "./mcptools.js";
 import type { ChatPromptResult } from "./skills/chatprompt.js";
-import { ConversationStateChat } from "./openai-chatclient.js";
-import { createContext } from "./openai-createclient.js";
+import { ConversationStateChat } from "./openai/openai-chatclientlegacy.js";
+import { createContext } from "./openai/openai-createclient.js";
 
 interface StepCompletion {
   next_step?: string | null;

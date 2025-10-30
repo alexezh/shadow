@@ -5,7 +5,6 @@ import { CORE_SKILLS } from "./coreskills.js";
 
 
 export async function getSkills(database: Database,
-  openaiClient: OpenAI,
   args: { name: string; step?: string; }): Promise<string> {
   console.log("getSkills: " + JSON.stringify(args));
 

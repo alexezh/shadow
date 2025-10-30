@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
-import { ToolDispatcher } from './tooldispatcher.js';
-import { Database } from './database.js';
-import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
-import { Session } from './server/session.js';
-import type { MCPFunctionTool } from './mcptools.js';
+import { ToolDispatcher } from '../tooldispatcher.js';
+import { Database } from '../database.js';
+import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from '../phase-envelope.js';
+import { Session } from '../server/session.js';
+import type { MCPFunctionTool } from '../mcptools.js';
 import { JsonChunkedParser } from './json-chunked-parser.js';
 import { ChatResult, ConversationState, OpenAIClient, TokenUsage } from './openai-client.js';
 import { generateEmbedding } from './generateembedding.js';

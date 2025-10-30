@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
-import { Database } from './database.js';
+import { Database } from '../database.js';
 import { ChatCompletionTool } from 'openai/resources/index.js';
-import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
-import { ToolDispatcher } from './tooldispatcher.js';
-import { Session } from './server/session.js';
+import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from '../phase-envelope.js';
+import { ToolDispatcher } from '../tooldispatcher.js';
+import { Session } from '../server/session.js';
 
 export interface ConversationState {
 

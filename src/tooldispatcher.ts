@@ -8,7 +8,7 @@ import { getSkills } from "./skills/getSkills.js";
 import { getContext, setContext } from './skills/context.js';
 import { getContentRange } from './skills/getContentRange.js';
 import { replaceContentRange } from './skills/replaceContentRange.js';
-import { ContentBuffer, loadAsset, storeAsset } from './asset.js';
+import { ContentBuffer, loadAsset, storeAsset } from './arch/asset.js';
 import { make31BitId } from './make31bitid.js';
 import { documentCreate, loadHtmlPart, storeHtmlPart } from './htmlparts.js';
 import { Session } from './server/session.js';
@@ -34,7 +34,7 @@ export class ToolDispatcher {
   async executeTool(session: Session, toolCall: MCPToolCall): Promise<string> {
     switch (toolCall.name) {
       case 'get_skills':
-        return await getSkills(this.database, this.openaiClient, toolCall.arguments);
+        return await getSkills(this.database, toolCall.arguments);
 
       case 'get_contentrange':
         return await getContentRange(session, toolCall.arguments);

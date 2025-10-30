@@ -1,9 +1,9 @@
 import { Database } from '../database.js';
 import OpenAI from 'openai';
-import { OpenAIClient } from '../openai-client.js';
+import { OpenAIClient } from '../openai/openai-client.js';
 import { youAreShadow } from './chatprompt.js';
-import { ConversationStateResponses } from '../openai-responsesclient.js';
-import { generateEmbedding } from '../generateembedding.js';
+import { ConversationStateResponses } from '../openai/openai-responsesclient.js';
+import { generateEmbedding } from '../openai/generateembedding.js';
 
 export const CONTEXT_VALUES = [
   {

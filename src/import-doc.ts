@@ -1,11 +1,11 @@
 import { mcpTools } from "./mcptools.js";
-import { OpenAIClient, ConversationState } from "./openai-client.js";
+import { OpenAIClient, ConversationState } from "./openai/openai-client.js";
 import { SessionImpl } from './server/sessionimpl.js';
 import { makeDefaultDoc } from './server/loaddoc.js';
 import { loadHtml } from './om/loadHtml.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConversationStateResponses } from "./openai-responsesclient.js";
+import { ConversationStateResponses } from "./openai/openai-responsesclient.js";
 
 /*
   get document text

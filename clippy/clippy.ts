@@ -17,7 +17,7 @@ import { getSelectionRange } from "./dom.js"
 import { VirtualDocument, vdomCache } from "./vdom.js"
 import { EditorContext, CommentThreadRef } from "./editor-context.js"
 import { renderCommentThreads, fetchCommentThreads } from "./comments.js"
-import { type GetDocResponse, PromptRequest } from "../src/server/messages.js"
+import { ActionResult, type AgentChange, ContentChangeRecord, type GetDocResponse, PromptRequest } from "../src/server/messages.js"
 
 // Global editor context for current document
 let currentEditorContext: EditorContext | null = null;
@@ -33,41 +33,26 @@ const buttons = {
   number: document.getElementById('btn-number') as HTMLButtonElement
 };
 
-interface ActionResult {
-  result?: {
-    changes?: ChangeRecord[];
-    newPosition?: { element: string; offset: number };
-    newRange?: { startElement: string; startOffset: number; endElement: string; endOffset: number };
-  };
-}
-
-interface ChangeRecord {
-  id: string;
-  html: string | null;
-  op: 'inserted' | 'changed' | 'ContentChangeRecord';
-  prevId?: string;
-}
-
 interface StyleRule {
   selector: string;
   properties: Record<string, string>;
 }
 
 function applyAction(result: ActionResult): void {
-  if (result && result.result) {
+  if (result) {
     // Apply changes from result
-    if (result.result.changes && result.result.changes.length > 0) {
-      applyChanges(result.result.changes);
+    if (result.changes && result.changes.length > 0) {
+      applyChanges(result.changes);
     }
 
     // Update cursor position
-    if (result.result.newPosition) {
-      updateCursorPosition(result.result.newPosition);
+    if (result.newPosition) {
+      updateCursorPosition(result.newPosition);
     }
 
     // Update selection if present
-    if (result.result.newRange) {
-      updateSelection(result.result.newRange);
+    if (result.newRange) {
+      updateSelection(result.newRange);
     }
   }
 }
@@ -232,6 +217,13 @@ async function pollChanges(): Promise<void> {
           if (actionResult.newRange) {
             updateSelection(actionResult.newRange);
           }
+        } else if (resp.kind === 'agent') {
+          // Action result - apply changes
+          const actionResult = resp.data as AgentChange;
+
+          if (actionResult.changes && actionResult.changes.length > 0) {
+            applyChanges(actionResult.changes);
+          }
         }
       }
     }
@@ -248,13 +240,13 @@ async function pollChanges(): Promise<void> {
 }
 
 // Apply changes to document
-function applyChanges(changes: ChangeRecord[]): void {
+function applyChanges(changes: ContentChangeRecord[]): void {
   // Apply each change based on operation type
   for (const change of changes) {
     const element = document.getElementById(change.id);
 
     switch (change.op) {
-      case 'ContentChangeRecord':
+      case 'deleted':
         // Remove element from DOM
         if (element) {
           element.remove();

@@ -18,7 +18,7 @@ export async function replaceContentRange(
     format: string;
     start_para?: string;
     end_para?: string;
-    content: string;
+    html: string;
   }): Promise<string> {
   console.log(`replaceContentRange [start: ${args.start_para}] [end: ${args.end_para}]`);
 
@@ -31,7 +31,7 @@ export async function replaceContentRange(
   let loaded: YNode[];
   try {
     // Attempt to parse as HTML (pass styleStore for CSS extraction)
-    let parsed = loadHtml(args.content);
+    let parsed = loadHtml(args.html);
     if (parsed instanceof YTextContainer) {
       loaded = parsed.getChildren() as YNode[];
     } else if (parsed instanceof YPara) {
@@ -45,14 +45,13 @@ export async function replaceContentRange(
   // If HTML parsing failed or yielded no paragraphs, treat as plain text
   if (useText) {
     // Split plain text by newlines to create multiple paragraphs
-    const lines = args.content.split('\n');
+    const lines = args.html.split('\n');
     loaded = lines.map(line => {
       const para = new YPara(make31BitId(), YPropSet.create({}), new YStr(line));
       return para;
     });
   }
 
-  let htmlOutput: string[] = [];
   let idxStart = 0;
   let idxEnd = 0;
 

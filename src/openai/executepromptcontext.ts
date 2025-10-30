@@ -1,6 +1,6 @@
-import type { Session } from "./server/session";
-import type { Database } from "./database";
-import { YRange } from "./om/YRange";
+import type { Session } from "../server/session";
+import type { Database } from "../database";
+import { YRange } from "../om/YRange";
 import type { OpenAIClient } from "./openai-client";
 
 export type ExecutePromptContext = {

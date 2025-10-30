@@ -5,7 +5,7 @@ import { importDoc } from "./import-doc.js";
 import { initRuleModel, testRuleModel } from "./initRuleModel.js";
 import { makeHtml } from "./arch/makeHtml.js";
 import { makeSample } from "./arch/makeSample.js";
-import { OpenAIClient } from "./openai-client.js";
+import { OpenAIClient } from "./openai/openai-client.js";
 import { initContextMap } from "./skills/context.js";
 import { initInstructions } from "./skills/initSkills.js";
 import * as readline from 'readline';
@@ -17,7 +17,7 @@ import { skilledWorker } from "./skilledworker.js";
 import { mcpTools } from "./mcptools.js";
 import { Session } from "./server/session.js";
 import { loadDoc } from "./server/loaddoc.js";
-import type { ExecutePromptContext } from "./executepromptcontext.js";
+import type { ExecutePromptContext } from "./openai/executepromptcontext.js";
 
 type PromptMetadata = {
 };

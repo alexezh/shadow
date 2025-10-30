@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
-import { Database } from './database.js';
+import { Database } from '../database.js';
 import { ChatCompletionTool } from 'openai/resources/index.js';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
-import { ToolDispatcher } from './tooldispatcher.js';
-import { Session } from './server/session.js';
+import { ToolDispatcher } from '../tooldispatcher.js';
+import { Session } from '../server/session.js';
 import { ChatResult, OpenAIClient, TokenUsage } from './openai-client.js';
 import { generateEmbedding } from './generateembedding.js';
 import { retryWithBackoff } from './retrywithbackoff.js';
@@ -101,7 +101,7 @@ export class ConversationStateChat {
   }
 }
 
-export class OpenAIClientChat implements OpenAIClient {
+export class OpenAIClientChatLegacy implements OpenAIClient {
   private client: OpenAI;
   private mcpClient: ToolDispatcher;
 

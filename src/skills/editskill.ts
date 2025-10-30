@@ -1,6 +1,18 @@
 import { SkillDef } from "./skilldef";
 import { applyFormatStep } from "./formatskill.js";
 
+const chunkHtml = `
+ - For large or complex HTML structures (sections, subsections, large tables, or cells), break them into manageable parts:
+ - Use make_id to generate a unique partid for each HTML part
+  - If the HTML part is larger than ~1000 tokens, break it into chunks:
+      * Call store_content(partid, docid, html, chunkIndex=0, eos=false) for the first chunk",
+    - If the HTML part is under ~1000 tokens, store it in a single call:",
+      * Call store_htmlpart(partid, docid, html, chunkIndex=0, eos=true)",
+    - In the parent HTML, embed a reference comment: <!-- htmlpart:include id=\\\"<partid>\\\" scope=\\\"section|subsection|table|cell\\\" target=\\\"<target-id>\\\" required=\\\"true\\\" -->",
+    - Example for a large table cell: <!-- htmlpart:include id=\\\"a1b2c3\\\" scope=\\\"cell\\\" target=\\\"t-outer:r-12:c-2\\\" required=\\\"true\\\" -->",
+  For the main document content, use store_htmlpart(partid='0', docid, html, chunkIndex=<n>, eos=<bool>) with the docid retrieved from context and sequential chunkIndex.",
+  `
+
 export const editSkill: SkillDef =
 {
   name: "edit_text",
@@ -83,9 +95,10 @@ Execution rules:
   "done_when": "replace-contentrange completes for the stored selection and the updated range is reflected in context.",
   "actions": [
     "Confirm edit_mode=='revise_text' and read the active selection from context.",
-    "Call get_content_range with that selection to capture the current text for reference.",
+    "Call get_contentrange with that selection to capture the current text for reference.",
     "Draft the replacement content, preserving inline IDs and anchors when possible.",
     "Invoke replace-contentrange({ range: selection, content: <updated html/text> }) to overwrite the selection in a single call.",
+    ${chunkHtml}
   ],
   "completion_format": {
     "status": "revise_text-complete",
@@ -110,7 +123,8 @@ Execution rules:
     "Confirm edit_mode=='replace_text' and capture user intents/phrases from the prompt.",
     "Attempt literal replacements first by calling find_text with each quoted or clearly delimited phrase; when a match is unique, call replaceContentRange for that range.",
     "If literal replacement fails, use semantic keyword search to find the relevant sections.",
-    "Fetch the matched ranges with getContentRange, and apply updates with updateContentRange while preserving IDs.",
+    "For each matched region, fetch content with getContentRange and chunk large blocks (sections, tables, long lists) before storing. Write each chunk incrementally via replace_contentrange, using the last_id returned from the previous call as the new start anchor.",
+    "replace_contentrange returns the parent chain (e.g., body:section:table). Persist this ancestry in ctx (e.g., ctx.parents) so subsequent chunks resume precisely at the right container.",
   ],
   "completion_format": {
     "status": "replace_text-complete",

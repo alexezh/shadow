@@ -1,7 +1,7 @@
 import path from "path";
 import * as fs from 'fs/promises';
-import { generateEmbedding } from "./generateembedding.js";
-import { Database } from "./database.js";
+import { generateEmbedding } from "../openai/generateembedding.js";
+import { Database } from "../database.js";
 import OpenAI from "openai";
 
 export type StoreAssetsArgs = {

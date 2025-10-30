@@ -1,11 +1,10 @@
 import { Database } from './database.js';
-import { OpenAIClient } from './openai-client.js';
+import { OpenAIClient } from './openai/openai-client.js';
 import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { executePrompt } from './executeprompt.js';
-import { OpenAIClientResponses } from './openai-responsesclient.js';
+import { OpenAIClientResponses } from './openai/openai-responsesclient.js';
 
 export class ConsoleApp {
   private database: Database;

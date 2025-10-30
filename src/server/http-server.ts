@@ -4,7 +4,7 @@ import * as path from 'path';
 import { Database } from '../database.js';
 import { YDoc } from '../om/YDoc.js';
 import { executePrompt } from '../executeprompt.js';
-import { OpenAIClient } from '../openai-client.js';
+import { OpenAIClient } from '../openai/openai-client.js';
 import { handleRunAction, RunActionRequest } from '../om/handleRunAction.js';
 import { Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
@@ -18,9 +18,9 @@ import { getSelectionKind } from '../om/YNode.js';
 import { GetDocResponse, PromptRequest, GetThreadRequest, GetThreadResponse, GetChatRequest, GetChatResponse, CreateChatRequest, CreateChatResponse } from './messages.js';
 import { handleGetThread } from './handleGetThead.js';
 import { handleGetChat, handleCreateChat } from './handleChat.js';
-import { OpenAIClientChat } from '../openai-chatclient.js';
-import { OpenAIClientResponses } from '../openai-responsesclient.js';
-import { createClient } from '../openai-createclient.js';
+import { OpenAIClientChatLegacy } from '../openai/openai-chatclientlegacy.js';
+import { OpenAIClientResponses } from '../openai/openai-responsesclient.js';
+import { createClient } from '../openai/openai-createclient.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
