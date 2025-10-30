@@ -1,8 +1,8 @@
 import { Database } from "./database.js";
-import { assembleHtml, handleEditPart, handleListParts } from "./htmlparts.js";
-import { importBlueprint } from "./import-blueprint.js";
-import { importDoc } from "./import-doc.js";
-import { initRuleModel, testRuleModel } from "./initRuleModel.js";
+import { assembleHtml, handleEditPart, handleListParts } from "./arch/htmlparts.js";
+import { importBlueprint } from "./arch/import-blueprint.js";
+import { importDoc } from "./arch/import-doc.js";
+import { initRuleModel, testRuleModel } from "./fact/initRuleModel.js";
 import { makeHtml } from "./arch/makeHtml.js";
 import { makeSample } from "./arch/makeSample.js";
 import { OpenAIClient } from "./openai/openai-client.js";
@@ -13,11 +13,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { getChatPrompt } from "./skills/chatprompt.js";
-import { skilledWorker } from "./skilledworker.js";
+import { skilledWorker } from "./openai/skilledworker.js";
 import { mcpTools } from "./mcptools.js";
 import { Session } from "./server/session.js";
 import { loadDoc } from "./server/loaddoc.js";
 import type { ExecutePromptContext } from "./openai/executepromptcontext.js";
+import { OpenAIClientChatLegacy } from "./openai/openai-chatclientlegacy.js";
 
 type PromptMetadata = {
 };
@@ -28,7 +29,7 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
 
   switch (cmd) {
     case '!init':
-      await handleInit(ctx.database, ctx.openaiClient);
+      await handleInit(ctx.database);
       break;
 
     case '!initmodel':
@@ -55,13 +56,13 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
     //   await this.handleStoreInstruction();
     //   break;
 
-    case '!import-doc':
-      if (parts.length < 2) {
-        console.log('Usage: !import <filename>');
-        return;
-      }
-      await importDoc(parts[1], ctx.openaiClient);
-      break;
+    // case '!import-doc':
+    //   if (parts.length < 2) {
+    //     console.log('Usage: !import <filename>');
+    //     return;
+    //   }
+    //   await importDoc(parts[1], ctx.openaiClient);
+    //   break;
 
     case '!load-doc':
       if (parts.length < 2) {
@@ -71,21 +72,21 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
       await loadDoc(ctx.session, parts[1]);
       break;
 
-    case '!import-blueprint':
-      if (parts.length < 2) {
-        console.log('Usage: !import <filename>');
-        return;
-      }
-      await importBlueprint(parts[1], ctx.openaiClient);
-      break;
+    // case '!import-blueprint':
+    //   if (parts.length < 2) {
+    //     console.log('Usage: !import <filename>');
+    //     return;
+    //   }
+    //   await importBlueprint(parts[1], ctx.openaiClient);
+    //   break;
 
-    case '!ib':
-      await importBlueprint("tonniecv.html", ctx.openaiClient);
-      break;
+    // case '!ib':
+    //   await importBlueprint("tonniecv.html", ctx.openaiClient);
+    //   break;
 
-    case '!make-sample':
-      await makeSample(ctx.openaiClient, ctx.prompt);
-      break;
+    // case '!make-sample':
+    //   await makeSample(ctx.openaiClient, ctx.prompt);
+    //   break;
 
     case '!make-html':
       if (parts.length < 2) {
@@ -129,8 +130,10 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
   }
 }
 
-async function handleInit(database: Database, openaiClient: OpenAIClient): Promise<void> {
+async function handleInit(database: Database): Promise<void> {
   console.log('Initializing database with default rules...');
+
+  const openaiClient = new OpenAIClientChatLegacy(database)
 
   // Clear existing instructions
   console.log('Clearing existing instructions...');

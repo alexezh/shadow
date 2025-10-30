@@ -11,7 +11,7 @@ import { makeDefaultDoc } from './loaddoc.js';
 import { makeCommentThreadHtml, makeHtml } from '../om/makeHtml.js';
 import { SessionImpl } from './sessionimpl.js';
 import { YPara } from '../om/YPara.js';
-import { make31BitId } from '../make31bitid.js';
+import { make31BitId } from '../om/make31bitid.js';
 import { YPropSet } from '../om/YPropSet.js';
 import { YStr } from '../om/YStr.js';
 import { getSelectionKind } from '../om/YNode.js';
@@ -312,7 +312,6 @@ export class HttpServer {
           executePrompt({
             session: session,
             database: this.database,
-            openaiClient: this.openaiClient,
             prompt: request.prompt,
             partId: request.partId,
             docId: request.docId,

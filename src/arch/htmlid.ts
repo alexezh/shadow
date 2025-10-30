@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { parseDocument } from 'htmlparser2';
 import { fileURLToPath } from 'url';
-import { make31BitId } from './make31bitid.js';
+import { make31BitId } from '../om/make31bitid.js';
 
 const __filename = fileURLToPath(import.meta.url);
 

@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { ToolDispatcher } from '../tooldispatcher.js';
 import { Database } from '../database.js';
-import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from '../phase-envelope.js';
+import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
 import { Session } from '../server/session.js';
 import type { MCPFunctionTool } from '../mcptools.js';
 import { JsonChunkedParser } from './json-chunked-parser.js';
@@ -222,7 +222,7 @@ export class OpenAIClientResponses implements OpenAIClient {
     this.client = new OpenAI({
       apiKey: apiKey || process.env.OPENAI_API_KEY
     });
-    this.mcpClient = new ToolDispatcher(database, this.client);
+    this.mcpClient = new ToolDispatcher(database);
   }
 
   // async generateInstructions(terms: string[]): Promise<string> {

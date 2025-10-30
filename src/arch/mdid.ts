@@ -2,7 +2,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { make31BitId } from '../make31bitid';
+import { make31BitId } from '../om/make31bitid';
 
 function addIdsToMarkdown(content: string): string {
   const lines = content.split('\n');

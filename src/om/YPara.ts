@@ -1,4 +1,4 @@
-import { make31BitId } from '../make31bitid.js';
+import { make31BitId } from './make31bitid.js';
 import type { YCommentThread } from './YCommentThread.js';
 import { YNode } from './YNode.js';
 import { YPropCache, YPropSet } from './YPropSet.js';

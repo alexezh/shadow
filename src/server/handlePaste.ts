@@ -6,7 +6,7 @@ import { YPara } from '../om/YPara.js';
 import { YBody } from '../om/YBody.js';
 import { makeHtml } from '../om/makeHtml.js';
 import { loadHtml } from '../om/loadHtml.js';
-import { make31BitId } from '../make31bitid.js';
+import { make31BitId } from '../om/make31bitid.js';
 import { YStr } from '../om/YStr.js';
 import { YPropSet } from '../om/YPropSet.js';
 

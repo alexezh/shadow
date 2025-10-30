@@ -8,7 +8,7 @@ import { YCell } from './YCell.js';
 import { YStr } from './YStr.js';
 import { YPropSet } from './YPropSet.js';
 import { YStyleStore } from './YStyleStore.js';
-import { make31BitId } from '../make31bitid.js';
+import { make31BitId } from './make31bitid.js';
 
 /**
  * Load HTML and return root WNode

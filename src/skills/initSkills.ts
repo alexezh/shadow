@@ -2,7 +2,7 @@ import { youAreShadow } from "./chatprompt.js";
 import { Database } from "../database.js";
 import { OpenAIClient, ConversationState } from "../openai/openai-client.js";
 import { CORE_SKILLS } from "./coreskills.js";
-import { initRuleModel } from "../initRuleModel.js";
+import { initRuleModel } from "../fact/initRuleModel.js";
 import { ConversationStateResponses } from "../openai/openai-responsesclient.js";
 
 export async function initInstructions(openaiClient: OpenAIClient, database: Database): Promise<number[]> {

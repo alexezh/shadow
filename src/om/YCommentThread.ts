@@ -1,4 +1,4 @@
-import { make31BitId } from "../make31bitid.js";
+import { make31BitId } from "./make31bitid.js";
 import { YBody } from "./YBody.js";
 import { YComment } from "./YComment.js";
 import type { YDoc } from "./YDoc.js";

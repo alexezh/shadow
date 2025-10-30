@@ -106,9 +106,7 @@ export class OpenAIClientChatLegacy implements OpenAIClient {
   private mcpClient: ToolDispatcher;
 
   constructor(database: Database, apiKey?: string) {
-    this.client = new OpenAI({
-      apiKey: apiKey || process.env.OPENAI_API_KEY
-    });
+    this.client = getOpenAI();
     this.mcpClient = new ToolDispatcher(database);
   }
 
