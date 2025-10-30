@@ -1,11 +1,9 @@
 import OpenAI from 'openai';
-import { Database } from '../database.js';
 import { ChatCompletionTool } from 'openai/resources/index.js';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
-import { ToolDispatcher } from '../tooldispatcher.js';
+import { ToolDispatcher } from './tooldispatcher.js';
 import { Session } from '../server/session.js';
-import { ChatResult, getOpenAI, OpenAIClient, TokenUsage } from './openai-client.js';
-import { generateEmbedding } from './generateembedding.js';
+import { ChatResult, getOpenAI, TokenUsage } from './openai-client.js';
 import { retryWithBackoff } from './retrywithbackoff.js';
 import { Stream } from 'openai/core/streaming.js';
 
@@ -144,61 +142,28 @@ export class ConversationStateChatSkill {
   }
 }
 
-export class OpenAIClientChatSkill implements OpenAIClient {
+export class SkilledAIClient {
   private toolDispatcher: ToolDispatcher;
 
   constructor(dispatcher: ToolDispatcher) {
     this.toolDispatcher = dispatcher;
   }
 
-  // async generateInstructions(terms: string[]): Promise<string> {
-  //   const prompt = `Generate detailed instructions for the following terms: ${terms.join(', ')}`;
-
-  //   const response = await this.client.chat.completions.create({
-  //     model: 'gpt-4o',
-  //     messages: [
-  //       {
-  //         role: 'system',
-  //         content: 'You are Shadow, a word processing software agent responsible for working with documents.'
-  //       },
-  //       {
-  //         role: 'user',
-  //         content: prompt
-  //       }
-  //     ],
-  //     max_tokens: 1000,
-  //     temperature: 0.7
-  //   });
-
-  //   return response.choices[0]?.message?.content || '';
-  // }
-
-  async generateEmbedding(terms: string | string[]): Promise<number[]> {
-    return generateEmbedding(getOpenAI(), terms)
-  }
-
-  async chatWithMCPTools(
+  async chatWithSkills(
     session: Session | undefined,
     mcpTools: Array<ChatCompletionTool>,
     conversationState: ConversationStateChatSkill,
     userMessage: string,
     options?: {
-      skipCurrentPrompt?: boolean,
-      requireEnvelope?: boolean,
       startAt?: number
     }
   ): Promise<ChatResult> {
-
-    // Set the current prompt in the MCP client for history tracking
-    if (!options?.skipCurrentPrompt) {
-      this.toolDispatcher.setCurrentPrompt(userMessage);
-    }
 
     // Add user message to conversation state
     conversationState.addUserMessage(userMessage);
 
     // Get or create conversation
-    const requireEnvelope = options?.requireEnvelope ?? false;
+    const requireEnvelope = true;
     const messages = conversationState.messages;
     let lastPhase = conversationState.lastPhase;
 

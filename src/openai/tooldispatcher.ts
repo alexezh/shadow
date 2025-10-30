@@ -1,18 +1,18 @@
-import { Database } from './database.js';
+import { Database } from '../database.js';
 import * as fs from 'fs/promises';
 import OpenAI from 'openai';
 import * as path from 'path';
-import { findRanges as findRangesStandalone } from './skills/findRange.js';
-import { formatRange as formatRangeStandalone, cacheRange } from './skills/formatRange.js';
-import { getSkills } from "./skills/getSkills.js";
-import { getContext, setContext } from './skills/context.js';
-import { getContentRange } from './skills/getContentRange.js';
-import { replaceContentRange } from './skills/replaceContentRange.js';
-import { ContentBuffer, loadAsset, storeAsset } from './arch/asset.js';
-import { make31BitId } from './om/make31bitid.js';
-import { documentCreate, loadHtmlPart, storeHtmlPart } from './arch/htmlparts.js';
-import { Session } from './server/session.js';
-import { getOpenAI } from './openai/openai-client.js';
+import { findRanges as findRangesStandalone } from '../skills/findRange.js';
+import { formatRange as formatRangeStandalone, cacheRange } from '../skills/formatRange.js';
+import { getSkills } from "../skills/getSkills.js";
+import { getContext, setContext } from '../skills/context.js';
+import { getContentRange } from '../skills/getContentRange.js';
+import { replaceContentRange } from '../skills/replaceContentRange.js';
+import { ContentBuffer, loadAsset, storeAsset } from '../arch/asset.js';
+import { make31BitId } from '../om/make31bitid.js';
+import { documentCreate, loadHtmlPart, storeHtmlPart } from '../arch/htmlparts.js';
+import { Session } from '../server/session.js';
+import { getOpenAI } from './openai-client.js';
 
 export interface MCPToolCall {
   name: string;

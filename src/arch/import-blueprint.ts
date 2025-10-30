@@ -1,4 +1,4 @@
-import { mcpTools } from "../mcptools.js";
+import { mcpTools } from "../skills/tooldef.js";
 import { OpenAIClient, ConversationState } from "../openai/openai-client.js";
 import * as cheerio from 'cheerio';
 import * as fs from 'fs';

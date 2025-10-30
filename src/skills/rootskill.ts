@@ -2,6 +2,7 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import { Database } from '../database.js';
 import { YRange } from "../om/YRange.js";
+import { SkillDef } from './skilldef.js';
 
 export const youAreShadow = 'You are Shadow, a word processing software agent responsible for working with documents.';
 
@@ -50,7 +51,9 @@ export interface ChatPromptResult {
   };
 }
 
-export async function getChatPrompt(database: Database, context?: ChatPromptContext): Promise<ChatPromptResult> {
+async function getChatPrompt(
+  database: Database,
+  context?: ChatPromptContext): Promise<ChatPromptResult> {
   const selectSkillInstructions = await loadSelectSkillInstructions(database);
 
   // Build context JSON
@@ -131,15 +134,40 @@ Operate in tiny, verifiable steps:
   return result;
 }
 
+export async function getRootSkill(database: Database, context?: ChatPromptContext): Promise<SkillDef> {
+  const prompt = await getChatPrompt(database, context);
+
+  //   systemPrompt: string;
+  // contextMessage?: {
+  //   role: 'user';
+  //   content: string;
+  // };
+
+  return {
+    name: "edit_text",
+    keywords: ['edit document', 'change text', 'modify content'],
+    test_keywords: [
+      'edit document',
+      'modify text',
+      'change paragraph',
+      'update content',
+      'rewrite section'
+    ],
+    text: prompt.systemPrompt,
+    contextMessage: prompt.contextMessage
+  }
+}
+
+
 const legacyToolDef = `
 Available primary tools for basic editing:
-- get_skills: Load stored instructions for the selected skill name.
+      - get_skills: Load stored instructions for the selected skill name.
 - document_create: Create a new document and get its ID
-- store_asset: Store data using set of keywords as a key
-- load_asset: Load data using set of keywords as a key
-- store_htmlpart: Store HTML parts for a document (requires docid from document_create)
-- load_htmlpart: Load HTML parts by document ID and part ID
-- get_contentrange: Read document content ranges
-- load_history: read previous operations
-- store_history: store user action in history
-`
+    - store_asset: Store data using set of keywords as a key
+    - load_asset: Load data using set of keywords as a key
+      - store_htmlpart: Store HTML parts for a document(requires docid from document_create)
+        - load_htmlpart: Load HTML parts by document ID and part ID
+          - get_contentrange: Read document content ranges
+            - load_history: read previous operations
+              - store_history: store user action in history
+                `

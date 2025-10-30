@@ -1,21 +1,12 @@
 import { Database } from "./database.js";
 import { assembleHtml, handleEditPart, handleListParts } from "./arch/htmlparts.js";
-import { importBlueprint } from "./arch/import-blueprint.js";
-import { importDoc } from "./arch/import-doc.js";
 import { initRuleModel, testRuleModel } from "./fact/initRuleModel.js";
 import { makeHtml } from "./arch/makeHtml.js";
-import { makeSample } from "./arch/makeSample.js";
-import { OpenAIClient } from "./openai/openai-client.js";
 import { initContextMap } from "./skills/context.js";
 import { initInstructions } from "./skills/initSkills.js";
-import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
-import { getChatPrompt } from "./skills/chatprompt.js";
 import { skilledWorker } from "./openai/skilledworker.js";
-import { mcpTools } from "./mcptools.js";
-import { Session } from "./server/session.js";
 import { loadDoc } from "./server/loaddoc.js";
 import type { ExecutePromptContext } from "./openai/executepromptcontext.js";
 import { OpenAIClientChatLegacy } from "./openai/openai-chatclientlegacy.js";
@@ -123,7 +114,14 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
     default:
       // Treat as chat message if not starting with !
       if (!ctx.prompt.startsWith('!')) {
-        await handleChatMessage(ctx);
+        const result = await skilledWorker(
+          ctx,
+          {
+            docId: ctx.docId ?? ctx.session?.id,
+            partId: ctx.partId ?? ctx.session?.currentPartId,
+            selection: ctx.selection
+          }
+        );
       } else {
         console.log('Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, !assemble, exit');
       }
@@ -206,23 +204,3 @@ async function handleExport(database: Database, docid: string): Promise<void> {
   }
 }
 
-async function handleChatMessage(
-  ctx: ExecutePromptContext
-): Promise<void> {
-  try {
-    const chatPrompt = await getChatPrompt(ctx.database, {
-      docId: ctx.docId ?? ctx.session?.id,
-      partId: ctx.partId ?? ctx.session?.currentPartId,
-      selection: ctx.selection
-    });
-    const result = await skilledWorker(
-      ctx,
-      mcpTools,
-      chatPrompt,
-    );
-
-    // Note: conversationState is now returned instead of conversationId
-  } catch (error) {
-    console.error('❌ Error processing chat message:', error);
-  }
-}

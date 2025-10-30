@@ -1,14 +1,18 @@
-import type { MCPFunctionTool } from "../mcptools.js";
+import type { ToolDef } from "./tooldef.js";
 
 export type SkillDef = {
   name: string;
   keywords: string[];
   text: string;
+  contextMessage?: {
+    role: 'user';
+    content: string;
+  }
   test_keywords?: string[];
-  tools?: MCPFunctionTool[];
+  tools?: ToolDef[];
   childSkill?: {
     step: string;
     text: string;
-    tools?: MCPFunctionTool[];
+    tools?: ToolDef[];
   }[];
 }

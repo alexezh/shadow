@@ -1,9 +1,9 @@
-export interface MCPToolCall {
+export interface ToolCall {
   name: string;
   arguments: any;
 }
 
-export interface MCPFunctionTool {
+export interface ToolDef {
   type: 'function';
   function: {
     name: string;
@@ -13,7 +13,7 @@ export interface MCPFunctionTool {
 }
 
 // Define MCP tools configuration for OpenAI function calling
-export const mcpTools: MCPFunctionTool[] = [
+export const mcpTools: ToolDef[] = [
   {
     type: 'function',
     function: {
@@ -346,6 +346,14 @@ All chunks of the same document MUST share the same chunkId, and include chunkIn
 ];
 
 // Create a map of tools by name for efficient lookup
-export const mcpToolsMap = new Map<string, MCPFunctionTool>(
+const toolsMap = new Map<string, ToolDef>(
   mcpTools.map(tool => [tool.function.name, tool])
 );
+
+export function getTool(name: string): ToolDef {
+  let def = toolsMap.get(name);
+  if (!def) {
+    throw "Cannot find tool " + name;
+  }
+  return def;
+}

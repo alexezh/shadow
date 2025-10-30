@@ -1,10 +1,12 @@
 import { ConversationState, OpenAIClient, TokenUsage } from "./openai-client.js";
 import { PhaseGatedEnvelope } from "./phase-envelope.js";
 import type { ExecutePromptContext } from "./executepromptcontext.js";
-import type { MCPFunctionTool } from "../mcptools.js";
-import type { ChatPromptResult } from "../skills/chatprompt.js";
+import type { ToolDef } from "../skills/tooldef.js";
+import { getRootSkill, type ChatPromptContext, type ChatPromptResult } from "../skills/rootskill.js";
 import { ConversationStateChat } from "./openai-chatclientlegacy.js";
 import { createContext } from "./openai-createclient.js";
+import { SkilledAIClient } from "./skilled-aiclient.js";
+import { ToolDispatcher } from "./tooldispatcher.js";
 
 interface StepCompletion {
   next_step?: string | null;
@@ -52,10 +54,15 @@ function extractNextPrompt(envelope: PhaseGatedEnvelope | null): string | null {
 
 export async function skilledWorker(
   ctx: ExecutePromptContext,
-  mcpTools: Array<MCPFunctionTool>,
-  chatPrompt: ChatPromptResult,
+  chatCtx: ChatPromptContext,
 ): Promise<{ response: string; conversationState: ConversationState; usage: TokenUsage }> {
+
+  const toolDispatcher = new ToolDispatcher(ctx.database);
+  const skilledClient = new SkilledAIClient(toolDispatcher);
   const startAt = performance.now();
+
+  const chatPrompt = await getRootSkill(chatCtx);
+
   const conversationState = createContext(
     chatPrompt.systemPrompt,
     ctx.prompt,
@@ -73,14 +80,17 @@ export async function skilledWorker(
   const maxFollowUps = 12;
 
   for (let iteration = 0; iteration < maxFollowUps; iteration++) {
-    const result = await ctx.openaiClient.chatWithMCPTools(
+    // Set the current prompt in the MCP client for history tracking
+    if (iteration > 0) {
+      toolDispatcher.setCurrentPrompt(currentPrompt);
+    }
+
+    const result = await skilledClient.chatWithSkills(
       ctx.session,
       mcpTools,
       conversationState,
       currentPrompt,
       {
-        requireEnvelope: true,
-        skipCurrentPrompt: iteration > 0,
         startAt: startAt
       }
     );

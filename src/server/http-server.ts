@@ -27,11 +27,9 @@ export class HttpServer {
   private database: Database;
   private port: number;
   private sessions: Map<string, Session>;
-  private openaiClient: OpenAIClient;
 
   constructor(database: Database, port: number = 3000) {
     this.database = database;
-    this.openaiClient = createClient(database);
     this.port = port;
     this.sessions = new Map();
   }

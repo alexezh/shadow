@@ -1,4 +1,4 @@
-import { mcpTools } from "../mcptools.js";
+import { mcpTools } from "../skills/tooldef.js";
 import { OpenAIClient, ConversationState } from "../openai/openai-client.js";
 import { SessionImpl } from '../server/sessionimpl.js';
 import { makeDefaultDoc } from '../server/loaddoc.js';

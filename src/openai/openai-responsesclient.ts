@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
-import { ToolDispatcher } from '../tooldispatcher.js';
+import { ToolDispatcher } from './tooldispatcher.js';
 import { Database } from '../database.js';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
 import { Session } from '../server/session.js';
-import type { MCPFunctionTool } from '../mcptools.js';
+import type { ToolDef } from '../skills/tooldef.js';
 import { JsonChunkedParser } from './json-chunked-parser.js';
 import { ChatResult, ConversationState, OpenAIClient, TokenUsage } from './openai-client.js';
 import { generateEmbedding } from './generateembedding.js';
@@ -253,7 +253,7 @@ export class OpenAIClientResponses implements OpenAIClient {
 
   async chatWithMCPTools(
     session: Session | undefined,
-    mcpTools: Array<MCPFunctionTool>,
+    mcpTools: Array<ToolDef>,
     conversationState: ConversationStateResponses,
     userMessage: string,
     options?: {
@@ -551,7 +551,7 @@ export class OpenAIClientResponses implements OpenAIClient {
     };
   }
 
-  private toResponseTools(mcpTools: Array<MCPFunctionTool>): Array<{
+  private toResponseTools(mcpTools: Array<ToolDef>): Array<{
     type: 'function';
     name: string;
     description?: string;
