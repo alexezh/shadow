@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import { Database } from '../database.js';
 import { YRange } from "../om/YRange.js";
 import { SkillDef } from './skilldef.js';
+import { getToolDef } from './tooldef.js';
 
 export const youAreShadow = 'You are Shadow, a word processing software agent responsible for working with documents.';
 
@@ -53,7 +54,8 @@ export interface ChatPromptResult {
 
 async function getChatPrompt(
   database: Database,
-  context?: ChatPromptContext): Promise<ChatPromptResult> {
+  context: ChatPromptContext,
+  get_skills: string): Promise<ChatPromptResult> {
   const selectSkillInstructions = await loadSelectSkillInstructions(database);
 
   // Build context JSON
@@ -75,7 +77,7 @@ async function getChatPrompt(
 
   const systemPrompt = `
 ${youAreShadow}
-You have access to document library which you can read with load_asset API and write with store_asset API.
+You have access to document library which you can read with tools.
 You can also store additional data like summary, blueprint or any other information in the library.
 
 # Context
@@ -89,7 +91,7 @@ You can also store additional data like summary, blueprint or any other informat
 
 # Asset Policy
 - If needed content is present in ctx and marked ready/fresh, **use it**.
-- If content is missing/stale/truncated, **call 'load_asset'** to fetch it.
+- If content is missing/stale/truncated, **call 'get_contentrange'** to fetch it.
 - When writing, include minimal metadata (keywords, scope/targetId) and keep chunks balanced at safe boundaries.
 
 # Output Policy
@@ -110,9 +112,9 @@ All assistant replies MUST be expressed as a phase-gated control envelope JSON o
 
 Operate in tiny, verifiable steps:
 1. Build a minimal 'step_card' for the active goal: { step, goal, selected_skill, keywords, done_when }. Emit it via envelope.metadata.step_card and clear it once the goal is finished.
-2. For each high-level goal, use the select-skill guide to choose the single best skill by name. Immediately send a phase="action" envelope calling get_skills({ "name": "<skillName>" }) to load its playbook and discover any child steps.
-3. CRITICAL: Once you start a skill pipeline, you MUST complete ALL steps in that skill before switching to any other skill. Do not call get_skills with a different skill name until the current pipeline is fully complete.
-4. If the skill defines steps, process them sequentially: before acting on a step, send a phase="action" envelope calling get_skills({ "name": "<skillName>", "step": "<stepName>" }) to fetch the detailed guidance, then execute only the minimal actions it prescribes.
+2. For each high-level goal, use the select-skill guide to choose the single best skill by name. Immediately send a phase="action" envelope calling ${get_skills}({ "name": "<skillName>" }) to load its playbook and discover any child steps.
+3. CRITICAL: Once you start a skill pipeline, you MUST complete ALL steps in that skill before switching to any other skill. Do not call ${get_skills} with a different skill name until the current pipeline is fully complete.
+4. If the skill defines steps, process them sequentially: before acting on a step, send a phase="action" envelope calling ${get_skills}({ "name": "<skillName>", "step": "<stepName>" }) to fetch the detailed guidance, then execute only the minimal actions it prescribes.
 5. After completing a step's done_when criteria, stay in phase="analysis", emit the completion JSON, then IMMEDIATELY send the next_prompt request to continue without waiting for user input.
 6. When a skill pipeline completes (next_step is null), execute any remaining actions the instruction calls for (e.g., formatting, storing history). Only after the user’s request is satisfied may you clear the step_card, summarize, and send phase="final".
 7. Before every tool call, send a brief phase="analysis" status (if needed), then issue a separate phase="action" envelope that lists only the tools you will call and contains nothing but the tool invocation. Never embed tool_calls inside analysis or final envelopes.
@@ -134,8 +136,8 @@ Operate in tiny, verifiable steps:
   return result;
 }
 
-export async function getRootSkill(database: Database, context?: ChatPromptContext): Promise<SkillDef> {
-  const prompt = await getChatPrompt(database, context);
+export async function getRootSkill(database: Database, context: ChatPromptContext): Promise<SkillDef> {
+  const prompt = await getChatPrompt(database, context, "get_skills");
 
   //   systemPrompt: string;
   // contextMessage?: {
@@ -154,7 +156,8 @@ export async function getRootSkill(database: Database, context?: ChatPromptConte
       'rewrite section'
     ],
     text: prompt.systemPrompt,
-    contextMessage: prompt.contextMessage
+    contextMessage: prompt.contextMessage,
+    tools: [getToolDef("get_skills")]
   }
 }
 

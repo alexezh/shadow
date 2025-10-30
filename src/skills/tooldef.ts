@@ -350,7 +350,7 @@ const toolsMap = new Map<string, ToolDef>(
   mcpTools.map(tool => [tool.function.name, tool])
 );
 
-export function getTool(name: string): ToolDef {
+export function getToolDef(name: string): ToolDef {
   let def = toolsMap.get(name);
   if (!def) {
     throw "Cannot find tool " + name;

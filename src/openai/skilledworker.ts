@@ -16,6 +16,10 @@ interface StepCompletion {
   [key: string]: unknown;
 }
 
+class SkillStack {
+
+}
+
 function tryParseJson<T>(raw: string | null | undefined): T | null {
   if (!raw) {
     return null;
@@ -28,29 +32,6 @@ function tryParseJson<T>(raw: string | null | undefined): T | null {
   }
 }
 
-function extractNextPrompt(envelope: PhaseGatedEnvelope | null): string | null {
-  if (!envelope?.envelope?.content || typeof envelope.envelope.content !== 'string') {
-    return null;
-  }
-
-  const completion = tryParseJson<StepCompletion>(envelope.envelope.content);
-  if (!completion) {
-    return null;
-  }
-
-  const nextStep = (completion.next_step ?? completion.nextStep) ?? null;
-  const nextPrompt = (completion.next_prompt ?? completion.nextPrompt) ?? null;
-
-  if (!nextStep || typeof nextStep !== 'string' || nextStep.trim().length === 0) {
-    return null;
-  }
-
-  if (!nextPrompt || typeof nextPrompt !== 'string' || nextPrompt.trim().length === 0) {
-    return null;
-  }
-
-  return nextPrompt.trim();
-}
 
 export async function skilledWorker(
   ctx: ExecutePromptContext,
@@ -61,12 +42,12 @@ export async function skilledWorker(
   const skilledClient = new SkilledAIClient(toolDispatcher);
   const startAt = performance.now();
 
-  const chatPrompt = await getRootSkill(chatCtx);
+  const rootSkill = await getRootSkill(ctx.database, chatCtx);
 
   const conversationState = createContext(
-    chatPrompt.systemPrompt,
+    rootSkill.text,
     ctx.prompt,
-    chatPrompt.contextMessage
+    rootSkill.contextMessage
   );
 
   let currentPrompt = ctx.prompt;
@@ -87,7 +68,7 @@ export async function skilledWorker(
 
     const result = await skilledClient.chatWithSkills(
       ctx.session,
-      mcpTools,
+      rootSkill.tools!,
       conversationState,
       currentPrompt,
       {
@@ -126,4 +107,28 @@ export async function skilledWorker(
     conversationState,
     usage: aggregateUsage
   };
+}
+
+function extractNextPrompt(envelope: PhaseGatedEnvelope | null): string | null {
+  if (!envelope?.envelope?.content || typeof envelope.envelope.content !== 'string') {
+    return null;
+  }
+
+  const completion = tryParseJson<StepCompletion>(envelope.envelope.content);
+  if (!completion) {
+    return null;
+  }
+
+  const nextStep = (completion.next_step ?? completion.nextStep) ?? null;
+  const nextPrompt = (completion.next_prompt ?? completion.nextPrompt) ?? null;
+
+  if (!nextStep || typeof nextStep !== 'string' || nextStep.trim().length === 0) {
+    return null;
+  }
+
+  if (!nextPrompt || typeof nextPrompt !== 'string' || nextPrompt.trim().length === 0) {
+    return null;
+  }
+
+  return nextPrompt.trim();
 }

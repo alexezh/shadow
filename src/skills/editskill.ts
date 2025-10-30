@@ -1,5 +1,6 @@
 import { SkillDef } from "./skilldef";
 import { applyFormatStep } from "./formatskill.js";
+import { getToolDef } from "./tooldef.js";
 
 const chunkHtml = `
  - For large or complex HTML structures (sections, subsections, large tables, or cells), break them into manageable parts:
@@ -23,6 +24,11 @@ export const editSkill: SkillDef =
     'change paragraph',
     'update content',
     'rewrite section'
+  ],
+  tools: [
+    getToolDef("get_skills"),
+    getToolDef("get_contentrange"),
+    getToolDef("find_ranges")
   ],
   text: `
 **edit document · step pipeline**
@@ -61,6 +67,10 @@ Execution rules:
 
     {
       step: 'selection',
+      tools: [
+        getToolDef("get_contentrange"),
+        getToolDef("find_ranges")
+      ],
       text: `
 {
   "step": "selection",
@@ -88,6 +98,12 @@ Execution rules:
     },
     {
       step: 'revise',
+      tools: [
+        getToolDef("get_contentrange"),
+        getToolDef("replace_contentrange"),
+        getToolDef("make_id"),
+        getToolDef("store_htmlpart")
+      ],
       text: `
 {
   "step": "revise_text",
@@ -114,6 +130,11 @@ Execution rules:
     },
     {
       step: 'replace_text',
+      tools: [
+        getToolDef("find_ranges"),
+        getToolDef("get_contentrange"),
+        getToolDef("replace_contentrange")
+      ],
       text: `
 {
   "step": "replace_text",
@@ -140,6 +161,9 @@ Execution rules:
     },
     {
       step: 'format',
+      tools: [
+        getToolDef("format_range")
+      ],
       text: applyFormatStep(`{
     "status": "apply_formatting-complete",
     "allowed_tools": ["format_range"],
