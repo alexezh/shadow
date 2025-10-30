@@ -59,6 +59,20 @@ export class ConversationStateChatSkill {
     this.recordMessage('user', initialUserMessage, 'user');
   }
 
+  pushSystemMessage(content: string): void {
+    this.messages.push({ role: 'system', content });
+    this.recordMessage('system', content, 'system');
+  };
+
+  pushToolMessage(toolCallId: string, content: string, tag: string): void {
+    this.messages.push({
+      role: 'tool',
+      tool_call_id: toolCallId,
+      content
+    });
+    this.recordMessage('tool', content, tag);
+  };
+
   recordMessage(role: string, content: string, tag?: string): void {
     const length = content ? content.length : 0;
     this.messageChars += length;
@@ -71,6 +85,30 @@ export class ConversationStateChatSkill {
       timestamp: Date.now()
     });
   }
+
+  respondToToolCallsWithError(toolCalls: any[], reason: string) {
+    if (!toolCalls || toolCalls.length === 0) {
+      return;
+    }
+
+    for (const toolCall of toolCalls) {
+      if (!toolCall?.id) {
+        console.warn(`⚠️ Unable to respond to tool call without id (tool=${toolCall?.function?.name || 'unknown'})`);
+        continue;
+      }
+
+      console.warn(`respondToToolCallsWithError: (tool=${toolCall?.function?.name || 'unknown'}) (reason=${reason})`);
+
+      this.pushToolMessage(
+        toolCall.id,
+        JSON.stringify({
+          success: false,
+          error: reason
+        }, null, 2),
+        toolCall?.function?.name || 'tool-error'
+      );
+    }
+  };
 
   recordUsage(tag: string, promptTokens: number, completionTokens: number, totalTokens?: number): void {
     if (!promptTokens && !completionTokens && !totalTokens) {
@@ -166,44 +204,6 @@ export class OpenAIClientChatSkill implements OpenAIClient {
 
     console.log(`💬 Conversation with ${messages.length} messages`);
 
-    const pushSystemMessage = (content: string): void => {
-      messages.push({ role: 'system', content });
-      conversationState.recordMessage('system', content, 'system');
-    };
-
-    const pushToolMessage = (toolCallId: string, content: string, tag: string): void => {
-      messages.push({
-        role: 'tool',
-        tool_call_id: toolCallId,
-        content
-      });
-      conversationState.recordMessage('tool', content, tag);
-    };
-
-    const respondToToolCallsWithError = (toolCalls: any[], reason: string) => {
-      if (!toolCalls || toolCalls.length === 0) {
-        return;
-      }
-
-      for (const toolCall of toolCalls) {
-        if (!toolCall?.id) {
-          console.warn(`⚠️ Unable to respond to tool call without id (tool=${toolCall?.function?.name || 'unknown'})`);
-          continue;
-        }
-
-        console.warn(`respondToToolCallsWithError: (tool=${toolCall?.function?.name || 'unknown'}) (reason=${reason})`);
-
-        pushToolMessage(
-          toolCall.id,
-          JSON.stringify({
-            success: false,
-            error: reason
-          }, null, 2),
-          toolCall?.function?.name || 'tool-error'
-        );
-      }
-    };
-
     // Loop to handle multiple function calls
     let maxIterations = 100;
     let iteration = 0;
@@ -266,7 +266,7 @@ export class OpenAIClientChatSkill implements OpenAIClient {
           if (requireEnvelope) {
             const transitionIssue = validatePhaseProgression(lastPhase, controlEnvelope.phase);
             if (transitionIssue) {
-              pushSystemMessage(`Phase transition error: ${transitionIssue} Respond again with a valid phase-gated control envelope JSON.`);
+              conversationState.pushSystemMessage(`Phase transition error: ${transitionIssue} Respond again with a valid phase-gated control envelope JSON.`);
               invalidEnvelopeCount++;
               if (invalidEnvelopeCount > 5) {
                 throw new Error('Exceeded maximum invalid phase transitions from the assistant.');
@@ -286,9 +286,9 @@ export class OpenAIClientChatSkill implements OpenAIClient {
               throw new Error(`Assistant failed to provide a valid phase - gated control envelope JSON after multiple attempts: ${error?.message || String(error)} `);
             }
 
-            respondToToolCallsWithError(toolCalls, `Rejected tool call: ${error?.message || String(error)} `);
+            conversationState.respondToToolCallsWithError(toolCalls, `Rejected tool call: ${error?.message || String(error)} `);
 
-            pushSystemMessage(`Your previous reply was not valid phase-gated control envelope JSON. Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`);
+            conversationState.pushSystemMessage(`Your previous reply was not valid phase-gated control envelope JSON. Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`);
             continue;
           } else {
             controlEnvelope = null;
@@ -299,57 +299,19 @@ export class OpenAIClientChatSkill implements OpenAIClient {
       if (toolCalls.length > 0) {
         let pendingEnvelopeReminder = false;
 
-        if (!controlEnvelope) {
-          console.warn('⚠️ Assistant invoked tools without providing a control envelope; synthesizing one with phase="action".');
-          controlEnvelope = {
-            phase: 'action',
-            control: { allowed_tools: toolCalls.map((call: any) => call.function?.name).filter((n: string | undefined): n is string => !!n) },
-            envelope: { type: 'text', content: '' }
-          } as PhaseGatedEnvelope;
-          lastPhase = 'action';
-          pendingEnvelopeReminder = true;
-        }
+        const res = this.validateToolCall(conversationState, lastPhase, controlEnvelope, toolCalls);
+        lastPhase = res.lastPhase!;
+        pendingEnvelopeReminder = res.pendingEnvelopeReminder;
+        invalidEnvelopeCount = invalidEnvelopeCount;
 
-        if (controlEnvelope.phase !== 'action') {
-          console.warn('⚠️ Assistant invoked tools while in phase="' + controlEnvelope.phase + '". Coercing to phase="action" for execution.');
-          controlEnvelope.phase = 'action';
-          lastPhase = 'action';
-        }
-
-        const allowedTools = controlEnvelope.control.allowed_tools ?? [];
-        const allowToolUse = controlEnvelope.control.allow_tool_use;
-        let disallowed = toolCalls
-          .map(toolCall => toolCall.function?.name || '')
-          .filter(name => name.length > 0 && allowedTools.length > 0 && !allowedTools.includes(name));
-
-        disallowed = [];
-
-        if (allowToolUse === false) {
-          respondToToolCallsWithError(toolCalls, 'Rejected tool call: control.allow_tool_use is false.');
-
-          pushSystemMessage('control.allow_tool_use is false; do not invoke tools in the same response. Provide a new envelope.');
-          invalidEnvelopeCount++;
-          if (invalidEnvelopeCount > 5) {
-            throw new Error('Assistant attempted to invoke tools while explicitly disallowing them.');
-          }
-          continue;
-        }
-
-        if (disallowed.length > 0) {
-          respondToToolCallsWithError(toolCalls, `Rejected tool call: ${disallowed.join(', ')} not listed in control.allowed_tools.`);
-
-          pushSystemMessage(`The tools ${disallowed.join(', ')} are not listed in control.allowed_tools. Update the envelope and resend.`);
-          invalidEnvelopeCount++;
-          if (invalidEnvelopeCount > 5) {
-            throw new Error('Assistant repeatedly attempted to invoke tools not present in control.allowed_tools.');
-          }
+        if (res.status === "continue") {
           continue;
         }
 
         await this.executeTools(session, toolCalls, messages, conversationState);
 
         if (pendingEnvelopeReminder) {
-          pushSystemMessage('Reminder: include the phase-gated control envelope JSON with phase="action" whenever you call tools.');
+          conversationState.pushSystemMessage('Reminder: include the phase-gated control envelope JSON with phase="action" whenever you call tools.');
         }
 
         iteration++;
@@ -357,7 +319,7 @@ export class OpenAIClientChatSkill implements OpenAIClient {
       } else if (toolCalls.length === 0) {
         if (requireEnvelope) {
           if (!controlEnvelope) {
-            pushSystemMessage('All responses must include the control envelope JSON. Provide the envelope.');
+            conversationState.pushSystemMessage('All responses must include the control envelope JSON. Provide the envelope.');
             invalidEnvelopeCount++;
             if (invalidEnvelopeCount > 5) {
               throw new Error('Assistant did not provide the control envelope JSON.');
@@ -366,7 +328,7 @@ export class OpenAIClientChatSkill implements OpenAIClient {
           }
 
           if (controlEnvelope.phase !== 'final') {
-            pushSystemMessage('Continue working until you can respond with a phase="final" control envelope JSON summarizing the outcome.');
+            conversationState.pushSystemMessage('Continue working until you can respond with a phase="final" control envelope JSON summarizing the outcome.');
             invalidEnvelopeCount++;
             if (invalidEnvelopeCount > 5) {
               throw new Error('Assistant failed to reach the final phase with a valid envelope.');
@@ -494,6 +456,69 @@ export class OpenAIClientChatSkill implements OpenAIClient {
       iterationCompletionTokens,
       iterationTotalTokens || (iterationPromptTokens + iterationCompletionTokens)
     );
+  }
+
+  private validateToolCall(
+    conversationState: ConversationStateChatSkill,
+    lastPhase: Phase | null,
+    controlEnvelope: PhaseGatedEnvelope | null,
+    toolCalls: any[]): {
+      status: "continue" | "verified",
+      lastPhase: Phase | null;
+      pendingEnvelopeReminder: boolean;
+      invalidEnvelopeCount: number;
+    } {
+    let pendingEnvelopeReminder: boolean = false;
+    let invalidEnvelopeCount = 0;
+
+    if (!controlEnvelope) {
+      console.warn('⚠️ Assistant invoked tools without providing a control envelope; synthesizing one with phase="action".');
+      controlEnvelope = {
+        phase: 'action',
+        control: { allowed_tools: toolCalls.map((call: any) => call.function?.name).filter((n: string | undefined): n is string => !!n) },
+        envelope: { type: 'text', content: '' }
+      } as PhaseGatedEnvelope;
+      lastPhase = 'action';
+      pendingEnvelopeReminder = true;
+    }
+
+    if (controlEnvelope.phase !== 'action') {
+      console.warn('⚠️ Assistant invoked tools while in phase="' + controlEnvelope.phase + '". Coercing to phase="action" for execution.');
+      controlEnvelope.phase = 'action';
+      lastPhase = 'action';
+    }
+
+    const allowedTools = controlEnvelope.control.allowed_tools ?? [];
+    const allowToolUse = controlEnvelope.control.allow_tool_use;
+    let disallowed = toolCalls
+      .map(toolCall => toolCall.function?.name || '')
+      .filter(name => name.length > 0 && allowedTools.length > 0 && !allowedTools.includes(name));
+
+    disallowed = [];
+
+    if (allowToolUse === false) {
+      conversationState.respondToToolCallsWithError(toolCalls, 'Rejected tool call: control.allow_tool_use is false.');
+
+      conversationState.pushSystemMessage('control.allow_tool_use is false; do not invoke tools in the same response. Provide a new envelope.');
+      invalidEnvelopeCount++;
+      if (invalidEnvelopeCount > 5) {
+        throw new Error('Assistant attempted to invoke tools while explicitly disallowing them.');
+      }
+      return { status: "continue", lastPhase, pendingEnvelopeReminder, invalidEnvelopeCount }
+    }
+
+    if (disallowed.length > 0) {
+      conversationState.respondToToolCallsWithError(toolCalls, `Rejected tool call: ${disallowed.join(', ')} not listed in control.allowed_tools.`);
+
+      conversationState.pushSystemMessage(`The tools ${disallowed.join(', ')} are not listed in control.allowed_tools. Update the envelope and resend.`);
+      invalidEnvelopeCount++;
+      if (invalidEnvelopeCount > 5) {
+        throw new Error('Assistant repeatedly attempted to invoke tools not present in control.allowed_tools.');
+      }
+      return { status: "continue", lastPhase, pendingEnvelopeReminder, invalidEnvelopeCount }
+    }
+
+    return { status: "verified", lastPhase, pendingEnvelopeReminder, invalidEnvelopeCount }
   }
 
   private async executeTools(
