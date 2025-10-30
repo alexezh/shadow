@@ -12,6 +12,7 @@ import { ContentBuffer, loadAsset, storeAsset } from './arch/asset.js';
 import { make31BitId } from './make31bitid.js';
 import { documentCreate, loadHtmlPart, storeHtmlPart } from './htmlparts.js';
 import { Session } from './server/session.js';
+import { getOpenAI } from './openai/openai-client.js';
 
 export interface MCPToolCall {
   name: string;
@@ -26,9 +27,9 @@ export class ToolDispatcher {
   // Buffer for chunked content
   private contentBuffer: ContentBuffer = new Map();
 
-  constructor(database: Database, openaiClient: OpenAI) {
+  constructor(database: Database) {
     this.database = database;
-    this.openaiClient = openaiClient;
+    this.openaiClient = getOpenAI();
   }
 
   async executeTool(session: Session, toolCall: MCPToolCall): Promise<string> {
