@@ -7,12 +7,17 @@ import { Session } from '../server/session.js';
 import { ChatResult, getOpenAI, OpenAIClient, TokenUsage } from './openai-client.js';
 import { generateEmbedding } from './generateembedding.js';
 import { retryWithBackoff } from './retrywithbackoff.js';
+import { Stream } from 'openai/core/streaming.js';
 
 type TrackerEntry =
   | { kind: 'message'; role: string; tag?: string; length: number; timestamp: number }
   | { kind: 'usage'; tag: string; promptTokens: number; completionTokens: number; totalTokens: number; timestamp: number };
 
-
+type TotalUsage = {
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+}
 
 export class ConversationStateChatSkill {
   public messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
@@ -203,9 +208,11 @@ export class OpenAIClientChatSkill implements OpenAIClient {
     let maxIterations = 100;
     let iteration = 0;
     let invalidEnvelopeCount = 0;
-    let totalPromptTokens = 0;
-    let totalCompletionTokens = 0;
-    let totalTokens = 0;
+    let totals: TotalUsage = {
+      totalPromptTokens: 0,
+      totalCompletionTokens: 0,
+      totalTokens: 0
+    }
 
     while (iteration < maxIterations) {
       const response = await retryWithBackoff(async () => {
@@ -224,73 +231,13 @@ export class OpenAIClientChatSkill implements OpenAIClient {
         });
       });
 
-      let iterationPromptTokens = 0;
-      let iterationCompletionTokens = 0;
-      let iterationTotalTokens = 0;
-
       let assistantMessage = {
         role: 'assistant' as const,
         content: '',
         tool_calls: [] as any[]
       };
 
-      // Collect all streaming chunks
-      for await (const chunk of response) {
-        const delta = chunk.choices[0]?.delta;
-
-        if (delta?.content) {
-          assistantMessage.content += delta.content;
-        }
-
-        if (delta?.tool_calls) {
-          // Handle streaming tool calls
-          for (const toolCall of delta.tool_calls) {
-            if (toolCall.index !== undefined) {
-              // Initialize tool call if it doesn't exist
-              if (!assistantMessage.tool_calls[toolCall.index]) {
-                assistantMessage.tool_calls[toolCall.index] = {
-                  id: toolCall.id || '',
-                  type: 'function' as const,
-                  function: {
-                    name: toolCall.function?.name || '',
-                    arguments: ''
-                  }
-                };
-              }
-
-              // Accumulate the function arguments
-              if (toolCall.function?.arguments) {
-                assistantMessage.tool_calls[toolCall.index].function.arguments += toolCall.function.arguments;
-              }
-            }
-          }
-        }
-
-        const streamingUsage = (chunk as any)?.usage;
-        if (streamingUsage) {
-          if (typeof streamingUsage.prompt_tokens === 'number') {
-            iterationPromptTokens = streamingUsage.prompt_tokens;
-          }
-          if (typeof streamingUsage.completion_tokens === 'number') {
-            iterationCompletionTokens = streamingUsage.completion_tokens;
-          }
-          if (typeof streamingUsage.total_tokens === 'number') {
-            iterationTotalTokens = streamingUsage.total_tokens;
-          } else if (iterationPromptTokens || iterationCompletionTokens) {
-            iterationTotalTokens = iterationPromptTokens + iterationCompletionTokens;
-          }
-        }
-      }
-
-      totalPromptTokens += iterationPromptTokens;
-      totalCompletionTokens += iterationCompletionTokens;
-      totalTokens += iterationTotalTokens || (iterationPromptTokens + iterationCompletionTokens);
-      conversationState.recordUsage(
-        `iteration-${iteration}`,
-        iterationPromptTokens,
-        iterationCompletionTokens,
-        iterationTotalTokens || (iterationPromptTokens + iterationCompletionTokens)
-      );
+      await this.readResponseStream(conversationState, iteration, response, assistantMessage, totals);
 
       const toolCalls = assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0
         ? assistantMessage.tool_calls
@@ -303,12 +250,13 @@ export class OpenAIClientChatSkill implements OpenAIClient {
       const elapsed = (options?.startAt) ? (performance.now() - options.startAt) / 1000 : 0;
       const responseText = (assistantMessage.content.length !== 0) ? assistantMessage.content.substring(0, 100) : JSON.stringify(assistantMessage).substring(0, 200);
 
-      console.log(`assistant: [elapsed: ${elapsed}] [tt: ${totalPromptTokens}] ${responseText}`);
+      console.log(`assistant: [elapsed: ${elapsed}] [tt: ${totals.totalPromptTokens}] ${responseText}`);
 
       // Add the complete assistant message
       messages.push(assistantMessage);
       conversationState.recordMessage('assistant', assistantMessage.content || '', 'assistant');
 
+      //this.process
       const rawContent = (assistantMessage.content || '').trim();
       let controlEnvelope: PhaseGatedEnvelope | null = null;
 
@@ -347,22 +295,6 @@ export class OpenAIClientChatSkill implements OpenAIClient {
           }
         }
       }
-      // else if (toolCalls && toolCalls.length > 0) {
-      //   if (!controlEnvelope) {
-      //     invalidEnvelopeCount++;
-      //     if (invalidEnvelopeCount > 5) {
-      //       throw new Error('Assistant attempted to call tools repeatedly without providing the control envelope JSON.');
-      //     }
-
-      //     respondToToolCallsWithError(toolCalls, 'Rejected tool call: control envelope JSON missing.');
-
-      //     messages.push({
-      //       role: 'system',
-      //       content: 'Every response must include the phase-gated control envelope JSON before invoking tools. Provide the envelope and retry.'
-      //     });
-      //     continue;
-      //   }
-      // }
 
       if (toolCalls.length > 0) {
         let pendingEnvelopeReminder = false;
@@ -422,9 +354,7 @@ export class OpenAIClientChatSkill implements OpenAIClient {
 
         iteration++;
         continue;
-      }
-
-      if (toolCalls.length === 0) {
+      } else if (toolCalls.length === 0) {
         if (requireEnvelope) {
           if (!controlEnvelope) {
             pushSystemMessage('All responses must include the control envelope JSON. Provide the envelope.');
@@ -451,9 +381,9 @@ export class OpenAIClientChatSkill implements OpenAIClient {
             response: JSON.stringify(controlEnvelope, null, 2),
             conversationId: '',
             usage: {
-              promptTokens: totalPromptTokens,
-              completionTokens: totalCompletionTokens,
-              totalTokens: totalTokens || (totalPromptTokens + totalCompletionTokens)
+              promptTokens: totals.totalPromptTokens,
+              completionTokens: totals.totalCompletionTokens,
+              totalTokens: totals.totalTokens || (totals.totalPromptTokens + totals.totalCompletionTokens)
             }
           };
         } else {
@@ -467,9 +397,9 @@ export class OpenAIClientChatSkill implements OpenAIClient {
             response: rawContent,
             conversationId: '',
             usage: {
-              promptTokens: totalPromptTokens,
-              completionTokens: totalCompletionTokens,
-              totalTokens: totalTokens || (totalPromptTokens + totalCompletionTokens)
+              promptTokens: totals.totalPromptTokens,
+              completionTokens: totals.totalCompletionTokens,
+              totalTokens: totals.totalTokens || (totals.totalPromptTokens + totals.totalCompletionTokens)
             }
           };
         }
@@ -485,11 +415,85 @@ export class OpenAIClientChatSkill implements OpenAIClient {
       response: 'Max iterations reached without final response',
       conversationId: '',
       usage: {
-        promptTokens: totalPromptTokens,
-        completionTokens: totalCompletionTokens,
-        totalTokens: totalTokens || (totalPromptTokens + totalCompletionTokens)
+        promptTokens: totals.totalPromptTokens,
+        completionTokens: totals.totalCompletionTokens,
+        totalTokens: totals.totalTokens || (totals.totalPromptTokens + totals.totalCompletionTokens)
       }
     };
+  }
+
+  private async readResponseStream(
+    conversationState: ConversationStateChatSkill,
+    iteration: number,
+    response: Stream<OpenAI.Chat.Completions.ChatCompletionChunk> & {
+      _request_id?: string | null;
+    }, assistantMessage: {
+      role: 'assistant',
+      content: string,
+      tool_calls: any[]
+    },
+    totals: TotalUsage): Promise<void> {
+    let iterationPromptTokens = 0;
+    let iterationCompletionTokens = 0;
+    let iterationTotalTokens = 0;
+
+    // Collect all streaming chunks
+    for await (const chunk of response) {
+      const delta = chunk.choices[0]?.delta;
+
+      if (delta?.content) {
+        assistantMessage.content += delta.content;
+      }
+
+      if (delta?.tool_calls) {
+        // Handle streaming tool calls
+        for (const toolCall of delta.tool_calls) {
+          if (toolCall.index !== undefined) {
+            // Initialize tool call if it doesn't exist
+            if (!assistantMessage.tool_calls[toolCall.index]) {
+              assistantMessage.tool_calls[toolCall.index] = {
+                id: toolCall.id || '',
+                type: 'function' as const,
+                function: {
+                  name: toolCall.function?.name || '',
+                  arguments: ''
+                }
+              };
+            }
+
+            // Accumulate the function arguments
+            if (toolCall.function?.arguments) {
+              assistantMessage.tool_calls[toolCall.index].function.arguments += toolCall.function.arguments;
+            }
+          }
+        }
+      }
+
+      const streamingUsage = (chunk as any)?.usage;
+      if (streamingUsage) {
+        if (typeof streamingUsage.prompt_tokens === 'number') {
+          iterationPromptTokens = streamingUsage.prompt_tokens;
+        }
+        if (typeof streamingUsage.completion_tokens === 'number') {
+          iterationCompletionTokens = streamingUsage.completion_tokens;
+        }
+        if (typeof streamingUsage.total_tokens === 'number') {
+          iterationTotalTokens = streamingUsage.total_tokens;
+        } else if (iterationPromptTokens || iterationCompletionTokens) {
+          iterationTotalTokens = iterationPromptTokens + iterationCompletionTokens;
+        }
+      }
+    }
+
+    totals.totalPromptTokens += iterationPromptTokens;
+    totals.totalCompletionTokens += iterationCompletionTokens;
+    totals.totalTokens += iterationTotalTokens || (iterationPromptTokens + iterationCompletionTokens);
+    conversationState.recordUsage(
+      `iteration-${iteration}`,
+      iterationPromptTokens,
+      iterationCompletionTokens,
+      iterationTotalTokens || (iterationPromptTokens + iterationCompletionTokens)
+    );
   }
 
   private async executeTools(
