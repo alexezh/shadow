@@ -1,7 +1,5 @@
-import { IPCursor } from "./ip.js"
 import {
   queueCommand,
-  initQueue,
   logToConsole,
   setSessionId,
   getSessionId,
@@ -9,12 +7,14 @@ import {
   showAllParts,
   setAllParts,
   setShowAllParts,
+  applyAgentChanges,
+  applyAction,
 } from "./dom.js"
 import { getSelectionRange } from "./dom.js"
 import { VirtualDocument, vdomCache } from "./vdom.js"
-import { EditorContext, CommentThreadRef } from "./editor-context.js"
+import { EditorContext, CommentThreadRef, getCurrentEditorContext, setCurrentEditorContext } from "./editor-context.js"
 import { renderCommentThreads, fetchCommentThreads } from "./comments.js"
-import { ActionResult, type AgentChange, ContentChangeRecord, CreatePartRequest, CreatePartResponse, type GetDocResponse, PromptRequest } from "../src/server/messages.js"
+import { ActionResult, type AgentChange, ConsoleResult, ContentChangeRecord, CreatePartRequest, CreatePartResponse, GetChangesResponse, type GetDocPartResponse, PromptRequest } from "../src/server/messages.js"
 
 // Toolbar button handlers
 const buttons = {
@@ -34,7 +34,7 @@ buttons.bold.addEventListener('click', async (e) => {
   buttons.bold.blur(); // Remove focus from button
 
   buttons.bold.classList.toggle('active');
-  const range = getSelectionRange();
+  const range = getSelectionRange(getCurrentEditorContext());
   if (range) {
     queueCommand('bold', range);
   }
@@ -52,7 +52,7 @@ buttons.italic.addEventListener('click', async (e) => {
   buttons.italic.blur(); // Remove focus from button
 
   buttons.italic.classList.toggle('active');
-  const range = getSelectionRange();
+  const range = getSelectionRange(getCurrentEditorContext());
   if (range) {
     queueCommand('italic', range);
   }
@@ -69,7 +69,7 @@ buttons.bullet.addEventListener('click', async (e) => {
   e.preventDefault();
   buttons.bullet.blur(); // Remove focus from button
 
-  const range = getSelectionRange();
+  const range = getSelectionRange(getCurrentEditorContext());
   if (range) {
     queueCommand('bullet', range);
   }
@@ -86,7 +86,7 @@ buttons.number.addEventListener('click', async (e) => {
   e.preventDefault();
   buttons.number.blur(); // Remove focus from button
 
-  const range = getSelectionRange();
+  const range = getSelectionRange(getCurrentEditorContext());
   if (range) {
     queueCommand('number', range);
   }
@@ -115,7 +115,7 @@ async function pollChanges(): Promise<void> {
     }
 
     pollDelay = 10000;
-    const responses = await response.json();
+    const responses = await response.json() as GetChangesResponse[];
 
     if (responses && responses.length > 0) {
       for (const resp of responses) {
@@ -124,34 +124,32 @@ async function pollChanges(): Promise<void> {
           const consoleEl = document.getElementById('console');
           if (consoleEl) {
             const div = document.createElement('div');
-            div.innerHTML = resp.data.html;
+            div.innerHTML = (resp.data as ConsoleResult).html;
             consoleEl.appendChild(div);
             consoleEl.scrollTop = consoleEl.scrollHeight;
           }
         } else if (resp.kind === 'action') {
           // Action result - apply changes
-          const actionResult = resp.data;
+          const actionResult = resp.data as ActionResult;
 
-          if (actionResult.changes && actionResult.changes.length > 0) {
-            applyChanges(actionResult.changes);
+          const editorContext = vdomCache.get(resp.partId!)?.editorContext;
+          if (!editorContext) {
+            logToConsole("pollChanges: cannot find part:" + resp.partId);
+            continue;
           }
 
-          // Update cursor position
-          if (actionResult.newPosition) {
-            updateCursorPosition(actionResult.newPosition);
-          }
-
-          // Update selection if present
-          if (actionResult.newRange) {
-            updateSelection(actionResult.newRange);
-          }
+          applyAction(editorContext, actionResult);
         } else if (resp.kind === 'agent') {
           // Action result - apply changes
           const actionResult = resp.data as AgentChange;
 
-          if (actionResult.changes && actionResult.changes.length > 0) {
-            applyChanges(actionResult.changes);
+          const editorContext = vdomCache.get(resp.partId!)?.editorContext;
+          if (!editorContext) {
+            logToConsole("pollChanges: cannot find part:" + resp.partId);
+            continue;
           }
+
+          applyAgentChanges(editorContext, actionResult.changes);
         }
       }
     }
@@ -201,7 +199,7 @@ async function loadDocument(): Promise<void> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json() as GetDocResponse;
+    const data = await response.json() as GetDocPartResponse;
     setSessionId(data.sessionId);
 
     const docContent = document.getElementById('doc-content') as HTMLElement;
@@ -210,27 +208,29 @@ async function loadDocument(): Promise<void> {
     // Create virtual document for main part
     const partId = 'main';
     const commentThreadRefs: CommentThreadRef[] = data.comments || [];
-    const vdom = new VirtualDocument(partId, data.html, data.styles || [], commentThreadRefs);
-    vdom.applyToDOM(docContent, 'doc-styles');
+    const vdom = new VirtualDocument({
+      partId: data.partId,
+      containerEl: docContent,
+      styleElId: 'doc-styles',
+      html: data.html,
+      styles: data.styles || [],
+      commentThreadRefs
+    });
 
-    // Initialize editor context
-    vdom.initializeEditorContext(docContent);
-    currentEditorContext = vdom.editorContext;
+    setCurrentEditorContext(vdom.editorContext!);
 
     // Store in cache
     vdomCache.set(partId, vdom);
-    vdomCache.setCurrentPartId(partId);
-    setCurrentPartId(partId);
 
     // Load comment threads if any
-    if (commentThreadRefs.length > 0 && currentEditorContext) {
+    if (commentThreadRefs.length > 0 && vdom.editorContext) {
       const sessionId = getSessionId();
       if (sessionId) {
         const threads = await fetchCommentThreads(sessionId, partId, commentThreadRefs);
         for (const thread of threads) {
-          currentEditorContext.setCommentThread(thread);
+          vdom.setCommentThread(thread);
         }
-        renderCommentThreads(currentEditorContext);
+        renderCommentThreads(vdom.editorContext);
       }
     }
 
@@ -280,14 +280,14 @@ class ClippyFloat {
     // Click on icon to expand
     this.iconEl.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.expand();
+      this.expand(getCurrentEditorContext());
     });
 
     // Click on float: expand if collapsed, prevent propagation if expanded
     this.floatEl.addEventListener('click', (e) => {
       if (!this.isExpanded) {
         e.stopPropagation();
-        this.expand();
+        this.expand(getCurrentEditorContext());
       } else {
         // Prevent clicks inside the expanded prompt from closing it
         e.stopPropagation();
@@ -303,34 +303,34 @@ class ClippyFloat {
     // Send on button click
     this.sendBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.sendQuestion();
+      this.sendPrompt(getCurrentEditorContext());
     });
 
     // Send on Enter key in textbox (Shift+Enter for new line)
     this.textboxEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !this.sendBtn.disabled) {
         e.preventDefault();
-        this.sendQuestion();
+        this.sendPrompt(getCurrentEditorContext());
       }
     });
 
     // Close on Escape
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.isExpanded) {
-        this.collapse();
+        this.collapse(getCurrentEditorContext());
       }
     });
 
     // Click outside to collapse
     document.addEventListener('click', (e) => {
       if (this.isExpanded && !this.floatEl.contains(e.target as Node)) {
-        this.collapse();
+        this.collapse(getCurrentEditorContext());
       }
     });
   }
 
-  positionBelowCursor(): void {
-    const cursor = currentEditorContext?.cursor;
+  positionBelowCursor(editorContext: EditorContext | null): void {
+    const cursor = editorContext?.cursor;
     if (!cursor || !cursor.cursorEl || !cursor.visible) return;
 
     const cursorRect = cursor.cursorEl.getBoundingClientRect();
@@ -355,14 +355,14 @@ class ClippyFloat {
     //logToConsole(`Clippy positioned at (${cursorRect.left + 2}, ${cursorRect.bottom + 2})`);
   }
 
-  expand(): void {
+  expand(editorContext: EditorContext | null): void {
     logToConsole("floaty expand");
     this.isExpanded = true;
     this.floatEl.classList.remove('collapsed');
     this.floatEl.classList.add('expanded');
 
     // Reposition close to cursor when expanded
-    this.positionBelowCursor();
+    this.positionBelowCursor(editorContext);
 
     // Focus the textbox after a short delay to ensure it's visible
     setTimeout(() => {
@@ -372,7 +372,7 @@ class ClippyFloat {
     //logToConsole('Clippy expanded');
   }
 
-  collapse(): void {
+  collapse(editorContext: EditorContext | null): void {
     this.isExpanded = false;
     this.floatEl.classList.remove('expanded');
     this.floatEl.classList.add('collapsed');
@@ -380,7 +380,7 @@ class ClippyFloat {
     this.sendBtn.disabled = true;
 
     // Reposition and show the icon
-    this.show();
+    this.show(editorContext);
 
     // Restore focus to document to re-enable keyboard input
     const docContent = document.getElementById('doc-content');
@@ -391,19 +391,21 @@ class ClippyFloat {
     //logToConsole('Clippy collapsed');
   }
 
-  async sendQuestion(): Promise<void> {
-    const question = this.textboxEl.value.trim();
-    if (!question) return;
+  async sendPrompt(editorContext: EditorContext | null): Promise<void> {
+    if (!editorContext) return;
+
+    const prompt = this.textboxEl.value.trim();
+    if (!prompt) return;
 
     //logToConsole(`Clippy: ${question}`);
 
     try {
       const sessionId = getSessionId();
-      const selectionRange = getSelectionRange();
+      const selectionRange = getSelectionRange(editorContext);
       const payload: PromptRequest = {
         sessionId: sessionId!,
-        prompt: question,
-        partId: currentPartId,
+        prompt: prompt,
+        partId: editorContext.partId
       };
 
       if (selectionRange) {
@@ -437,15 +439,17 @@ class ClippyFloat {
 
     this.textboxEl.value = '';
     this.sendBtn.disabled = true;
-    this.collapse();
+    this.collapse(editorContext);
   }
 
-  show(): void {
+  show(editorContext: EditorContext | null): void {
+    if (!editorContext) return;
+
     if (!this.isExpanded) {
       // Only show collapsed icon when not expanded
       this.isVisible = true;
       this.floatEl.style.display = 'block';
-      this.positionBelowCursor();
+      this.positionBelowCursor(editorContext);
     }
   }
 
@@ -486,10 +490,11 @@ function renderPartsList(): void {
   const displayLimit = showAllParts ? allParts.length : 3;
   const partsToShow = allParts.slice(0, displayLimit);
 
+  const currentContext = getCurrentEditorContext();
   partsToShow.forEach(part => {
     const li = document.createElement('li');
     li.className = 'part-item';
-    if (part.id === currentPartId) {
+    if (part.id === currentContext?.partId) {
       li.classList.add('active');
     }
 
@@ -520,34 +525,20 @@ function renderPartsList(): void {
 }
 
 async function selectPart(partId: string): Promise<void> {
-  if (partId === currentPartId) return;
 
   const docContent = document.getElementById('doc-content') as HTMLElement;
   if (!docContent) return;
 
   try {
-    // Save current document state to cache
-    const oldPartId = vdomCache.getCurrentPartId();
-    if (oldPartId) {
-      const currentVdom = vdomCache.get(oldPartId);
-      if (currentVdom) {
-        // Capture current DOM state before switching
-        currentVdom.captureFromDOM(docContent);
-        vdomCache.set(oldPartId, currentVdom);
-        logToConsole(`Cached part: ${oldPartId}`, 'info');
-      }
-    }
-
     // Check if new part is already in cache
     let vdom = vdomCache.get(partId);
 
     if (vdom) {
       // Load from cache
       logToConsole(`Loading part from cache: ${partId}`, 'info');
-      vdom.applyToDOM(docContent, 'doc-styles');
 
       // Restore editor context
-      currentEditorContext = vdom.editorContext;
+      setCurrentEditorContext(vdom.editorContext!);
     } else {
       // Fetch from server
       const response = await fetch(`/api/getpart?sessionId=${getSessionId()}&partId=${partId}`);
@@ -555,24 +546,29 @@ async function selectPart(partId: string): Promise<void> {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as GetDocPartResponse;
 
       // Create new virtual document
-      const commentThreadRefs: CommentThreadRef[] = data.commentThreadRefs || [];
-      vdom = new VirtualDocument(partId, data.html, data.styles || [], commentThreadRefs);
-      vdom.applyToDOM(docContent, 'doc-styles');
+      const commentThreadRefs: CommentThreadRef[] = data.comments || [];
+      vdom = new VirtualDocument({
+        partId: partId,
+        containerEl: docContent,
+        styleElId: 'doc-styles',
+        html: data.html,
+        styles: data.styles || [],
+        commentThreadRefs
+      });
 
       // Initialize editor context
-      vdom.initializeEditorContext(docContent);
-      currentEditorContext = vdom.editorContext;
+      setCurrentEditorContext(vdom.editorContext!);
 
       // Load comment threads if any
-      if (commentThreadRefs.length > 0 && currentEditorContext) {
+      if (commentThreadRefs.length > 0 && vdom.editorContext) {
         const sessionId = getSessionId();
         if (sessionId) {
           const threads = await fetchCommentThreads(sessionId, partId, commentThreadRefs);
           for (const thread of threads) {
-            currentEditorContext.setCommentThread(thread);
+            vdom.setCommentThread(thread);
           }
         }
       }
@@ -583,13 +579,9 @@ async function selectPart(partId: string): Promise<void> {
     }
 
     // Render comments for this part
-    if (currentEditorContext) {
-      renderCommentThreads(currentEditorContext);
+    if (vdom.editorContext) {
+      renderCommentThreads(vdom.editorContext);
     }
-
-    // Update current part ID
-    setCurrentPartId(partId);
-    vdomCache.setCurrentPartId(partId);
 
     // Re-render parts list to update active state
     renderPartsList();
@@ -597,9 +589,9 @@ async function selectPart(partId: string): Promise<void> {
     logToConsole(`Switched to part: ${partId}`, 'info');
 
     // Reinitialize cursor for new content
-    if (currentEditorContext?.cursor) {
-      currentEditorContext.cursor.position = { node: null, offset: 0 };
-      currentEditorContext.cursor.selection.clear();
+    if (vdom.editorContext?.cursor) {
+      vdom.editorContext.cursor.position = { node: null, offset: 0 };
+      vdom.editorContext.cursor.selection.clear();
       docContent.focus();
     }
   } catch (error) {
@@ -607,12 +599,12 @@ async function selectPart(partId: string): Promise<void> {
   }
 }
 
-async function createPart(kind: "chat" | "draft"): Promise<void> {
-  if (!getSessionId()) return;
+async function createPart(editorContext: EditorContext | null, kind: "chat" | "draft"): Promise<void> {
+  if (!editorContext) return;
 
   try {
     // Get current selection range to copy to new part
-    const selectionRange = getSelectionRange();
+    const selectionRange = getSelectionRange(editorContext);
 
     const request: CreatePartRequest = {
       sessionId: getSessionId()!,
@@ -652,13 +644,13 @@ const moreBtn = document.getElementById('parts-more-btn');
 
 if (addDraftBtn) {
   addDraftBtn.addEventListener('click', () => {
-    createPart('draft');
+    createPart(getCurrentEditorContext(), 'draft');
   });
 }
 
 if (addChatBtn) {
   addChatBtn.addEventListener('click', () => {
-    createPart('chat');
+    createPart(getCurrentEditorContext(), 'chat');
   });
 }
 
@@ -677,16 +669,18 @@ window.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     const clippyFloat = new ClippyFloat();
 
+    const currentEditorContext = getCurrentEditorContext();
     // Store clippy in editor context when available
     if (currentEditorContext) {
       currentEditorContext.clippyFloat = clippyFloat;
     }
 
+    // TODO: review
     // Show Clippy when cursor becomes visible
     const checkCursor = setInterval(() => {
       const cursor = currentEditorContext?.cursor;
       if (cursor && cursor.visible) {
-        clippyFloat.show();
+        clippyFloat.show(getCurrentEditorContext());
         clearInterval(checkCursor);
       }
     }, 100);
@@ -695,3 +689,4 @@ window.addEventListener('DOMContentLoaded', () => {
     loadParts();
   }, 500);
 });
+

@@ -1,7 +1,8 @@
-import { EditorContext, CommentThreadRef } from "./editor-context.js";
+import { EditorContext, CommentThreadRef, CommentThread } from "./editor-context.js";
 
 /**
  * VirtualDocument - Represents a document instance with its own content and styles
+ * Uses Shadow DOM for style encapsulation
  */
 export class VirtualDocument {
   public partId: string;
@@ -9,76 +10,52 @@ export class VirtualDocument {
   public styles: Array<{ selector: string; properties: Record<string, string> }>;
   public editorContext: EditorContext | null;
   public commentThreadRefs: CommentThreadRef[];
+  private shadowRoot: ShadowRoot | null = null;
+  public readonly commentThreads = new Map<string, CommentThread>();
 
-  constructor(
+  constructor(args: {
     partId: string,
-    html: string = '',
-    styles: Array<{ selector: string; properties: Record<string, string> }> = [],
-    commentThreadRefs: CommentThreadRef[] = []
-  ) {
-    this.partId = partId;
-    this.html = html;
-    this.styles = styles;
-    this.editorContext = null;
-    this.commentThreadRefs = commentThreadRefs;
+    containerEl: HTMLElement,
+    styleElId: string,
+    html: string,
+    styles: Array<{ selector: string; properties: Record<string, string> }>,
+    commentThreadRefs: CommentThreadRef[]
   }
+  ) {
+    this.partId = args.partId;
+    this.html = args.html;
+    this.styles = args.styles;
+    this.editorContext = null;
+    this.commentThreadRefs = args.commentThreadRefs;
 
-  /**
-   * Initialize editor context for this document
-   */
-  initializeEditorContext(containerEl: HTMLElement): void {
+
     if (!this.editorContext) {
-      this.editorContext = new EditorContext(containerEl);
+      // Pass the shadow root's content element to EditorContext
+      const contentEl = this.shadowRoot ? (this.shadowRoot.firstElementChild as HTMLElement) : args.containerEl;
+      this.editorContext = new EditorContext(args.containerEl, this);
       this.editorContext.initializeCursor();
     }
+
+    this.attachToDOM(args.containerEl, args.styleElId);
   }
 
   /**
-   * Apply this virtual document to the DOM
+   * Apply this virtual document to the DOM using Shadow DOM
    */
-  applyToDOM(containerEl: HTMLElement, styleElId: string = 'doc-styles'): void {
-    // Update content
-    containerEl.innerHTML = this.html;
-
-    // Update styles
-    this.applyStyles(styleElId);
-
-    // Apply comment thread markers to paragraphs
-    this.applyCommentMarkers(containerEl);
-
-    // Ensure editor context exists
-    if (!this.editorContext) {
-      this.initializeEditorContext(containerEl);
-    } else {
-      // Update the document element reference
-      this.editorContext.documentEl = containerEl;
+  private attachToDOM(containerEl: HTMLElement, styleElId: string = 'doc-styles'): void {
+    // Create shadow root if it doesn't exist
+    if (!this.shadowRoot) {
+      this.shadowRoot = containerEl.attachShadow({ mode: 'open' });
     }
-  }
 
-  /**
-   * Apply comment markers to paragraphs that have comments
-   */
-  private applyCommentMarkers(containerEl: HTMLElement): void {
-    for (const ref of this.commentThreadRefs) {
-      // Use getElementById since IDs may start with digits (invalid for querySelector)
-      const paragraph = document.getElementById(ref.paraId);
-      if (paragraph) {
-        paragraph.classList.add('has-comments');
-        paragraph.setAttribute('data-thread-id', ref.threadId);
-      }
-    }
-  }
+    // Create a wrapper div for the content
+    const contentWrapper = document.createElement('div');
+    contentWrapper.id = 'shadow-content';
+    contentWrapper.innerHTML = this.html;
 
-  /**
-   * Apply styles to a style element
-   */
-  private applyStyles(styleElId: string): void {
-    let styleEl = document.getElementById(styleElId);
-    if (!styleEl) {
-      styleEl = document.createElement('style');
-      styleEl.id = styleElId;
-      document.head.appendChild(styleEl);
-    }
+    // Create style element inside shadow root
+    const styleEl = document.createElement('style');
+    styleEl.id = styleElId;
 
     // Convert styles array to CSS string
     const cssRules = this.styles.map(style => {
@@ -87,32 +64,72 @@ export class VirtualDocument {
         .join('\n');
       return `${style.selector} {\n${props}\n}`;
     });
-
     styleEl.textContent = cssRules.join('\n\n');
+
+    // Clear shadow root and add style + content
+    this.shadowRoot.innerHTML = '';
+    this.shadowRoot.appendChild(styleEl);
+    this.shadowRoot.appendChild(contentWrapper);
+
+    // Apply comment thread markers to paragraphs
+    this.applyCommentMarkers(contentWrapper);
   }
 
   /**
-   * Capture current DOM state into this virtual document
+   * Apply comment markers to paragraphs that have comments
    */
-  captureFromDOM(containerEl: HTMLElement): void {
-    this.html = containerEl.innerHTML;
+  private applyCommentMarkers(containerEl: HTMLElement): void {
+    for (const ref of this.commentThreadRefs) {
+      // Query within shadow DOM using containerEl as root
+      const paragraph = containerEl.querySelector(`#${CSS.escape(ref.paraId)}`);
+      if (paragraph) {
+        paragraph.classList.add('has-comments');
+        paragraph.setAttribute('data-thread-id', ref.threadId);
+      }
+    }
   }
 
   /**
-   * Clone this virtual document
+   * Get comment thread by ID
    */
-  clone(): VirtualDocument {
-    const cloned = new VirtualDocument(
-      this.partId,
-      this.html,
-      this.styles.map(s => ({
-        selector: s.selector,
-        properties: { ...s.properties }
-      })),
-      [...this.commentThreadRefs]
-    );
-    // Don't clone editor context - it should be created fresh
-    return cloned;
+  getCommentThread(threadId: string): CommentThread | undefined {
+    return this.commentThreads.get(threadId);
+  }
+
+  /**
+   * Add or update a comment thread
+   */
+  setCommentThread(thread: CommentThread): void {
+    this.commentThreads.set(thread.id, thread);
+  }
+
+  /**
+   * Remove a comment thread
+   */
+  removeCommentThread(threadId: string): void {
+    this.commentThreads.delete(threadId);
+  }
+
+  /**
+   * Get all comment threads
+   */
+  getAllCommentThreads(): CommentThread[] {
+    return Array.from(this.commentThreads.values());
+  }
+
+  /**
+   * Get comment threads for a specific paragraph
+   */
+  getCommentThreadsForParagraph(paragraphId: string): CommentThread[] {
+    return Array.from(this.commentThreads.values())
+      .filter(thread => thread.paragraphId === paragraphId);
+  }
+
+  /**
+   * Clear all comment threads
+   */
+  clearCommentThreads(): void {
+    this.commentThreads.clear();
   }
 
   /**
@@ -123,6 +140,9 @@ export class VirtualDocument {
       this.editorContext.dispose();
       this.editorContext = null;
     }
+    this.shadowRoot = null;
+    // Clear comment threads
+    this.commentThreads.clear();
   }
 }
 

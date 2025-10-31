@@ -32,7 +32,7 @@ export type CommentThreadRef = {
   comments: string[];
 }
 
-export type GetDocResponse = {
+export type GetDocPartResponse = {
   sessionId: string,
   partId: string,
   html: string,
@@ -42,6 +42,8 @@ export type GetDocResponse = {
 
 export type GetChangesResponse = {
   kind: "console" | "action" | "agent",
+  sessionId?: string;
+  partId?: string;
   data: ActionResult | ConsoleResult | AgentChange
 };
 

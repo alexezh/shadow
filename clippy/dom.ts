@@ -6,6 +6,27 @@ import { vdomCache } from "./vdom";
 // Console logging
 const consoleEl = document.getElementById('console') as HTMLElement;
 
+/**
+ * Get element by ID, checking both document and shadow DOM
+ * @param id Element ID to find
+ * @param shadowRoot Optional shadow root to search within
+ * @returns HTMLElement or null
+ */
+function getElementByIdInContext(id: string, shadowRoot?: ShadowRoot | null): HTMLElement | null {
+  if (shadowRoot) {
+    return shadowRoot.querySelector(`#${CSS.escape(id)}`);
+  }
+  return document.getElementById(id);
+}
+
+/**
+ * Get the shadow root from doc-content element
+ */
+function getDocContentShadowRoot(): ShadowRoot | null {
+  const docContent = document.getElementById('doc-content');
+  return docContent?.shadowRoot || null;
+}
+
 // Session management
 let sessionId: string | null = null;
 
@@ -54,7 +75,11 @@ export function findElementId(node: Node | null): string | null {
 }
 
 // Get current selection range
-export function getSelectionRange(editorContext: EditorContext): YRange | null {
+export function getSelectionRange(editorContext: EditorContext | null): YRange | null {
+  if (!editorContext) {
+    return null;
+  }
+
   const cursor = editorContext?.cursor;
   if (!cursor || !cursor.position.node) {
     return null;
@@ -207,12 +232,20 @@ export function applyAction(editorCtx: EditorContext, result: ActionResult): voi
   }
 }
 
+export function applyAgentChanges(editorCtx: EditorContext, changes: ContentChangeRecord[]): void {
+  if (!changes || changes.length === 0) {
+    return
+  }
+  applyChanges(editorCtx, changes);
+}
 
 // Apply changes to document
 function applyChanges(editorCtx: EditorContext, changes: ContentChangeRecord[]): void {
+  const shadowRoot = getDocContentShadowRoot();
+
   // Apply each change based on operation type
   for (const change of changes) {
-    const element = document.getElementById(change.id);
+    const element = getElementByIdInContext(change.id, shadowRoot);
 
     switch (change.op) {
       case 'deleted':
@@ -228,8 +261,8 @@ function applyChanges(editorCtx: EditorContext, changes: ContentChangeRecord[]):
       case 'changed':
         // Update existing element
         if (element) {
-          // Special case: replacing entire doc-content
-          if (change.id === 'doc-content') {
+          // Special case: replacing entire shadow-content
+          if (change.id === 'shadow-content') {
             element.innerHTML = change.html || '';
             logToConsole(`Replaced document content`);
           } else {
@@ -253,24 +286,24 @@ function applyChanges(editorCtx: EditorContext, changes: ContentChangeRecord[]):
           if (newElement) {
             // Use prevId to find where to insert
             if (change.prevId) {
-              const prevElement = document.getElementById(change.prevId);
+              const prevElement = getElementByIdInContext(change.prevId, shadowRoot);
               if (prevElement && prevElement.parentElement) {
                 // Insert right after prevElement
                 prevElement.parentElement.insertBefore(newElement, prevElement.nextSibling);
                 //logToConsole(`Inserted new element ${change.id} after ${change.prevId}`);
               } else {
                 logToConsole(`Warning: prevId ${change.prevId} not found, appending to body`, 'warn');
-                // Fallback: append to body
-                const docContent = document.getElementById('doc-content');
-                if (docContent && docContent.firstChild) {
-                  docContent.firstChild.appendChild(newElement);
+                // Fallback: append to shadow content wrapper
+                const contentWrapper = shadowRoot?.querySelector('#shadow-content');
+                if (contentWrapper && contentWrapper.firstChild) {
+                  contentWrapper.firstChild.appendChild(newElement);
                 }
               }
             } else {
-              // No prevId - append to body
-              const docContent = document.getElementById('doc-content');
-              if (docContent && docContent.firstChild) {
-                docContent.firstChild.appendChild(newElement);
+              // No prevId - append to shadow content wrapper
+              const contentWrapper = shadowRoot?.querySelector('#shadow-content');
+              if (contentWrapper && contentWrapper.firstChild) {
+                contentWrapper.firstChild.appendChild(newElement);
                 logToConsole(`Inserted new element ${change.id} at end`);
               }
             }
@@ -284,12 +317,7 @@ function applyChanges(editorCtx: EditorContext, changes: ContentChangeRecord[]):
     }
   }
 
-  // Update the cached virtual document after changes
-  const docContent = document.getElementById('doc-content') as HTMLElement;
-  if (docContent) {
-    editorCtx.. vdom.captureFromDOM(docContent);
-    vdomCache.set(currentPartId, vdom);
-  }
+  // Note: Virtual document cache updates are handled at a higher level
 }
 
 // Update cursor position from server response
@@ -297,7 +325,8 @@ export function updateCursorPosition(editorCtx: EditorContext, newPosition: { el
   const cursor = editorCtx.cursor;
   if (!cursor) return;
 
-  const element = document.getElementById(newPosition.element);
+  const shadowRoot = getDocContentShadowRoot();
+  const element = getElementByIdInContext(newPosition.element, shadowRoot);
   if (!element) return;
 
   // Find first text node in element
@@ -323,8 +352,9 @@ export function updateSelection(
   const cursor = editorCtx.cursor;
   if (!cursor) return;
 
-  const startElement = document.getElementById(newRange.startElement);
-  const endElement = document.getElementById(newRange.endElement);
+  const shadowRoot = getDocContentShadowRoot();
+  const startElement = getElementByIdInContext(newRange.startElement, shadowRoot);
+  const endElement = getElementByIdInContext(newRange.endElement, shadowRoot);
 
   if (!startElement || !endElement) return;
 

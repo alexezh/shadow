@@ -9,7 +9,7 @@ import { makeDefaultDoc } from './loaddoc.js';
 import { makeCommentThreadHtml, makeHtml } from '../yhtml/makeHtml.js';
 import { SessionImpl } from './sessionimpl.js';
 import { getSelectionKind } from '../om/YNode.js';
-import { GetDocResponse, PromptRequest } from './messages.js';
+import { GetDocPartResponse, PromptRequest } from './messages.js';
 import { handleGetThread } from './handlers/getthread.js';
 import { handleGetChat } from './handlers/getchat.js';
 import { initOpenAI } from '../openai/openai-client.js';
@@ -223,7 +223,7 @@ export class HttpServer {
       // Get styles as JSON array
       const styles = session.doc.getStyleStore().toJson();
 
-      const response: GetDocResponse = {
+      const response: GetDocPartResponse = {
         sessionId: session.id,
         partId: "main",
         html,
@@ -431,7 +431,7 @@ export class HttpServer {
 
     // Get styles as JSON array
     const styles = session.doc.getStyleStore().toJson();
-    const response: GetDocResponse = {
+    const response: GetDocPartResponse = {
       sessionId: sessionId,
       partId: partId,
       html,
