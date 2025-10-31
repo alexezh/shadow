@@ -1,5 +1,5 @@
-import { GetThreadResponse } from "./messages";
-import type { Session } from "./session";
+import { GetThreadResponse } from "../messages.js";
+import type { Session } from "../session.js";
 import * as http from 'http';
 
 export async function handleGetThread(

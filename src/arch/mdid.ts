@@ -89,4 +89,4 @@ if (require.main === module) {
   });
 }
 
-export { addIdsToMarkdown, make31BitId };
+export { addIdsToMarkdown };

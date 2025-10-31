@@ -333,33 +333,6 @@ export async function fetchChatMessages(sessionId: string, chatId: string): Prom
 }
 
 /**
- * Create a new chat on the server
- */
-export async function createChat(sessionId: string, docId: string): Promise<string | null> {
-  try {
-    const response = await fetch('/api/createchat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ sessionId, docId })
-    });
-
-    if (!response.ok) {
-      logToConsole(`Failed to create chat: ${response.statusText}`, 'error');
-      return null;
-    }
-
-    const data = await response.json();
-    logToConsole(`Created chat: ${data.chatId}`, 'info');
-    return data.chatId;
-  } catch (error) {
-    logToConsole(`Error creating chat: ${(error as Error).message}`, 'error');
-    return null;
-  }
-}
-
-/**
  * Create a chat window from a comment thread
  */
 export function createChatFromThread(thread: CommentThread): ChatWindow {

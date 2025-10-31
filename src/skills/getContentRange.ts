@@ -1,5 +1,5 @@
 import { Session } from "../server/session.js";
-import { makeHtml } from "../om/makeHtml.js";
+import { makeHtml } from "../yhtml/makeHtml.js";
 import { YNode } from "../om/YNode.js";
 
 export async function getContentRange(session: Session,

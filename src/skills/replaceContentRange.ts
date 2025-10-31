@@ -1,6 +1,6 @@
 import { make31BitId } from "../om/make31bitid.js";
-import { loadHtml } from "../om/loadHtml.js";
-import { makeHtml } from "../om/makeHtml.js";
+import { loadHtml } from "../yhtml/loadHtml.js";
+import { makeHtml } from "../yhtml/makeHtml.js";
 import { YNode, YTextContainer } from "../om/YNode.js";
 import { YPara } from "../om/YPara.js";
 import { YPropSet } from "../om/YPropSet.js";
@@ -24,7 +24,7 @@ export async function replaceContentRange(
 
   const startNode = session.doc.getBodyPart().getNodeById(args.start_para!);
   if (!startNode) {
-    throw "start paragraph not found"
+    throw "start paragraph not found";
   }
 
   let useText = false;

@@ -1,6 +1,6 @@
 import { make31BitId } from "../om/make31bitid.js";
-import { loadHtml } from "../om/loadHtml.js";
-import { makeHtml } from "../om/makeHtml.js";
+import { loadHtml } from "../yhtml/loadHtml.js";
+import { makeHtml } from "../yhtml/makeHtml.js";
 import { YDoc } from "../om/YDoc.js";
 import { YPara } from "../om/YPara.js";
 import { YPropSet } from "../om/YPropSet.js";

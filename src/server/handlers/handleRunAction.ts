@@ -1,15 +1,11 @@
-import { Session } from '../server/session.js';
-import { ActionResult, ContentChangeRecord } from '../server/messages.js';
-import { make31BitId } from './make31bitid.js';
-import { YRange } from "./YRange.js";
-import { YPara } from './YPara.js';
-import { YStr } from './YStr.js';
-import { makeHtml } from './makeHtml.js';
-import { YBody } from './YBody.js';
-import { handlePaste } from '../server/handlePaste.js';
-import { deleteRange } from './deleteRange.js';
-import { YDoc } from './YDoc.js';
-import { YPropSet } from './YPropSet.js';
+import { Session } from '../session.js';
+import { ActionResult, ContentChangeRecord } from '../messages.js';
+import { YRange } from "../../om/YRange.js";
+import { YPara } from '../../om/YPara.js';
+import { makeHtml } from '../../yhtml/makeHtml.js';
+import { handlePaste } from './handlePaste.js';
+import { deleteRange } from '../../om/deleteRange.js';
+import { YDoc } from '../../om/YDoc.js';
 
 export type RunActionRequest = {
   sessionId: string;

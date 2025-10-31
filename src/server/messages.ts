@@ -41,7 +41,7 @@ export type GetDocResponse = {
 };
 
 export type GetChangesResponse = {
-  kind: "console" | "action" | "agent", 
+  kind: "console" | "action" | "agent",
   data: ActionResult | ConsoleResult | AgentChange
 };
 
@@ -66,6 +66,17 @@ export interface ActionResult {
   changes: ContentChangeRecord[];
   newPosition?: { element: string; offset: number };
   newRange?: YRange;
+}
+
+export type CreatePartRequest = {
+  sessionId: string,
+  kind: "draft" | "chat",
+  selectionRange: YRange | null
+}
+
+export type CreatePartResponse = {
+  sessionId: string,
+  partId: string;
 }
 
 export type GetChatRequest = {

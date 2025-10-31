@@ -17,7 +17,7 @@ import { getSelectionRange } from "./dom.js"
 import { VirtualDocument, vdomCache } from "./vdom.js"
 import { EditorContext, CommentThreadRef } from "./editor-context.js"
 import { renderCommentThreads, fetchCommentThreads } from "./comments.js"
-import { ActionResult, type AgentChange, ContentChangeRecord, type GetDocResponse, PromptRequest } from "../src/server/messages.js"
+import { ActionResult, type AgentChange, ContentChangeRecord, CreatePartRequest, CreatePartResponse, type GetDocResponse, PromptRequest } from "../src/server/messages.js"
 
 // Global editor context for current document
 let currentEditorContext: EditorContext | null = null;
@@ -173,6 +173,7 @@ buttons.number.addEventListener('click', async (e) => {
   //logToConsole('Numbered list clicked');
 });
 
+let pollDelay = 10000;
 // Change polling
 async function pollChanges(): Promise<void> {
   if (!getSessionId()) {
@@ -187,6 +188,7 @@ async function pollChanges(): Promise<void> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
+    pollDelay = 10000;
     const responses = await response.json();
 
     if (responses && responses.length > 0) {
@@ -235,7 +237,8 @@ async function pollChanges(): Promise<void> {
   } catch (error) {
     logToConsole(`Error polling changes: ${(error as Error).message}`, 'error');
     // Retry after delay
-    setTimeout(pollChanges, 10000);
+    setTimeout(pollChanges, pollDelay);
+    pollDelay *= 2;
   }
 }
 
@@ -768,26 +771,32 @@ async function selectPart(partId: string): Promise<void> {
   }
 }
 
-async function createPart(kind: string): Promise<void> {
+async function createPart(kind: "chat" | "draft"): Promise<void> {
   if (!getSessionId()) return;
 
   try {
+    // Get current selection range to copy to new part
+    const selectionRange = getSelectionRange();
+
+    const request: CreatePartRequest = {
+      sessionId: getSessionId()!,
+      kind: kind,
+      selectionRange: selectionRange
+    };
+
     const response = await fetch('/api/createpart', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        sessionId: getSessionId(),
-        kind: kind
-      })
+      body: JSON.stringify(request)
     });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as CreatePartResponse;
     logToConsole(`Created ${kind} part: ${data.partId}`, 'info');
 
     // Reload parts list

@@ -1,14 +1,14 @@
-import { ActionResult, ContentChangeRecord } from './messages.js';
-import { YNode, YTextContainer } from '../om/YNode.js';
-import { YRange } from "../om/YRange.js";
-import { YDoc } from '../om/YDoc.js';
-import { YPara } from '../om/YPara.js';
-import { YBody } from '../om/YBody.js';
-import { makeHtml } from '../om/makeHtml.js';
-import { loadHtml } from '../om/loadHtml.js';
-import { make31BitId } from '../om/make31bitid.js';
-import { YStr } from '../om/YStr.js';
-import { YPropSet } from '../om/YPropSet.js';
+import { ActionResult, ContentChangeRecord } from './../messages.js';
+import { YNode, YTextContainer } from '../../om/YNode.js';
+import { YRange } from "../../om/YRange.js";
+import { YDoc } from '../../om/YDoc.js';
+import { YPara } from '../../om/YPara.js';
+import { YBody } from '../../om/YBody.js';
+import { makeHtml } from '../../yhtml/makeHtml.js';
+import { loadHtml } from '../../yhtml/loadHtml.js';
+import { make31BitId } from '../../om/make31bitid.js';
+import { YStr } from '../../om/YStr.js';
+import { YPropSet } from '../../om/YPropSet.js';
 
 /**
  * Handle paste action - insert HTML/text content at cursor position

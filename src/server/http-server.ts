@@ -3,20 +3,17 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Database } from '../database.js';
 import { executePrompt } from '../executeprompt.js';
-import { handleRunAction, RunActionRequest } from '../om/handleRunAction.js';
+import { handleRunAction, RunActionRequest } from './handlers/handleRunAction.js';
 import { Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
-import { makeCommentThreadHtml, makeHtml } from '../om/makeHtml.js';
+import { makeCommentThreadHtml, makeHtml } from '../yhtml/makeHtml.js';
 import { SessionImpl } from './sessionimpl.js';
-import { YPara } from '../om/YPara.js';
-import { make31BitId } from '../om/make31bitid.js';
-import { YPropSet } from '../om/YPropSet.js';
-import { YStr } from '../om/YStr.js';
 import { getSelectionKind } from '../om/YNode.js';
 import { GetDocResponse, PromptRequest } from './messages.js';
-import { handleGetThread } from './handleGetThead.js';
-import { handleGetChat, handleCreateChat } from './handleChat.js';
+import { handleGetThread } from './handlers/getthread.js';
+import { handleGetChat } from './handlers/getchat.js';
 import { initOpenAI } from '../openai/openai-client.js';
+import { handleCreatePart } from './handlers/createpart.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -184,12 +181,6 @@ export class HttpServer {
     // API endpoint to get chat
     if (url.startsWith('/api/getchat') && req.method === 'GET') {
       await handleGetChat(this.sessions, req, res);
-      return;
-    }
-
-    // API endpoint to create chat
-    if (url.startsWith('/api/createchat') && req.method === 'POST') {
-      await handleCreateChat(this.sessions, req, res);
       return;
     }
 
@@ -407,33 +398,8 @@ export class HttpServer {
       body += chunk.toString();
     });
 
-    req.on('end', () => {
-      try {
-        const { sessionId, kind } = JSON.parse(body);
-
-        const session = this.sessions.get(sessionId);
-        if (!session) {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Session not found' }));
-          return;
-        }
-
-        // Create a new part
-        const part = session.doc.createPart(kind);
-
-        const para = new YPara(make31BitId(), YPropSet.create({}),
-          new YStr('Draft content will appear here. Click to position cursor.\n', YPropSet.create({})))
-        part.body!.addChild(para);
-
-        console.log(`Created part: ${part.id} (kind: ${kind})`);
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, id: part.id }));
-      } catch (error) {
-        console.error('Error handling createpart:', error);
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid request' }));
-      }
+    req.on('end', async () => {
+      handleCreatePart(this.sessions, res, body);
     });
   }
 
