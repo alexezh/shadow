@@ -30,6 +30,17 @@ export interface CommentThreadRef {
   comments: string[];
 }
 
+// Global editor context for current document
+let canvasEditorContext: EditorContext | null = null;
+
+export function setCanvasEditorContext(ctx: EditorContext): void {
+  canvasEditorContext = ctx;
+}
+
+export function getCanvasEditorContext(): EditorContext | null {
+  return canvasEditorContext;
+}
+
 /**
  * EditorContext - Holds editor-specific state for a document instance
  */
@@ -51,7 +62,7 @@ export class EditorContext {
    */
   initializeCursor(): void {
     if (!this.cursor) {
-      this.cursor = new IPCursor(this.documentEl);
+      this.cursor = new IPCursor(this.documentEl, this);
     }
   }
 

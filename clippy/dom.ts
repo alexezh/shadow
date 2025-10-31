@@ -1,5 +1,7 @@
 import type { YRange } from "../src/om/YRange";
-import type { IPCursor } from "./ip";
+import type { ActionResult, ContentChangeRecord } from "../src/server/messages";
+import type { EditorContext } from "./editor-context";
+import { vdomCache } from "./vdom";
 
 // Console logging
 const consoleEl = document.getElementById('console') as HTMLElement;
@@ -8,24 +10,8 @@ const consoleEl = document.getElementById('console') as HTMLElement;
 let sessionId: string | null = null;
 
 // Parts list management
-export let currentPartId: string = 'main';
 export let allParts: Array<{ id: string; kind: string; title: string }> = [];
 export let showAllParts: boolean = false;
-
-// EditorContext getter - will be set by clippy.ts
-let getCurrentEditorContext: () => any = () => null;
-
-export function setGetCurrentEditorContext(getter: () => any): void {
-  getCurrentEditorContext = getter;
-}
-
-export function getEditorContext(): any {
-  return getCurrentEditorContext();
-}
-
-export function setCurrentPartId(_partId: string): void {
-  currentPartId = _partId;
-}
 
 export function setAllParts(_parts: Array<{ id: string; kind: string; title: string }>): void {
   allParts = _parts;
@@ -68,8 +54,7 @@ export function findElementId(node: Node | null): string | null {
 }
 
 // Get current selection range
-export function getSelectionRange(): YRange | null {
-  const editorContext = getCurrentEditorContext();
+export function getSelectionRange(editorContext: EditorContext): YRange | null {
   const cursor = editorContext?.cursor;
   if (!cursor || !cursor.position.node) {
     return null;
@@ -111,10 +96,6 @@ export function getSelectionRange(): YRange | null {
   };
 }
 
-export function initQueue(_applyAction: (result: any) => void): void {
-  applyAction = _applyAction;
-}
-
 // Add command to queue
 export function queueCommand(action: string, range: any, text?: string, content?: string): void {
   commandQueue.push({ action, range, text, content });
@@ -130,7 +111,6 @@ interface QueueCommand {
 }
 
 let commandQueue: QueueCommand[] = [];
-let applyAction: ((result: any) => void) | undefined = undefined;
 let isProcessingQueue: boolean = false;
 
 // Queue processor
@@ -146,10 +126,13 @@ async function processQueue(): Promise<void> {
     const commands = commandQueue.splice(0);
 
     for (const cmd of commands) {
-      const result = await runAction(cmd.action, cmd.range, cmd.text, cmd.content);
-      if (applyAction) {
-        applyAction(result);
+      const result = await sendRunAction(cmd.action, cmd.range, cmd.text, cmd.content);
+      const vdom = vdomCache.get(result.partId);
+      if (!vdom) {
+        logToConsole("processQueue: cannot find part: " + result.partId);
+        continue;
       }
+      applyAction(vdom.editorContext!, result);
     }
   } finally {
     isProcessingQueue = false;
@@ -162,7 +145,7 @@ async function processQueue(): Promise<void> {
 }
 
 // Command runner
-async function runAction(action: string, range: any, text?: string, content?: string): Promise<any> {
+async function sendRunAction(partId: string, action: string, range: any, text?: string, content?: string): Promise<any> {
   if (!sessionId) {
     logToConsole('No session ID available', 'error');
     return;
@@ -173,7 +156,7 @@ async function runAction(action: string, range: any, text?: string, content?: st
       sessionId,
       action,
       range,
-      partId: currentPartId
+      partId: partId
     };
 
     if (text !== undefined) {
@@ -196,11 +179,163 @@ async function runAction(action: string, range: any, text?: string, content?: st
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = await response.json();
+    const result = await response.json() as ActionResult;
     //logToConsole(`Action '${action}' executed successfully`);
     return result;
   } catch (error) {
     logToConsole(`Error executing action: ${(error as Error).message}`, 'error');
     throw error;
+  }
+}
+
+export function applyAction(editorCtx: EditorContext, result: ActionResult): void {
+  if (result) {
+    // Apply changes from result
+    if (result.changes && result.changes.length > 0) {
+      applyChanges(editorCtx, result.changes);
+    }
+
+    // Update cursor position
+    if (result.newPosition) {
+      updateCursorPosition(editorCtx, result.newPosition);
+    }
+
+    // Update selection if present
+    if (result.newRange) {
+      updateSelection(editorCtx, result.newRange);
+    }
+  }
+}
+
+
+// Apply changes to document
+function applyChanges(editorCtx: EditorContext, changes: ContentChangeRecord[]): void {
+  // Apply each change based on operation type
+  for (const change of changes) {
+    const element = document.getElementById(change.id);
+
+    switch (change.op) {
+      case 'deleted':
+        // Remove element from DOM
+        if (element) {
+          element.remove();
+          //logToConsole(`Deleted element ${change.id}`);
+        } else {
+          logToConsole(`Warning: Cannot delete element ${change.id} - not found`, 'warn');
+        }
+        break;
+
+      case 'changed':
+        // Update existing element
+        if (element) {
+          // Special case: replacing entire doc-content
+          if (change.id === 'doc-content') {
+            element.innerHTML = change.html || '';
+            logToConsole(`Replaced document content`);
+          } else {
+            element.outerHTML = change.html || '';
+            //logToConsole(`Updated element ${change.id}`);
+          }
+        } else {
+          logToConsole(`Warning: Cannot update element ${change.id} - not found`, 'warn');
+        }
+        break;
+
+      case 'inserted':
+        // Insert new element
+        if (element) {
+          logToConsole(`Warning: Element ${change.id} already exists, skipping insert`, 'warn');
+        } else {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = change.html || '';
+          const newElement = tempDiv.firstChild;
+
+          if (newElement) {
+            // Use prevId to find where to insert
+            if (change.prevId) {
+              const prevElement = document.getElementById(change.prevId);
+              if (prevElement && prevElement.parentElement) {
+                // Insert right after prevElement
+                prevElement.parentElement.insertBefore(newElement, prevElement.nextSibling);
+                //logToConsole(`Inserted new element ${change.id} after ${change.prevId}`);
+              } else {
+                logToConsole(`Warning: prevId ${change.prevId} not found, appending to body`, 'warn');
+                // Fallback: append to body
+                const docContent = document.getElementById('doc-content');
+                if (docContent && docContent.firstChild) {
+                  docContent.firstChild.appendChild(newElement);
+                }
+              }
+            } else {
+              // No prevId - append to body
+              const docContent = document.getElementById('doc-content');
+              if (docContent && docContent.firstChild) {
+                docContent.firstChild.appendChild(newElement);
+                logToConsole(`Inserted new element ${change.id} at end`);
+              }
+            }
+          }
+        }
+        break;
+
+      default:
+        logToConsole(`Warning: Unknown operation ${change.op} for element ${change.id}`, 'warn');
+        break;
+    }
+  }
+
+  // Update the cached virtual document after changes
+  const docContent = document.getElementById('doc-content') as HTMLElement;
+  if (docContent) {
+    editorCtx.. vdom.captureFromDOM(docContent);
+    vdomCache.set(currentPartId, vdom);
+  }
+}
+
+// Update cursor position from server response
+export function updateCursorPosition(editorCtx: EditorContext, newPosition: { element: string; offset: number }): void {
+  const cursor = editorCtx.cursor;
+  if (!cursor) return;
+
+  const element = document.getElementById(newPosition.element);
+  if (!element) return;
+
+  // Find first text node in element
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    null
+  );
+  const textNode = walker.nextNode();
+
+  if (textNode && textNode.textContent) {
+    cursor.position.node = textNode;
+    cursor.position.offset = Math.min(newPosition.offset, textNode.textContent.length);
+    cursor.updateCursorPosition();
+    cursor.selection.clear();
+  }
+}
+
+// Update selection from server response
+export function updateSelection(
+  editorCtx: EditorContext,
+  newRange: { startElement: string; startOffset: number; endElement: string; endOffset: number }): void {
+  const cursor = editorCtx.cursor;
+  if (!cursor) return;
+
+  const startElement = document.getElementById(newRange.startElement);
+  const endElement = document.getElementById(newRange.endElement);
+
+  if (!startElement || !endElement) return;
+
+  // Find text nodes
+  const walker1 = document.createTreeWalker(startElement, NodeFilter.SHOW_TEXT, null);
+  const startNode = walker1.nextNode();
+
+  const walker2 = document.createTreeWalker(endElement, NodeFilter.SHOW_TEXT, null);
+  const endNode = walker2.nextNode();
+
+  if (startNode && endNode) {
+    cursor.selection.set(startNode, newRange.startOffset, endNode, newRange.endOffset);
   }
 }

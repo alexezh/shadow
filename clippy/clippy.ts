@@ -5,25 +5,16 @@ import {
   logToConsole,
   setSessionId,
   getSessionId,
-  currentPartId,
   allParts,
   showAllParts,
   setAllParts,
   setShowAllParts,
-  setCurrentPartId,
-  setGetCurrentEditorContext
 } from "./dom.js"
 import { getSelectionRange } from "./dom.js"
 import { VirtualDocument, vdomCache } from "./vdom.js"
 import { EditorContext, CommentThreadRef } from "./editor-context.js"
 import { renderCommentThreads, fetchCommentThreads } from "./comments.js"
 import { ActionResult, type AgentChange, ContentChangeRecord, CreatePartRequest, CreatePartResponse, type GetDocResponse, PromptRequest } from "../src/server/messages.js"
-
-// Global editor context for current document
-let currentEditorContext: EditorContext | null = null;
-
-// Set up the getter for dom.ts and ip.ts to access current editor context
-setGetCurrentEditorContext(() => currentEditorContext);
 
 // Toolbar button handlers
 const buttons = {
@@ -36,71 +27,6 @@ const buttons = {
 interface StyleRule {
   selector: string;
   properties: Record<string, string>;
-}
-
-function applyAction(result: ActionResult): void {
-  if (result) {
-    // Apply changes from result
-    if (result.changes && result.changes.length > 0) {
-      applyChanges(result.changes);
-    }
-
-    // Update cursor position
-    if (result.newPosition) {
-      updateCursorPosition(result.newPosition);
-    }
-
-    // Update selection if present
-    if (result.newRange) {
-      updateSelection(result.newRange);
-    }
-  }
-}
-
-// Update cursor position from server response
-function updateCursorPosition(newPosition: { element: string; offset: number }): void {
-  const cursor = currentEditorContext?.cursor;
-  if (!cursor) return;
-
-  const element = document.getElementById(newPosition.element);
-  if (!element) return;
-
-  // Find first text node in element
-  const walker = document.createTreeWalker(
-    element,
-    NodeFilter.SHOW_TEXT,
-    null
-  );
-  const textNode = walker.nextNode();
-
-  if (textNode && textNode.textContent) {
-    cursor.position.node = textNode;
-    cursor.position.offset = Math.min(newPosition.offset, textNode.textContent.length);
-    cursor.updateCursorPosition();
-    cursor.selection.clear();
-  }
-}
-
-// Update selection from server response
-function updateSelection(newRange: { startElement: string; startOffset: number; endElement: string; endOffset: number }): void {
-  const cursor = currentEditorContext?.cursor;
-  if (!cursor) return;
-
-  const startElement = document.getElementById(newRange.startElement);
-  const endElement = document.getElementById(newRange.endElement);
-
-  if (!startElement || !endElement) return;
-
-  // Find text nodes
-  const walker1 = document.createTreeWalker(startElement, NodeFilter.SHOW_TEXT, null);
-  const startNode = walker1.nextNode();
-
-  const walker2 = document.createTreeWalker(endElement, NodeFilter.SHOW_TEXT, null);
-  const endNode = walker2.nextNode();
-
-  if (startNode && endNode) {
-    cursor.selection.set(startNode, newRange.startOffset, endNode, newRange.endOffset);
-  }
 }
 
 buttons.bold.addEventListener('click', async (e) => {
@@ -239,96 +165,6 @@ async function pollChanges(): Promise<void> {
     // Retry after delay
     setTimeout(pollChanges, pollDelay);
     pollDelay *= 2;
-  }
-}
-
-// Apply changes to document
-function applyChanges(changes: ContentChangeRecord[]): void {
-  // Apply each change based on operation type
-  for (const change of changes) {
-    const element = document.getElementById(change.id);
-
-    switch (change.op) {
-      case 'deleted':
-        // Remove element from DOM
-        if (element) {
-          element.remove();
-          //logToConsole(`Deleted element ${change.id}`);
-        } else {
-          logToConsole(`Warning: Cannot delete element ${change.id} - not found`, 'warn');
-        }
-        break;
-
-      case 'changed':
-        // Update existing element
-        if (element) {
-          // Special case: replacing entire doc-content
-          if (change.id === 'doc-content') {
-            element.innerHTML = change.html || '';
-            logToConsole(`Replaced document content`);
-          } else {
-            element.outerHTML = change.html || '';
-            //logToConsole(`Updated element ${change.id}`);
-          }
-        } else {
-          logToConsole(`Warning: Cannot update element ${change.id} - not found`, 'warn');
-        }
-        break;
-
-      case 'inserted':
-        // Insert new element
-        if (element) {
-          logToConsole(`Warning: Element ${change.id} already exists, skipping insert`, 'warn');
-        } else {
-          const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = change.html || '';
-          const newElement = tempDiv.firstChild;
-
-          if (newElement) {
-            // Use prevId to find where to insert
-            if (change.prevId) {
-              const prevElement = document.getElementById(change.prevId);
-              if (prevElement && prevElement.parentElement) {
-                // Insert right after prevElement
-                prevElement.parentElement.insertBefore(newElement, prevElement.nextSibling);
-                //logToConsole(`Inserted new element ${change.id} after ${change.prevId}`);
-              } else {
-                logToConsole(`Warning: prevId ${change.prevId} not found, appending to body`, 'warn');
-                // Fallback: append to body
-                const docContent = document.getElementById('doc-content');
-                if (docContent && docContent.firstChild) {
-                  docContent.firstChild.appendChild(newElement);
-                }
-              }
-            } else {
-              // No prevId - append to body
-              const docContent = document.getElementById('doc-content');
-              if (docContent && docContent.firstChild) {
-                docContent.firstChild.appendChild(newElement);
-                logToConsole(`Inserted new element ${change.id} at end`);
-              }
-            }
-          }
-        }
-        break;
-
-      default:
-        logToConsole(`Warning: Unknown operation ${change.op} for element ${change.id}`, 'warn');
-        break;
-    }
-  }
-
-  // Update the cached virtual document after changes
-  const currentPartId = vdomCache.getCurrentPartId();
-  if (currentPartId) {
-    const vdom = vdomCache.get(currentPartId);
-    if (vdom) {
-      const docContent = document.getElementById('doc-content') as HTMLElement;
-      if (docContent) {
-        vdom.captureFromDOM(docContent);
-        vdomCache.set(currentPartId, vdom);
-      }
-    }
   }
 }
 
@@ -835,7 +671,6 @@ if (moreBtn) {
 
 // Initialize on page load
 window.addEventListener('DOMContentLoaded', () => {
-  initQueue(applyAction);
   loadDocument();
 
   // Initialize Clippy after a short delay to ensure editor context is ready

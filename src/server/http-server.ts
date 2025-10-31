@@ -259,12 +259,6 @@ export class HttpServer {
         // Execute action and get result
         const result = handleRunAction(session, request);
 
-        // Add result to pending changes
-        //session.pendingChanges.push(result);
-
-        // Notify any waiting getchanges requests
-        //session.notifyChangeListeners(request.sessionId);
-
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, result }));
       } catch (error) {

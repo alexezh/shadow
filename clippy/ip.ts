@@ -3,11 +3,12 @@ import {
   getSelectionRange,
   queueCommand,
   logToConsole,
-  getEditorContext
 } from "./dom.js"
+import type { EditorContext } from "./editor-context.js";
 
 // IP Cursor (Insertion Point) management
 export class IPCursor {
+  private editorContext: EditorContext;
   private documentEl: HTMLElement;
   public cursorEl!: HTMLSpanElement;
   public position: { node: Node | null; offset: number };
@@ -15,7 +16,8 @@ export class IPCursor {
   public visible: boolean;
   private blinkInterval: number | null;
 
-  constructor(documentEl: HTMLElement) {
+  constructor(documentEl: HTMLElement, editorContext: EditorContext) {
+    this.editorContext = editorContext;
     this.documentEl = documentEl;
     this.position = { node: null, offset: 0 };
     this.selection = new Selection();
@@ -83,9 +85,8 @@ export class IPCursor {
       this.cursorEl.style.display = 'block';
       this.startBlinking();
 
-      const editorContext = getEditorContext();
-      if (editorContext?.clippyFloat) {
-        editorContext.clippyFloat.hide();
+      if (this.editorContext?.clippyFloat) {
+        this.editorContext.clippyFloat.hide();
       }
     });
 
@@ -95,9 +96,8 @@ export class IPCursor {
       selectionAnchor = null;
 
       // Restore Clippy on mouse button release
-      const editorContext = getEditorContext();
-      if (editorContext?.clippyFloat) {
-        editorContext.clippyFloat.show();
+      if (this.editorContext?.clippyFloat) {
+        this.editorContext.clippyFloat.show();
       }
     });
 
@@ -245,9 +245,8 @@ export class IPCursor {
           this.cursorEl.style.top = `${retryRect.top}px`;
           this.cursorEl.style.height = `${retryRect.height || 20}px`;
 
-          const editorContext = getEditorContext();
-          if (editorContext?.clippyFloat && this.visible) {
-            editorContext.clippyFloat.positionBelowCursor();
+          if (this.editorContext?.clippyFloat && this.visible) {
+            this.editorContext.clippyFloat.positionBelowCursor();
           }
         }
       });
@@ -260,9 +259,8 @@ export class IPCursor {
     this.cursorEl.style.height = `${rect.height || 20}px`;
 
     // Update Clippy position if it exists and is visible
-    const editorContext = getEditorContext();
-    if (editorContext?.clippyFloat && this.visible) {
-      editorContext.clippyFloat.positionBelowCursor();
+    if (this.editorContext?.clippyFloat && this.visible) {
+      this.editorContext.clippyFloat.positionBelowCursor();
     }
   }
 
@@ -272,10 +270,9 @@ export class IPCursor {
     this.startBlinking();
 
     // Show clippy at cursor position
-    const editorContext = getEditorContext();
-    if (editorContext?.clippyFloat) {
-      editorContext.clippyFloat.positionBelowCursor();
-      editorContext.clippyFloat.show();
+    if (this.editorContext?.clippyFloat) {
+      this.editorContext.clippyFloat.positionBelowCursor();
+      this.editorContext.clippyFloat.show();
     }
   }
 
@@ -285,9 +282,8 @@ export class IPCursor {
     this.stopBlinking();
 
     // Hide clippy when cursor is hidden
-    const editorContext = getEditorContext();
-    if (editorContext?.clippyFloat) {
-      editorContext.clippyFloat.hide();
+    if (this.editorContext?.clippyFloat) {
+      this.editorContext.clippyFloat.hide();
     }
   }
 
@@ -545,7 +541,7 @@ export class IPCursor {
     if (!this.position.node) return;
 
     // Get the range for the split action
-    let range = getSelectionRange();
+    let range = getSelectionRange(this.editorContext);
     if (!range) {
       const elementId = findElementId(this.position.node);
       if (elementId) {
@@ -623,7 +619,7 @@ export class IPCursor {
   }
 
   processPaste(content: string): void {
-    const range = getSelectionRange();
+    const range = getSelectionRange(this.editorContext);
     if (range) {
       queueCommand('paste', range, undefined, content);
       logToConsole('Pasted content');
@@ -728,7 +724,7 @@ export class IPCursor {
   insertCharacter(char: string): void {
     if (!this.position.node) return;
 
-    const range = getSelectionRange();
+    const range = getSelectionRange(this.editorContext);
     if (range) {
       queueCommand('type', range, char);
       //logToConsole(`Inserted: ${char}`);
@@ -738,7 +734,7 @@ export class IPCursor {
   deleteBackward(): void {
     if (!this.position.node) return;
 
-    const range = getSelectionRange();
+    const range = getSelectionRange(this.editorContext);
     if (range) {
       queueCommand('backspace', range);
       //logToConsole('Deleted backward');
@@ -748,7 +744,7 @@ export class IPCursor {
   deleteForward(): void {
     if (!this.position.node) return;
 
-    const range = getSelectionRange();
+    const range = getSelectionRange(this.editorContext);
     if (range) {
       queueCommand('delete', range);
       //logToConsole('Deleted forward');

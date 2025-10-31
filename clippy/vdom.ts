@@ -131,11 +131,9 @@ export class VirtualDocument {
  */
 export class VirtualDocumentCache {
   private cache: Map<string, VirtualDocument>;
-  private currentPartId: string | null;
 
   constructor() {
     this.cache = new Map();
-    this.currentPartId = null;
   }
 
   /**
@@ -171,21 +169,6 @@ export class VirtualDocumentCache {
    */
   clear(): void {
     this.cache.clear();
-    this.currentPartId = null;
-  }
-
-  /**
-   * Get current part ID
-   */
-  getCurrentPartId(): string | null {
-    return this.currentPartId;
-  }
-
-  /**
-   * Set current part ID
-   */
-  setCurrentPartId(partId: string): void {
-    this.currentPartId = partId;
   }
 
   /**
