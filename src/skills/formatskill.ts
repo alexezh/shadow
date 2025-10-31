@@ -80,7 +80,7 @@ Execution rules:
 `,
   childSkill: [
     {
-      step: "select_range",
+      name: "select_range",
       text: `
 {
   "step": "select_range",
@@ -108,7 +108,7 @@ Execution rules:
 `
     },
     {
-      step: "apply_format",
+      name: "apply_format",
       text: applyFormatStep(`{
     "status": "apply_format-complete",
     "next_step": null,

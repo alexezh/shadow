@@ -1,12 +1,8 @@
 import OpenAI from 'openai';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
-import { ToolDispatcher } from './tooldispatcher.js';
-import { Session } from '../server/session.js';
-import { ChatResult, getOpenAI, TokenUsage } from './openai-client.js';
-import { retryWithBackoff } from './retrywithbackoff.js';
+import { ChatResult, getOpenAI } from './openai-client.js';
 import { Stream } from 'openai/core/streaming.js';
-import type { SkillVM } from '../skills/skillvm.js';
-import { SkillDef } from '../skills/skilldef.js';
+import { VMSpec } from '../skills/skilldef.js';
 import { SkillVMContext, TotalUsage } from '../skills/skillvmcontext.js';
 
 export class SkilledAIClient {
@@ -20,10 +16,9 @@ export class SkilledAIClient {
 
     // Get or create conversation
     const requireEnvelope = true;
-    const messages = vmCtx.messages;
     let lastPhase = vmCtx.lastPhase;
 
-    console.log(`💬 Conversation with ${messages.length} messages`);
+    console.log(`💬 Conversation with ${vmCtx.messages.length} messages`);
 
     // Loop to handle multiple function calls
     let maxIterations = 100;
@@ -36,11 +31,11 @@ export class SkilledAIClient {
     }
 
     while (iteration < maxIterations) {
-      const response = await skillVM.executeStep(async (skill: SkillDef) => {
+      const response = await vmCtx.vm.executeStep(vmCtx, async (spec: VMSpec) => {
         return getOpenAI().chat.completions.create({
           model: 'gpt-4.1',
-          messages,
-          tools: skill.tools,
+          messages: vmCtx.messages,
+          tools: spec.tools,
           stream: true,
           stream_options: {
             include_usage: true
@@ -128,7 +123,7 @@ export class SkilledAIClient {
           continue;
         }
 
-        await this.executeTools(skillVM, vmCtx, toolCalls, messages);
+        await this.executeTools(vmCtx, toolCalls);
 
         if (pendingEnvelopeReminder) {
           vmCtx.pushSystemMessage('Reminder: include the phase-gated control envelope JSON with phase="action" whenever you call tools.');
@@ -342,10 +337,8 @@ export class SkilledAIClient {
   }
 
   private async executeTools(
-    skillVM: SkillVM,
-    conversationState: SkillVMContext,
-    toolCalls: any,
-    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    vmCtx: SkillVMContext,
+    toolCalls: any
   ): Promise<void> {
     // Execute tool calls
     for (const toolCall of toolCalls) {
@@ -358,18 +351,18 @@ export class SkilledAIClient {
 
       try {
         const functionArgs = JSON.parse(toolCall.function.arguments);
-        const result = await skillVM.executeTool({
+        const result = await vmCtx.vm.executeTool(vmCtx, {
           name: toolCall.function.name,
           arguments: functionArgs
         });
 
-        conversationState.pushToolMessage(
+        vmCtx.pushToolMessage(
           toolCall.id,
           result
         );
       } catch (error) {
         const errText = `Error executing ${toolCall.function.name}: ${error}`;
-        conversationState.pushToolMessage(
+        vmCtx.pushToolMessage(
           toolCall.id,
           errText
         );

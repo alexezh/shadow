@@ -1,4 +1,4 @@
-import { Database } from "./database";
+import { Database } from "../database";
 import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';

@@ -146,7 +146,7 @@ export async function getRootSkill(database: Database, context: ChatPromptContex
   // };
 
   return {
-    name: "edit_text",
+    name: "root",
     keywords: ['edit document', 'change text', 'modify content'],
     test_keywords: [
       'edit document',

@@ -36,7 +36,7 @@ Execution rules:
 `,
   childSkill: [
     {
-      step: "confirm_range",
+      name: "confirm_range",
       text: `
 {
   "step": "confirm_range",
@@ -61,7 +61,7 @@ Execution rules:
 `
     },
     {
-      step: "rewrite_text",
+      name: "rewrite_text",
       text: `
 {
   "step": "rewrite_text",
@@ -86,7 +86,7 @@ Execution rules:
 `
     },
     {
-      step: "finalize_rewrite",
+      name: "finalize_rewrite",
       text: `
 {
   "step": "finalize_rewrite",

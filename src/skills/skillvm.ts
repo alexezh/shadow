@@ -15,12 +15,11 @@ export type CompletionStream = Stream<OpenAI.Chat.Completions.ChatCompletionChun
 
 export interface SkillVM {
   // todo: merge prompt and context
-  createContext(systemPrompt: string, initialUserMessage: string, contextMessage?: {
-    role: 'user';
-    content: string;
-  }): SkillVMContext;
+  createContext(skill: SkillDef, initialUserMessage: string): SkillVMContext;
   executeStep(
     ctx: SkillVMContext,
-    func: (step: VMSpec) => Promise<CompletionStream>): Promise<{ step: VMSpec, stream: CompletionStream }>;
-  executeTool(toolCall: MCPToolCall): Promise<string>;
+    func: (step: VMSpec) => Promise<CompletionStream>): Promise<{ spec: VMSpec, stream: CompletionStream }>;
+  executeTool(
+    ctx: SkillVMContext,
+    toolCall: MCPToolCall): Promise<string>;
 }

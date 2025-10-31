@@ -1,6 +1,8 @@
 import { OpenAI } from "openai/client";
 import type { Phase } from "../openai/phase-envelope";
 import type { TokenUsage } from "../openai/openai-client";
+import type { SkillVM } from "./skillvm";
+import { SkillDef } from "./skilldef";
 
 export type TotalUsage = {
   totalPromptTokens: number;
@@ -10,10 +12,10 @@ export type TotalUsage = {
 
 export class SkillVMContext {
   public messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-  public systemPrompt: string;
   public lastPhase: Phase | null;
   public createdAt: Date;
   public executionStartAt: number = 0;
+  public readonly vm: SkillVM;
 
   // Context tracking
   public promptTokens: number = 0;
@@ -22,29 +24,26 @@ export class SkillVMContext {
   public messageChars: number = 0;
   public messageCount: number = 0;
 
-  constructor(systemPrompt: string, initialUserMessage: string, contextMessage?: {
-    role: 'user';
-    content: string;
-  }) {
-    if (contextMessage) {
+  constructor(vm: SkillVM, skill: SkillDef, initialUserMessage: string) {
+    this.vm = vm;
+    if (skill.contextMessage?.content) {
       this.messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'developer', content: contextMessage.content! },
+        { role: 'system', content: skill.text },
+        { role: 'developer', content: skill.contextMessage?.content },
         { role: 'user', content: initialUserMessage }
       ];
 
     } else {
       this.messages = [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: skill.text },
         { role: 'user', content: initialUserMessage }
       ];
     }
-    this.systemPrompt = systemPrompt;
     this.lastPhase = null;
     this.createdAt = new Date();
 
     // Record initial messages
-    this.recordMessage('system', systemPrompt);
+    this.recordMessage('system', skill.text);
     this.recordMessage('user', initialUserMessage);
   }
 

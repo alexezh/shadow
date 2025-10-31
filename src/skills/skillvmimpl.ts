@@ -3,7 +3,7 @@ import { retryWithBackoff } from "../openai/retrywithbackoff.js";
 import { MCPToolCall, ToolDispatcher } from "../openai/tooldispatcher.js";
 import { Session } from "../server/session.js";
 import { getSkills } from "./getSkills.js";
-import type { SkillStepDef, SkillDef } from "./skilldef.js";
+import { type SkillStepDef, type SkillDef, type VMSpec, type VMOp, getSpec } from "./skilldef.js";
 import type { CompletionStream, SkillVM } from "./skillvm.js";
 import { SkillVMContext } from "./skillvmcontext.js";
 
@@ -11,7 +11,7 @@ import { SkillVMContext } from "./skillvmcontext.js";
  * as we run through skills, we build stack of things
  */
 export class SkillVMImpl implements SkillVM {
-  private stack: VMStep[] = [];
+  private stack: { spec: VMSpec, id: string }[] = [];
   private dispatcher: ToolDispatcher;
   private session: Session;
 
@@ -20,55 +20,58 @@ export class SkillVMImpl implements SkillVM {
     this.session = session;
   }
 
-  private get currentStep(): VMStep {
-    return this.stack[this.stack.length - 1];
+  private get currentSpec(): VMSpec {
+    return this.stack[this.stack.length - 1].spec;
   }
 
-  createContext(systemPrompt: string, initialUserMessage: string, contextMessage?: {
-    role: 'user';
-    content: string;
-  }): SkillVMContext {
-    return new SkillVMContext(systemPrompt, initialUserMessage, contextMessage);
-  }
-
-  //private currentSkill
-  public pushStep(skill: SkillDef, step?: SkillStepDef): void {
-    this.stack.push({ skill, step })
-  }
-
-  public popStep(): void {
-    this.stack.pop();
+  createContext(skill: SkillDef, initialUserMessage: string): SkillVMContext {
+    this.stack.length = 0;
+    const spec = getSpec(skill);
+    this.stack.push({ id: spec.id!, spec });
+    return new SkillVMContext(this, skill, initialUserMessage);
   }
 
   public async executeStep(
     ctx: SkillVMContext,
-    func: (skill: SkillDef) => Promise<CompletionStream>): Promise<{ skill: SkillDef, stream: CompletionStream }> {
-    const skill = this.currentStep;
+    func: (skill: VMSpec) => Promise<CompletionStream>): Promise<{ spec: VMSpec, stream: CompletionStream }> {
+    const spec = this.currentSpec;
     const stream = await retryWithBackoff(async () => {
-      return func(this.currentStep);
+      return func(spec);
     });
 
     return {
-      skill, stream
+      spec, stream
     }
   }
 
-  public async executeTool(toolCall: MCPToolCall): Promise<string> {
+  public async executeTool(vmCtx: SkillVMContext, toolCall: MCPToolCall): Promise<string> {
     if (toolCall.name === "get_skill") {
-      const getRes = await getSkills(this.session.database, toolCall.arguments);
-      if (!getRes.skill) {
-        return getRes.result;
+      const { skill, step, result } = await getSkills(this.session.database, toolCall.arguments);
+      if (!skill) {
+        return result;
       }
 
-      this.stack.push({ skill: getRes.skill, step: getRes.step })
-      return getRes.result;
+      this.transition(skill, step);
+      const newSpec = getSpec(skill, step);
+      this.stack.push({ id: newSpec.id!, spec: newSpec! })
+      return result;
     } else {
       const result = await this.dispatcher.executeTool(this.session, toolCall);
       return result;
     }
   }
 
-  private transition(curSkill: SkillDef, nextSkill: SkillDef): void {
+  private transition(skill: SkillDef, step?: SkillStepDef): void {
+    let curSpec = this.currentSpec;
+    let curOp: VMOp | undefined;
+    for (let op of curSpec.ops) {
+      if (op.target === "*") {
+        curOp = op;
+      }
+    }
 
+    if (!curOp) {
+      console.log("transition: cannot find op:" + curSpec.id)
+    }
   }
 }

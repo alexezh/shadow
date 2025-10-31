@@ -22,9 +22,8 @@ export async function skilledWorker(
   const rootSkill = await getRootSkill(ctx.session.database, ctx);
 
   const vmCtx = ctx.session.vm.createContext(
-    rootSkill.text,
+    rootSkill,
     ctx.prompt,
-    rootSkill.contextMessage
   );
 
   let currentPrompt = ctx.prompt;

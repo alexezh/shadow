@@ -49,7 +49,7 @@ ${ChunkSegment}
 `,
   childSkill: [
     {
-      step: "create_docid",
+      name: "create_docid",
       text: `
 {
   "step": "create_docid",
@@ -76,7 +76,7 @@ ${ChunkSegment}
 `
     },
     {
-      step: "blueprint_semantics",
+      name: "blueprint_semantics",
       text: `
 {
   "step": "blueprint_semantics",
@@ -103,7 +103,7 @@ ${ChunkSegment}
 `
     },
     {
-      step: "outline_plan",
+      name: "outline_plan",
       text: `
 {
   "step": "outline_plan",
@@ -128,7 +128,7 @@ ${ChunkSegment}
 `
     },
     {
-      step: "compose_html",
+      name: "compose_html",
       text: `
 {
   "step": "compose_html",
@@ -165,7 +165,7 @@ ${ChunkSegment}
 `
     },
     {
-      step: "finalize_history",
+      name: "finalize_history",
       text: `
 {
   "step": "finalize_history",

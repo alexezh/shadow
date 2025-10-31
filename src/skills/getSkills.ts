@@ -24,12 +24,12 @@ export async function getSkills(
   try {
     // If step is requested, find it in childRules
     if (args.step && skill.childSkill) {
-      const step = skill.childSkill.find(cr => cr.step === args.step);
+      const step = skill.childSkill.find(cr => cr.name === args.step);
       if (!step) {
         return {
           result: JSON.stringify({
             error: `Step "${args.step}" not found in instruction "${args.name}"`,
-            available_steps: skill.childSkill.map(cr => cr.step)
+            available_steps: skill.childSkill.map(cr => cr.name)
           }, null, 2)
         };
       }
@@ -49,7 +49,7 @@ export async function getSkills(
         name: skill.name,
         keywords: skill.keywords,
         has_steps: !!skill.childSkill && skill.childSkill.length > 0,
-        steps: skill.childSkill?.map(cr => cr.step) || [],
+        steps: skill.childSkill?.map(cr => cr.name) || [],
         instruction: skill.text
       }, null, 2)
     }

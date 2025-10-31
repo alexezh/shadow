@@ -25,11 +25,13 @@ export const editSkill: SkillDef =
     'update content',
     'rewrite section'
   ],
-  tools: [
-    getToolDef("get_skills"),
-    getToolDef("get_contentrange"),
-    getToolDef("find_ranges")
-  ],
+  spec: {
+    tools: [
+      getToolDef("get_skills"),
+      getToolDef("get_contentrange"),
+      getToolDef("find_ranges")
+    ], ops: []
+  },
   text: `
 **edit document · step pipeline**
 
@@ -66,11 +68,14 @@ Execution rules:
   childSkill: [
 
     {
-      step: 'selection',
-      tools: [
-        getToolDef("get_contentrange"),
-        getToolDef("find_ranges")
-      ],
+      name: 'selection',
+      spec: {
+        tools: [
+          getToolDef("get_contentrange"),
+          getToolDef("find_ranges")
+        ],
+        ops: []
+      },
       text: `
 {
   "step": "selection",
@@ -97,13 +102,16 @@ Execution rules:
 `
     },
     {
-      step: 'revise',
-      tools: [
-        getToolDef("get_contentrange"),
-        getToolDef("replace_contentrange"),
-        getToolDef("make_id"),
-        getToolDef("store_htmlpart")
-      ],
+      name: 'revise',
+      spec: {
+        tools: [
+          getToolDef("get_contentrange"),
+          getToolDef("replace_contentrange"),
+          getToolDef("make_id"),
+          getToolDef("store_htmlpart")
+        ],
+        ops: []
+      },
       text: `
 {
   "step": "revise_text",
@@ -129,12 +137,15 @@ Execution rules:
 `
     },
     {
-      step: 'replace_text',
-      tools: [
-        getToolDef("find_ranges"),
-        getToolDef("get_contentrange"),
-        getToolDef("replace_contentrange")
-      ],
+      name: 'replace_text',
+      spec: {
+        tools: [
+          getToolDef("find_ranges"),
+          getToolDef("get_contentrange"),
+          getToolDef("replace_contentrange")
+        ],
+        ops: []
+      },
       text: `
 {
   "step": "replace_text",
@@ -160,10 +171,13 @@ Execution rules:
 `
     },
     {
-      step: 'format',
-      tools: [
-        getToolDef("format_range")
-      ],
+      name: 'format',
+      spec: {
+        tools: [
+          getToolDef("format_range")
+        ],
+        ops: []
+      },
       text: applyFormatStep(`{
     "status": "apply_formatting-complete",
     "allowed_tools": ["format_range"],
