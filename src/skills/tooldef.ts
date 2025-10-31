@@ -67,7 +67,7 @@ export const mcpTools: ToolDef[] = [
           start_para: { type: 'string', description: 'Starting paragraph ID (optional)' },
           end_para: { type: 'string', description: 'Ending paragraph ID (optional)' }
         },
-        required: ['docid', 'format']
+        required: ['docid', 'partid', 'format']
       }
     }
   },

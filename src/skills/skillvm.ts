@@ -3,6 +3,7 @@ import type { Stream } from "openai/core/streaming";
 import type { SkillStepDef, SkillDef, VMSpec } from "./skilldef";
 import type { MCPToolCall } from "../openai/tooldispatcher";
 import type { SkillVMContext } from "./skillvmcontext";
+import type { ExecutePromptContext } from "../openai/executepromptcontext";
 
 export type CompletionStream = Stream<OpenAI.Chat.Completions.ChatCompletionChunk> & {
   _request_id?: string | null;
@@ -15,7 +16,10 @@ export type CompletionStream = Stream<OpenAI.Chat.Completions.ChatCompletionChun
 
 export interface SkillVM {
   // todo: merge prompt and context
-  createContext(skill: SkillDef, initialUserMessage: string): SkillVMContext;
+  createContext(
+    skill: SkillDef,
+    promptCtx: ExecutePromptContext,
+    initialUserMessage: string): SkillVMContext;
   executeStep(
     ctx: SkillVMContext,
     func: (step: VMSpec) => Promise<CompletionStream>): Promise<{ spec: VMSpec, stream: CompletionStream }>;

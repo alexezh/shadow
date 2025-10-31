@@ -10,8 +10,9 @@ import { replaceContentRange } from '../skills/replaceContentRange.js';
 import { ContentBuffer, loadAsset, storeAsset } from '../arch/asset.js';
 import { make31BitId } from '../om/make31bitid.js';
 import { documentCreate, loadHtmlPart, storeHtmlPart } from '../arch/htmlparts.js';
-import { Session } from '../server/session.js';
+import type { Session } from '../server/session.js';
 import { getOpenAI } from './openai-client.js';
+import type { ExecutePromptContext } from './executepromptcontext.js';
 
 export interface MCPToolCall {
   name: string;

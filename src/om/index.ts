@@ -9,5 +9,3 @@ export { YRow as WRow } from './YRow.js';
 export { YCell as WCell } from './YCell.js';
 export { YDoc as WDoc } from './YDoc.js';
 export { HtmlWriter } from '../yhtml/HtmlWriter.js';
-export { makeHtml } from './makeHtml.js';
-export { loadHtml } from './loadHtml.js';

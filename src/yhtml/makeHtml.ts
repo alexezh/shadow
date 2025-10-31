@@ -1,13 +1,13 @@
-import { YNode } from './YNode.js';
-import { paraProp, YPara } from './YPara.js';
-import { YBody } from './YBody.js';
-import { YTable } from './YTable.js';
-import { YRow } from './YRow.js';
-import { YCell } from './YCell.js';
+import { YNode } from '../om/YNode.js';
+import { paraProp, YPara } from '../om/YPara.js';
+import { YBody } from '../om/YBody.js';
+import { YTable } from '../om/YTable.js';
+import { YRow } from '../om/YRow.js';
+import { YCell } from '../om/YCell.js';
 import { HtmlWriter } from './HtmlWriter.js';
-import { YPropSet } from './YPropSet.js';
+import { YPropSet } from '../om/YPropSet.js';
 import { CommentThreadRef } from '../server/messages.js';
-import { YDocPart } from './YDoc.js';
+import { YDocPart } from '../om/YDoc.js';
 
 /**
  * Convert CSS property set to inline style string
@@ -16,7 +16,7 @@ function propSetToStyle(props: YPropSet): string {
 
   const styles: string[] = [];
   for (const [key, value] of props.entries()) {
-    if (key !== paraProp) {
+    if (!key.startsWith("!")) {
       styles.push(`${key}:${value}`);
     }
   }

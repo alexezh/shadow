@@ -2,7 +2,7 @@ import { mcpTools } from "../skills/tooldef.js";
 import { OpenAIClient, ConversationState } from "../openai/openai-client.js";
 import { SessionImpl } from '../server/sessionimpl.js';
 import { makeDefaultDoc } from '../server/loaddoc.js';
-import { loadHtml } from '../om/loadHtml.js';
+import { loadHtml } from '../yhtml/loadHtml.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ConversationStateResponses } from "../openai/openai-responsesclient.js";

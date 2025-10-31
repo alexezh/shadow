@@ -13,20 +13,21 @@ interface StepCompletion {
 }
 
 export async function skilledWorker(
-  ctx: ExecutePromptContext,
+  promptCtx: ExecutePromptContext,
 ): Promise<{ response: string; conversationState: ConversationState; usage: TokenUsage }> {
 
   const skilledClient = new SkilledAIClient();
   const startAt = performance.now();
 
-  const rootSkill = await getRootSkill(ctx.session.database, ctx);
+  const rootSkill = await getRootSkill(promptCtx.session.database, promptCtx);
 
-  const vmCtx = ctx.session.vm.createContext(
+  const vmCtx = promptCtx.session.vm.createContext(
     rootSkill,
-    ctx.prompt,
+    promptCtx,
+    promptCtx.prompt,
   );
 
-  let currentPrompt = ctx.prompt;
+  let currentPrompt = promptCtx.prompt;
   let lastResponse = '';
   const aggregateUsage: TokenUsage = {
     promptTokens: 0,

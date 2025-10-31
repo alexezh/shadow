@@ -4,11 +4,20 @@ import { YNode } from './YNode.js';
 import { YPropCache, YPropSet } from './YPropSet.js';
 import { YStr } from './YStr.js';
 
-export const paraProp = "--data-para";
+/**
+ * copy of EOP props, ! props excluded from html
+ */
+export const paraProp = "!data-para";
+
+/**
+ * source id in form partid!objid
+ */
+export const sourceIdProp = "data-sourceid";
+
 /**
  * IDs of threads
  */
-export const threadsProp = "--data-threads";
+export const threadsProp = "data-threads";
 export const markerTypeProp = "data-y-markertype";
 
 /**

@@ -1,14 +1,14 @@
 import * as cheerio from 'cheerio';
-import { YNode, YTextContainer } from './YNode.js';
-import { YPara } from './YPara.js';
-import { YBody } from './YBody.js';
-import { YTable } from './YTable.js';
-import { YRow } from './YRow.js';
-import { YCell } from './YCell.js';
-import { YStr } from './YStr.js';
-import { YPropSet } from './YPropSet.js';
-import { YStyleStore } from './YStyleStore.js';
-import { make31BitId } from './make31bitid.js';
+import { YNode, YTextContainer } from '../om/YNode.js';
+import { YPara } from '../om/YPara.js';
+import { YBody } from '../om/YBody.js';
+import { YTable } from '../om/YTable.js';
+import { YRow } from '../om/YRow.js';
+import { YCell } from '../om/YCell.js';
+import { YStr } from '../om/YStr.js';
+import { YPropSet } from '../om/YPropSet.js';
+import { YStyleStore } from '../om/YStyleStore.js';
+import { make31BitId } from '../om/make31bitid.js';
 
 /**
  * Load HTML and return root WNode

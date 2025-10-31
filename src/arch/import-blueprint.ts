@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { SessionImpl } from '../server/sessionimpl.js';
 import { makeDefaultDoc } from '../server/loaddoc.js';
-import { loadHtml } from '../om/loadHtml.js';
+import { loadHtml } from '../yhtml/loadHtml.js';
 import { ConversationStateResponses } from "../openai/openai-responsesclient.js";
 
 /*

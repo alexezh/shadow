@@ -15,12 +15,13 @@ export async function replaceContentRange(
   session: Session,
   args: {
     docid: string;
+    partid: string;
     format: string;
     start_para?: string;
     end_para?: string;
     html: string;
   }): Promise<string> {
-  console.log(`replaceContentRange [start: ${args.start_para}] [end: ${args.end_para}]`);
+  console.log(`replaceContentRange [part: ${args.partid}] [start: ${args.start_para}] [end: ${args.end_para}]`);
 
   const startNode = session.doc.getBodyPart().getNodeById(args.start_para!);
   if (!startNode) {
@@ -78,8 +79,7 @@ export async function replaceContentRange(
     })
   }
 
-  //session
+  session.sendUpdate(session.id, args.partid, changeRecords);
 
-  // TODO: Implement content range replacement
-  return "replaceContentRange not yet implemented";
+  return `Successfully replaced range`;
 }

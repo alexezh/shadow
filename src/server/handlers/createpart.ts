@@ -1,11 +1,11 @@
 import * as http from 'http';
 import { Session } from '../session.js';
-import { copyRange } from '../../om/copyrange.js';
 import { YBody } from '../../om/YBody.js';
 import { YStr } from '../../om/YStr.js';
 import { YPara } from '../../om/YPara.js';
 import { make31BitId } from '../../om/make31bitid.js';
 import { YPropSet } from '../../om/YPropSet.js';
+import { copyRange } from '../../om/copyRange.js';
 
 export async function handleCreatePart(sessions: ReadonlyMap<string, Session>,
   res: http.ServerResponse, body: string): Promise<void> {

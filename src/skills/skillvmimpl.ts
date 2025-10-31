@@ -1,4 +1,5 @@
 import type { Database } from "../database.js";
+import { ExecutePromptContext } from "../openai/executepromptcontext.js";
 import { retryWithBackoff } from "../openai/retrywithbackoff.js";
 import { MCPToolCall, ToolDispatcher } from "../openai/tooldispatcher.js";
 import { Session } from "../server/session.js";
@@ -14,6 +15,7 @@ export class SkillVMImpl implements SkillVM {
   private stack: { spec: VMSpec, id: string }[] = [];
   private dispatcher: ToolDispatcher;
   private session: Session;
+  public promptContext?: ExecutePromptContext;
 
   public constructor(session: Session, dispatcher: ToolDispatcher) {
     this.dispatcher = dispatcher;
@@ -24,7 +26,10 @@ export class SkillVMImpl implements SkillVM {
     return this.stack[this.stack.length - 1].spec;
   }
 
-  createContext(skill: SkillDef, initialUserMessage: string): SkillVMContext {
+  createContext(skill: SkillDef,
+    promptCtx: ExecutePromptContext,
+    initialUserMessage: string): SkillVMContext {
+    this.promptContext = promptCtx;
     this.stack.length = 0;
     const spec = getSpec(skill);
     this.stack.push({ id: spec.id!, spec });
