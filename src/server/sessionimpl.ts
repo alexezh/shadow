@@ -1,4 +1,8 @@
+import type { Database } from "../database.js";
 import type { YDoc } from "../om/YDoc.js";
+import { ToolDispatcher } from "../openai/tooldispatcher.js";
+import { SkillVM } from "../skills/skillvm.js";
+import { SkillVMImpl } from "../skills/skillvmimpl.js";
 import { AgentChange, ConsoleResult, ContentChangeRecord, GetChangesResponse } from "./messages.js";
 import type { Session } from "./session.js";
 
@@ -8,15 +12,20 @@ export class SessionImpl implements Session {
   public pendingChanges: GetChangesResponse[] = [];
   public changeResolvers: Array<(changes: GetChangesResponse[]) => void> = [];
   public doc: YDoc;
+  public database: Database;
   public currentPartId: string;
+  public vm: SkillVM;
 
   public constructor(
+    database: Database,
     id: string,
     doc: YDoc,
     currentPartId: string = 'main'
   ) {
     this.id = id;
     this.doc = doc;
+    this.vm = new SkillVMImpl(this, new ToolDispatcher(database))
+    this.database = database;
     this.currentPartId = currentPartId;
   }
 

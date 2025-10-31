@@ -265,11 +265,11 @@ export class OpenAIClientResponses implements OpenAIClient {
     const startAt = options?.startAt ?? performance.now();
     const requireEnvelope = options?.requireEnvelope ?? false;
 
-    if (!options?.skipCurrentPrompt) {
-      this.mcpClient.setCurrentPrompt(userMessage);
-    } else {
-      conversationState.addUserMessage(userMessage);
-    }
+    // if (!options?.skipCurrentPrompt) {
+    //   this.mcpClient.setCurrentPrompt(userMessage);
+    // } else {
+    conversationState.addUserMessage(userMessage);
+    // }
 
     const messages = conversationState.messages;
     let lastPhase = conversationState.lastPhase;

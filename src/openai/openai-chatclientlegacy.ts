@@ -149,9 +149,9 @@ export class OpenAIClientChatLegacy implements OpenAIClient {
   ): Promise<ChatResult> {
 
     // Set the current prompt in the MCP client for history tracking
-    if (!options?.skipCurrentPrompt) {
-      this.mcpClient.setCurrentPrompt(userMessage);
-    }
+    // if (!options?.skipCurrentPrompt) {
+    //   this.mcpClient.setCurrentPrompt(userMessage);
+    // }
 
     // Add user message to conversation state
     conversationState.addUserMessage(userMessage);

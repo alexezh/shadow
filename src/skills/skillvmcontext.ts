@@ -1,0 +1,129 @@
+import { OpenAI } from "openai/client";
+import type { Phase } from "../openai/phase-envelope";
+import type { TokenUsage } from "../openai/openai-client";
+
+export type TotalUsage = {
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+}
+
+export class SkillVMContext {
+  public messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  public systemPrompt: string;
+  public lastPhase: Phase | null;
+  public createdAt: Date;
+  public executionStartAt: number = 0;
+
+  // Context tracking
+  public promptTokens: number = 0;
+  public completionTokens: number = 0;
+  public totalTokens: number = 0;
+  public messageChars: number = 0;
+  public messageCount: number = 0;
+
+  constructor(systemPrompt: string, initialUserMessage: string, contextMessage?: {
+    role: 'user';
+    content: string;
+  }) {
+    if (contextMessage) {
+      this.messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'developer', content: contextMessage.content! },
+        { role: 'user', content: initialUserMessage }
+      ];
+
+    } else {
+      this.messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: initialUserMessage }
+      ];
+    }
+    this.systemPrompt = systemPrompt;
+    this.lastPhase = null;
+    this.createdAt = new Date();
+
+    // Record initial messages
+    this.recordMessage('system', systemPrompt);
+    this.recordMessage('user', initialUserMessage);
+  }
+
+  public elapsed(): number {
+    return (performance.now() - this.executionStartAt) / 1000
+  }
+  pushSystemMessage(content: string): void {
+    this.messages.push({ role: 'system', content });
+    this.recordMessage('system', content);
+  };
+
+  pushToolMessage(toolCallId: string, content: string): void {
+    this.messages.push({
+      role: 'tool',
+      tool_call_id: toolCallId,
+      content
+    });
+    this.recordMessage('tool', content);
+  };
+
+  pushAssistantMessage(content: string): void {
+    this.messages.push({
+      role: 'assistant',
+      content
+    });
+    this.recordMessage('assistant', content);
+  };
+
+  private recordMessage(role: string, content: string): void {
+    const length = content ? content.length : 0;
+    this.messageChars += length;
+    this.messageCount += 1;
+  }
+
+  respondToToolCallsWithError(toolCalls: any[], reason: string) {
+    if (!toolCalls || toolCalls.length === 0) {
+      return;
+    }
+
+    for (const toolCall of toolCalls) {
+      if (!toolCall?.id) {
+        console.warn(`⚠️ Unable to respond to tool call without id (tool=${toolCall?.function?.name || 'unknown'})`);
+        continue;
+      }
+
+      console.warn(`respondToToolCallsWithError: (tool=${toolCall?.function?.name || 'unknown'}) (reason=${reason})`);
+
+      this.pushToolMessage(
+        toolCall.id,
+        JSON.stringify({
+          success: false,
+          error: reason
+        }, null, 2),
+      );
+    }
+  };
+
+  recordUsage(tag: string, promptTokens: number, completionTokens: number, totalTokens?: number): void {
+    if (!promptTokens && !completionTokens && !totalTokens) {
+      return;
+    }
+    const resolvedTotal = totalTokens ?? (promptTokens + completionTokens);
+    this.promptTokens += promptTokens;
+    this.completionTokens += completionTokens;
+    this.totalTokens += resolvedTotal;
+  }
+
+  getSummary(): TokenUsage & { messageChars: number; messageCount: number } {
+    return {
+      promptTokens: this.promptTokens,
+      completionTokens: this.completionTokens,
+      totalTokens: this.totalTokens,
+      messageChars: this.messageChars,
+      messageCount: this.messageCount
+    };
+  }
+
+  addUserMessage(content: string): void {
+    this.messages.push({ role: 'user', content });
+    this.recordMessage('user', content);
+  }
+}

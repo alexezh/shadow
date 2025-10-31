@@ -4,8 +4,7 @@ import { YRange } from "../om/YRange";
 import type { OpenAIClient } from "./openai-client";
 
 export type ExecutePromptContext = {
-  session: Session | undefined,
-  database: Database,
+  session: Session,
   prompt: string,
   partId?: string;
   docId?: string;

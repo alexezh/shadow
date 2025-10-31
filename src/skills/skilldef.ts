@@ -1,5 +1,10 @@
 import type { ToolDef } from "./tooldef.js";
 
+export type ChildSkillDef = {
+  step: string;
+  text: string;
+  tools?: ToolDef[];
+}
 export type SkillDef = {
   name: string;
   keywords: string[];
@@ -10,9 +15,5 @@ export type SkillDef = {
   }
   test_keywords?: string[];
   tools?: ToolDef[];
-  childSkill?: {
-    step: string;
-    text: string;
-    tools?: ToolDef[];
-  }[];
+  childSkill?: ChildSkillDef[];
 }

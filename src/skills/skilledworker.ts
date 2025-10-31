@@ -1,12 +1,8 @@
-import { ConversationState, OpenAIClient, TokenUsage } from "./openai-client.js";
-import { PhaseGatedEnvelope } from "./phase-envelope.js";
-import type { ExecutePromptContext } from "./executepromptcontext.js";
-import type { ToolDef } from "../skills/tooldef.js";
-import { getRootSkill, type ChatPromptContext, type ChatPromptResult } from "../skills/rootskill.js";
-import { ConversationStateChat } from "./openai-chatclientlegacy.js";
-import { createContext } from "./openai-createclient.js";
-import { SkilledAIClient } from "./skilled-aiclient.js";
-import { ToolDispatcher } from "./tooldispatcher.js";
+import { ConversationState, TokenUsage } from "../openai/openai-client.js";
+import { PhaseGatedEnvelope } from "../openai/phase-envelope.js";
+import type { ExecutePromptContext } from "../openai/executepromptcontext.js";
+import { getRootSkill } from "./rootskill.js";
+import { SkilledAIClient } from "../openai/skilled-aiclient.js";
 
 interface StepCompletion {
   next_step?: string | null;
@@ -16,35 +12,16 @@ interface StepCompletion {
   [key: string]: unknown;
 }
 
-class SkillStack {
-
-}
-
-function tryParseJson<T>(raw: string | null | undefined): T | null {
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-
 export async function skilledWorker(
   ctx: ExecutePromptContext,
-  chatCtx: ChatPromptContext,
 ): Promise<{ response: string; conversationState: ConversationState; usage: TokenUsage }> {
 
-  const toolDispatcher = new ToolDispatcher(ctx.database);
-  const skilledClient = new SkilledAIClient(toolDispatcher);
+  const skilledClient = new SkilledAIClient();
   const startAt = performance.now();
 
-  const rootSkill = await getRootSkill(ctx.database, chatCtx);
+  const rootSkill = await getRootSkill(ctx.session.database, ctx);
 
-  const conversationState = createContext(
+  const vmCtx = ctx.session.vm.createContext(
     rootSkill.text,
     ctx.prompt,
     rootSkill.contextMessage
@@ -60,20 +37,12 @@ export async function skilledWorker(
 
   const maxFollowUps = 12;
 
-  for (let iteration = 0; iteration < maxFollowUps; iteration++) {
-    // Set the current prompt in the MCP client for history tracking
-    if (iteration > 0) {
-      toolDispatcher.setCurrentPrompt(currentPrompt);
-    }
+  vmCtx.executionStartAt = startAt;
 
+  for (let iteration = 0; iteration < maxFollowUps; iteration++) {
     const result = await skilledClient.chatWithSkills(
-      ctx.session,
-      rootSkill.tools!,
-      conversationState,
-      currentPrompt,
-      {
-        startAt: startAt
-      }
+      vmCtx,
+      currentPrompt
     );
 
     lastResponse = result.response;
@@ -97,16 +66,28 @@ export async function skilledWorker(
 
   const endAt = performance.now();
   const elapsedSeconds = (endAt - startAt) / 1000;
-  const contextSummary = conversationState.getSummary();
+  const contextSummary = vmCtx.getSummary();
   console.log(`skilledWorker: elapsed=${elapsedSeconds.toFixed(2)}s prompt=${aggregateUsage.promptTokens} completion=${aggregateUsage.completionTokens} total=${aggregateUsage.totalTokens}`);
   console.log(`Context usage: messages=${contextSummary.messageCount} chars=${contextSummary.messageChars} trackedPrompt=${contextSummary.promptTokens} trackedCompletion=${contextSummary.completionTokens}`);
   console.log('Response:', lastResponse);
 
   return {
     response: lastResponse,
-    conversationState,
+    conversationState: vmCtx,
     usage: aggregateUsage
   };
+}
+
+function tryParseJson<T>(raw: string | null | undefined): T | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
 }
 
 function extractNextPrompt(envelope: PhaseGatedEnvelope | null): string | null {

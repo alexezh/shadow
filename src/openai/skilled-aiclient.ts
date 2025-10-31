@@ -1,171 +1,27 @@
 import OpenAI from 'openai';
-import { ChatCompletionTool } from 'openai/resources/index.js';
 import { parsePhaseEnvelope, PhaseGatedEnvelope, Phase, validatePhaseProgression } from './phase-envelope.js';
 import { ToolDispatcher } from './tooldispatcher.js';
 import { Session } from '../server/session.js';
 import { ChatResult, getOpenAI, TokenUsage } from './openai-client.js';
 import { retryWithBackoff } from './retrywithbackoff.js';
 import { Stream } from 'openai/core/streaming.js';
-
-type TrackerEntry =
-  | { kind: 'message'; role: string; tag?: string; length: number; timestamp: number }
-  | { kind: 'usage'; tag: string; promptTokens: number; completionTokens: number; totalTokens: number; timestamp: number };
-
-type TotalUsage = {
-  totalPromptTokens: number;
-  totalCompletionTokens: number;
-  totalTokens: number;
-}
-
-export class ConversationStateChatSkill {
-  public messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-  public systemPrompt: string;
-  public lastPhase: Phase | null;
-  public createdAt: Date;
-
-  // Context tracking
-  public promptTokens: number = 0;
-  public completionTokens: number = 0;
-  public totalTokens: number = 0;
-  public messageChars: number = 0;
-  public messageCount: number = 0;
-  public entries: TrackerEntry[] = [];
-
-  constructor(systemPrompt: string, initialUserMessage: string, contextMessage?: {
-    role: 'user';
-    content: string;
-  }) {
-    if (contextMessage) {
-      this.messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'developer', content: contextMessage.content! },
-        { role: 'user', content: initialUserMessage }
-      ];
-
-    } else {
-      this.messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: initialUserMessage }
-      ];
-    }
-    this.systemPrompt = systemPrompt;
-    this.lastPhase = null;
-    this.createdAt = new Date();
-
-    // Record initial messages
-    this.recordMessage('system', systemPrompt, 'system');
-    this.recordMessage('user', initialUserMessage, 'user');
-  }
-
-  pushSystemMessage(content: string): void {
-    this.messages.push({ role: 'system', content });
-    this.recordMessage('system', content, 'system');
-  };
-
-  pushToolMessage(toolCallId: string, content: string, tag: string): void {
-    this.messages.push({
-      role: 'tool',
-      tool_call_id: toolCallId,
-      content
-    });
-    this.recordMessage('tool', content, tag);
-  };
-
-  recordMessage(role: string, content: string, tag?: string): void {
-    const length = content ? content.length : 0;
-    this.messageChars += length;
-    this.messageCount += 1;
-    this.entries.push({
-      kind: 'message',
-      role,
-      tag,
-      length,
-      timestamp: Date.now()
-    });
-  }
-
-  respondToToolCallsWithError(toolCalls: any[], reason: string) {
-    if (!toolCalls || toolCalls.length === 0) {
-      return;
-    }
-
-    for (const toolCall of toolCalls) {
-      if (!toolCall?.id) {
-        console.warn(`⚠️ Unable to respond to tool call without id (tool=${toolCall?.function?.name || 'unknown'})`);
-        continue;
-      }
-
-      console.warn(`respondToToolCallsWithError: (tool=${toolCall?.function?.name || 'unknown'}) (reason=${reason})`);
-
-      this.pushToolMessage(
-        toolCall.id,
-        JSON.stringify({
-          success: false,
-          error: reason
-        }, null, 2),
-        toolCall?.function?.name || 'tool-error'
-      );
-    }
-  };
-
-  recordUsage(tag: string, promptTokens: number, completionTokens: number, totalTokens?: number): void {
-    if (!promptTokens && !completionTokens && !totalTokens) {
-      return;
-    }
-    const resolvedTotal = totalTokens ?? (promptTokens + completionTokens);
-    this.promptTokens += promptTokens;
-    this.completionTokens += completionTokens;
-    this.totalTokens += resolvedTotal;
-    this.entries.push({
-      kind: 'usage',
-      tag,
-      promptTokens,
-      completionTokens,
-      totalTokens: resolvedTotal,
-      timestamp: Date.now()
-    });
-  }
-
-  getSummary(): TokenUsage & { messageChars: number; messageCount: number } {
-    return {
-      promptTokens: this.promptTokens,
-      completionTokens: this.completionTokens,
-      totalTokens: this.totalTokens,
-      messageChars: this.messageChars,
-      messageCount: this.messageCount
-    };
-  }
-
-  addUserMessage(content: string): void {
-    this.messages.push({ role: 'user', content });
-    this.recordMessage('user', content, 'user');
-  }
-}
+import type { SkillVM } from '../skills/skillvm.js';
+import { SkillDef } from '../skills/skilldef.js';
+import { SkillVMContext, TotalUsage } from '../skills/skillvmcontext.js';
 
 export class SkilledAIClient {
-  private toolDispatcher: ToolDispatcher;
-
-  constructor(dispatcher: ToolDispatcher) {
-    this.toolDispatcher = dispatcher;
-  }
-
   async chatWithSkills(
-    session: Session | undefined,
-    mcpTools: Array<ChatCompletionTool>,
-    conversationState: ConversationStateChatSkill,
+    vmCtx: SkillVMContext,
     userMessage: string,
-    options?: {
-      startAt?: number
-    }
   ): Promise<ChatResult> {
 
     // Add user message to conversation state
-    conversationState.addUserMessage(userMessage);
+    vmCtx.addUserMessage(userMessage);
 
     // Get or create conversation
     const requireEnvelope = true;
-    const messages = conversationState.messages;
-    let lastPhase = conversationState.lastPhase;
+    const messages = vmCtx.messages;
+    let lastPhase = vmCtx.lastPhase;
 
     console.log(`💬 Conversation with ${messages.length} messages`);
 
@@ -180,11 +36,11 @@ export class SkilledAIClient {
     }
 
     while (iteration < maxIterations) {
-      const response = await retryWithBackoff(async () => {
+      const response = await skillVM.executeStep(async (skill: SkillDef) => {
         return getOpenAI().chat.completions.create({
           model: 'gpt-4.1',
           messages,
-          tools: mcpTools,
+          tools: skill.tools,
           stream: true,
           stream_options: {
             include_usage: true
@@ -202,7 +58,7 @@ export class SkilledAIClient {
         tool_calls: [] as any[]
       };
 
-      await this.readResponseStream(conversationState, iteration, response, assistantMessage, totals);
+      await this.readResponseStream(vmCtx, iteration, response.stream, assistantMessage, totals);
 
       const toolCalls = assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0
         ? assistantMessage.tool_calls
@@ -212,14 +68,13 @@ export class SkilledAIClient {
         delete (assistantMessage as any).tool_calls;
       }
 
-      const elapsed = (options?.startAt) ? (performance.now() - options.startAt) / 1000 : 0;
+      const elapsed = vmCtx.elapsed();
       const responseText = (assistantMessage.content.length !== 0) ? assistantMessage.content.substring(0, 100) : JSON.stringify(assistantMessage).substring(0, 200);
 
       console.log(`assistant: [elapsed: ${elapsed}] [tt: ${totals.totalPromptTokens}] ${responseText}`);
 
       // Add the complete assistant message
-      messages.push(assistantMessage);
-      conversationState.recordMessage('assistant', assistantMessage.content || '', 'assistant');
+      vmCtx.pushAssistantMessage(assistantMessage.content);
 
       //this.process
       const rawContent = (assistantMessage.content || '').trim();
@@ -231,7 +86,7 @@ export class SkilledAIClient {
           if (requireEnvelope) {
             const transitionIssue = validatePhaseProgression(lastPhase, controlEnvelope.phase);
             if (transitionIssue) {
-              conversationState.pushSystemMessage(`Phase transition error: ${transitionIssue} Respond again with a valid phase-gated control envelope JSON.`);
+              vmCtx.pushSystemMessage(`Phase transition error: ${transitionIssue} Respond again with a valid phase-gated control envelope JSON.`);
               invalidEnvelopeCount++;
               if (invalidEnvelopeCount > 5) {
                 throw new Error('Exceeded maximum invalid phase transitions from the assistant.');
@@ -251,9 +106,9 @@ export class SkilledAIClient {
               throw new Error(`Assistant failed to provide a valid phase - gated control envelope JSON after multiple attempts: ${error?.message || String(error)} `);
             }
 
-            conversationState.respondToToolCallsWithError(toolCalls, `Rejected tool call: ${error?.message || String(error)} `);
+            vmCtx.respondToToolCallsWithError(toolCalls, `Rejected tool call: ${error?.message || String(error)} `);
 
-            conversationState.pushSystemMessage(`Your previous reply was not valid phase-gated control envelope JSON. Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`);
+            vmCtx.pushSystemMessage(`Your previous reply was not valid phase-gated control envelope JSON. Error: ${error?.message || String(error)}. Respond again using only the required JSON structure.`);
             continue;
           } else {
             controlEnvelope = null;
@@ -264,7 +119,7 @@ export class SkilledAIClient {
       if (toolCalls.length > 0) {
         let pendingEnvelopeReminder = false;
 
-        const res = this.validateToolCall(conversationState, lastPhase, controlEnvelope, toolCalls);
+        const res = this.validateToolCall(vmCtx, lastPhase, controlEnvelope, toolCalls);
         lastPhase = res.lastPhase!;
         pendingEnvelopeReminder = res.pendingEnvelopeReminder;
         invalidEnvelopeCount = invalidEnvelopeCount;
@@ -273,10 +128,10 @@ export class SkilledAIClient {
           continue;
         }
 
-        await this.executeTools(session, toolCalls, messages, conversationState);
+        await this.executeTools(skillVM, vmCtx, toolCalls, messages);
 
         if (pendingEnvelopeReminder) {
-          conversationState.pushSystemMessage('Reminder: include the phase-gated control envelope JSON with phase="action" whenever you call tools.');
+          vmCtx.pushSystemMessage('Reminder: include the phase-gated control envelope JSON with phase="action" whenever you call tools.');
         }
 
         iteration++;
@@ -284,7 +139,7 @@ export class SkilledAIClient {
       } else if (toolCalls.length === 0) {
         if (requireEnvelope) {
           if (!controlEnvelope) {
-            conversationState.pushSystemMessage('All responses must include the control envelope JSON. Provide the envelope.');
+            vmCtx.pushSystemMessage('All responses must include the control envelope JSON. Provide the envelope.');
             invalidEnvelopeCount++;
             if (invalidEnvelopeCount > 5) {
               throw new Error('Assistant did not provide the control envelope JSON.');
@@ -293,7 +148,7 @@ export class SkilledAIClient {
           }
 
           if (controlEnvelope.phase !== 'final') {
-            conversationState.pushSystemMessage('Continue working until you can respond with a phase="final" control envelope JSON summarizing the outcome.');
+            vmCtx.pushSystemMessage('Continue working until you can respond with a phase="final" control envelope JSON summarizing the outcome.');
             invalidEnvelopeCount++;
             if (invalidEnvelopeCount > 5) {
               throw new Error('Assistant failed to reach the final phase with a valid envelope.');
@@ -302,7 +157,7 @@ export class SkilledAIClient {
           }
 
           // Update last phase
-          conversationState.lastPhase = lastPhase;
+          vmCtx.lastPhase = lastPhase;
 
           return {
             response: JSON.stringify(controlEnvelope, null, 2),
@@ -318,7 +173,7 @@ export class SkilledAIClient {
             continue;
           }
 
-          conversationState.lastPhase = lastPhase;
+          vmCtx.lastPhase = lastPhase;
 
           return {
             response: rawContent,
@@ -336,7 +191,7 @@ export class SkilledAIClient {
     }
 
     // Update last phase even if max iterations reached
-    conversationState.lastPhase = lastPhase;
+    vmCtx.lastPhase = lastPhase;
 
     return {
       response: 'Max iterations reached without final response',
@@ -350,7 +205,7 @@ export class SkilledAIClient {
   }
 
   private async readResponseStream(
-    conversationState: ConversationStateChatSkill,
+    conversationState: SkillVMContext,
     iteration: number,
     response: Stream<OpenAI.Chat.Completions.ChatCompletionChunk> & {
       _request_id?: string | null;
@@ -424,7 +279,7 @@ export class SkilledAIClient {
   }
 
   private validateToolCall(
-    conversationState: ConversationStateChatSkill,
+    conversationState: SkillVMContext,
     lastPhase: Phase | null,
     controlEnvelope: PhaseGatedEnvelope | null,
     toolCalls: any[]): {
@@ -487,38 +342,38 @@ export class SkilledAIClient {
   }
 
   private async executeTools(
-    session: Session | undefined,
+    skillVM: SkillVM,
+    conversationState: SkillVMContext,
     toolCalls: any,
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-    conversationState: ConversationStateChatSkill
   ): Promise<void> {
     // Execute tool calls
     for (const toolCall of toolCalls) {
       const toolStartAt = performance.now();
 
-      if (toolCall.type === 'function') {
-        try {
-          const functionArgs = JSON.parse(toolCall.function.arguments);
-          const result = await this.toolDispatcher.executeTool(session!, {
-            name: toolCall.function.name,
-            arguments: functionArgs
-          });
+      if (toolCall.type !== 'function') {
+        console.log(`executeTools: ${toolCall.function.name} not a function`);
+        continue;
+      }
 
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: result
-          });
-          conversationState.recordMessage('tool', result, toolCall.function.name);
-        } catch (error) {
-          const errText = `Error executing ${toolCall.function.name}: ${error}`;
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: errText
-          });
-          conversationState.recordMessage('tool', errText, `${toolCall.function.name}-error`);
-        }
+      try {
+        const functionArgs = JSON.parse(toolCall.function.arguments);
+        const result = await skillVM.executeTool({
+          name: toolCall.function.name,
+          arguments: functionArgs
+        });
+
+        conversationState.pushToolMessage(
+          toolCall.id,
+          result
+        );
+      } catch (error) {
+        const errText = `Error executing ${toolCall.function.name}: ${error}`;
+        conversationState.pushToolMessage(
+          toolCall.id,
+          errText
+        );
+        continue;
       }
 
       console.log(`executeTools: ${toolCall.function.name} elapsed: ${(performance.now() - toolStartAt) / 1000}`);

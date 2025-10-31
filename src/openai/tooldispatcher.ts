@@ -4,7 +4,6 @@ import OpenAI from 'openai';
 import * as path from 'path';
 import { findRanges as findRangesStandalone } from '../skills/findRange.js';
 import { formatRange as formatRangeStandalone, cacheRange } from '../skills/formatRange.js';
-import { getSkills } from "../skills/getSkills.js";
 import { getContext, setContext } from '../skills/context.js';
 import { getContentRange } from '../skills/getContentRange.js';
 import { replaceContentRange } from '../skills/replaceContentRange.js';
@@ -22,7 +21,6 @@ export interface MCPToolCall {
 export class ToolDispatcher {
   private database: Database;
   private openaiClient: OpenAI;
-  private currentPrompt: string = '';
 
   // Buffer for chunked content
   private contentBuffer: ContentBuffer = new Map();
@@ -35,7 +33,7 @@ export class ToolDispatcher {
   async executeTool(session: Session, toolCall: MCPToolCall): Promise<string> {
     switch (toolCall.name) {
       case 'get_skills':
-        return await getSkills(this.database, toolCall.arguments);
+        throw "not supported"
 
       case 'get_contentrange':
         return await getContentRange(session, toolCall.arguments);
@@ -67,8 +65,8 @@ export class ToolDispatcher {
       case 'find_file':
         return await this.findFile(toolCall.arguments);
 
-      case 'store_history':
-        return await this.storeHistory(toolCall.arguments);
+      // case 'store_history':
+      //   return await this.storeHistory(toolCall.arguments);
 
       case 'load_history':
         return await this.loadHistory(toolCall.arguments);
@@ -212,10 +210,6 @@ export class ToolDispatcher {
     }
   }
 
-  setCurrentPrompt(prompt: string): void {
-    this.currentPrompt = prompt;
-  }
-
   // private setCurrentRange(name: string, format: string, start_para?: string, end_para?: string, start_line?: number, end_line?: number): void {
   //   this.currentRange = {
   //     name,
@@ -264,27 +258,27 @@ export class ToolDispatcher {
     }
   }
 
-  private async storeHistory(args: { summary: string }): Promise<string> {
-    try {
-      await this.database.storeHistory(this.currentPrompt, args.summary);
+  // private async storeHistory(args: { summary: string }): Promise<string> {
+  //   try {
+  //     await this.database.storeHistory(this.currentPrompt, args.summary);
 
-      console.log(`📝 Stored history entry: prompt="${this.currentPrompt.substring(0, 50)}..." summary="${args.summary.substring(0, 50)}..."`);
+  //     console.log(`📝 Stored history entry: prompt="${this.currentPrompt.substring(0, 50)}..." summary="${args.summary.substring(0, 50)}..."`);
 
-      return JSON.stringify({
-        success: true,
-        message: 'History entry stored successfully',
-        prompt: this.currentPrompt,
-        summary: args.summary,
-        timestamp: new Date().toISOString()
-      }, null, 2);
-    } catch (error: any) {
-      console.error('❌ Error storing history:', error);
-      return JSON.stringify({
-        success: false,
-        error: error.message
-      }, null, 2);
-    }
-  }
+  //     return JSON.stringify({
+  //       success: true,
+  //       message: 'History entry stored successfully',
+  //       prompt: this.currentPrompt,
+  //       summary: args.summary,
+  //       timestamp: new Date().toISOString()
+  //     }, null, 2);
+  //   } catch (error: any) {
+  //     console.error('❌ Error storing history:', error);
+  //     return JSON.stringify({
+  //       success: false,
+  //       error: error.message
+  //     }, null, 2);
+  //   }
+  // }
 
   private async loadHistory(args: { limit?: number }): Promise<string> {
     try {

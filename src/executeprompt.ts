@@ -6,7 +6,7 @@ import { initContextMap } from "./skills/context.js";
 import { initInstructions } from "./skills/initSkills.js";
 import * as fs from 'fs';
 import * as path from 'path';
-import { skilledWorker } from "./openai/skilledworker.js";
+import { skilledWorker } from "./skills/skilledworker.js";
 import { loadDoc } from "./server/loaddoc.js";
 import type { ExecutePromptContext } from "./openai/executepromptcontext.js";
 import { OpenAIClientChatLegacy } from "./openai/openai-chatclientlegacy.js";
@@ -20,19 +20,19 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
 
   switch (cmd) {
     case '!init':
-      await handleInit(ctx.database);
+      await handleInit(ctx.session.database);
       break;
 
     case '!initmodel':
-      await initRuleModel(ctx.database);
+      await initRuleModel(ctx.session.database);
       break;
 
     case '!testmodel':
-      await testRuleModel(ctx.database);
+      await testRuleModel(ctx.session.database);
       break;
 
     case '!list-instructions':
-      await handleListRules(ctx.database);
+      await handleListRules(ctx.session.database);
       break;
 
     case '!get-instruction':
@@ -40,7 +40,7 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
         console.log('Usage: get-rule <term1> [term2] ...');
         return;
       }
-      await handleGetInstructions(ctx.database, parts.slice(1));
+      await handleGetInstructions(ctx.session.database, parts.slice(1));
       break;
 
     // case '!store-instruction':
@@ -89,9 +89,9 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
 
     case '!listparts':
       if (parts.length >= 2) {
-        await handleListParts(ctx.database, parts[1]);
+        await handleListParts(ctx.session.database, parts[1]);
       } else {
-        await handleListParts(ctx.database);
+        await handleListParts(ctx.session.database);
       }
       break;
 
@@ -100,7 +100,7 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
         console.log('Usage: !editpart <docid> <partid>');
         return;
       }
-      await handleEditPart(ctx.database, parts[1], parts[2]);
+      await handleEditPart(ctx.session.database, parts[1], parts[2]);
       break;
 
     case '!export':
@@ -108,20 +108,13 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
         console.log('Usage: !assemble <docid>');
         return;
       }
-      await handleExport(ctx.database, parts[1]);
+      await handleExport(ctx.session.database, parts[1]);
       break;
 
     default:
       // Treat as chat message if not starting with !
       if (!ctx.prompt.startsWith('!')) {
-        const result = await skilledWorker(
-          ctx,
-          {
-            docId: ctx.docId ?? ctx.session?.id,
-            partId: ctx.partId ?? ctx.session?.currentPartId,
-            selection: ctx.selection
-          }
-        );
+        const result = await skilledWorker(ctx);
       } else {
         console.log('Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, !assemble, exit');
       }

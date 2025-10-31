@@ -2,9 +2,7 @@ import * as http from 'http';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Database } from '../database.js';
-import { YDoc } from '../om/YDoc.js';
 import { executePrompt } from '../executeprompt.js';
-import { OpenAIClient } from '../openai/openai-client.js';
 import { handleRunAction, RunActionRequest } from '../om/handleRunAction.js';
 import { Session } from './session.js';
 import { makeDefaultDoc } from './loaddoc.js';
@@ -15,12 +13,9 @@ import { make31BitId } from '../om/make31bitid.js';
 import { YPropSet } from '../om/YPropSet.js';
 import { YStr } from '../om/YStr.js';
 import { getSelectionKind } from '../om/YNode.js';
-import { GetDocResponse, PromptRequest, GetThreadRequest, GetThreadResponse, GetChatRequest, GetChatResponse, CreateChatRequest, CreateChatResponse } from './messages.js';
+import { GetDocResponse, PromptRequest } from './messages.js';
 import { handleGetThread } from './handleGetThead.js';
 import { handleGetChat, handleCreateChat } from './handleChat.js';
-import { OpenAIClientChatLegacy } from '../openai/openai-chatclientlegacy.js';
-import { OpenAIClientResponses } from '../openai/openai-responsesclient.js';
-import { createClient } from '../openai/openai-createclient.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -214,7 +209,7 @@ export class HttpServer {
     const newSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const doc = makeDefaultDoc();
 
-    const session = new SessionImpl(newSessionId, doc, 'main');
+    const session = new SessionImpl(this.database, newSessionId, doc, 'main');
     this.sessions.set(newSessionId, session);
     console.log(`Created session: ${newSessionId}`);
     return session;
@@ -309,7 +304,6 @@ export class HttpServer {
         const result =
           executePrompt({
             session: session,
-            database: this.database,
             prompt: request.prompt,
             partId: request.partId,
             docId: request.docId,

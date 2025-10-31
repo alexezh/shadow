@@ -56,7 +56,7 @@ export async function importDoc(filename: string, openaiClient: OpenAIClient): P
       body.addChild(rootNode);
     }
 
-    const session = new SessionImpl(filename, doc);
+    const session = new SessionImpl(undefined!, filename, doc);
 
     const systemPrompt = `You are Shadow, a word processing software agent responsible for working with documents.
 
