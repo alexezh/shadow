@@ -64,12 +64,13 @@ export class SkillVMContext {
     this.recordMessage('tool', content);
   };
 
-  pushAssistantMessage(content: string): void {
-    this.messages.push({
-      role: 'assistant',
-      content
-    });
-    this.recordMessage('assistant', content);
+  pushAssistantMessage(message: {
+    role: 'assistant',
+    content: string,
+    tool_calls: any[]
+  }): void {
+    this.messages.push(message);
+    this.recordMessage('assistant', message.content);
   };
 
   private recordMessage(role: string, content: string): void {

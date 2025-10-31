@@ -16,6 +16,7 @@ import { getSelectionKind } from '../om/YNode.js';
 import { GetDocResponse, PromptRequest } from './messages.js';
 import { handleGetThread } from './handleGetThead.js';
 import { handleGetChat, handleCreateChat } from './handleChat.js';
+import { initOpenAI } from '../openai/openai-client.js';
 
 export class HttpServer {
   private server: http.Server | null = null;
@@ -27,6 +28,8 @@ export class HttpServer {
     this.database = database;
     this.port = port;
     this.sessions = new Map();
+
+    initOpenAI(process.env.OPENAI_API_KEY!);
   }
 
   async start(): Promise<void> {

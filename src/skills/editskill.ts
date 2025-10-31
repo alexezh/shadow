@@ -30,7 +30,10 @@ export const editSkill: SkillDef =
       getToolDef("get_skills"),
       getToolDef("get_contentrange"),
       getToolDef("find_ranges")
-    ], ops: []
+    ], ops: [{
+      code: "next",
+      target: "*"
+    }]
   },
   text: `
 **edit document · step pipeline**
@@ -74,7 +77,10 @@ Execution rules:
           getToolDef("get_contentrange"),
           getToolDef("find_ranges")
         ],
-        ops: []
+        ops: [{
+          code: "next",
+          target: "*"
+        }]
       },
       text: `
 {
@@ -110,7 +116,10 @@ Execution rules:
           getToolDef("make_id"),
           getToolDef("store_htmlpart")
         ],
-        ops: []
+        ops: [{
+          code: "next",
+          target: "*"
+        }]
       },
       text: `
 {
@@ -144,7 +153,10 @@ Execution rules:
           getToolDef("get_contentrange"),
           getToolDef("replace_contentrange")
         ],
-        ops: []
+        ops: [{
+          code: "next",
+          target: "*"
+        }]
       },
       text: `
 {
@@ -176,7 +188,10 @@ Execution rules:
         tools: [
           getToolDef("format_range")
         ],
-        ops: []
+        ops: [{
+          code: "next",
+          target: "*"
+        }]
       },
       text: applyFormatStep(`{
     "status": "apply_formatting-complete",

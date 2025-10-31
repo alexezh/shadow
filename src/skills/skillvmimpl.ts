@@ -45,15 +45,15 @@ export class SkillVMImpl implements SkillVM {
   }
 
   public async executeTool(vmCtx: SkillVMContext, toolCall: MCPToolCall): Promise<string> {
-    if (toolCall.name === "get_skill") {
+    if (toolCall.name === "get_skills") {
       const { skill, step, result } = await getSkills(this.session.database, toolCall.arguments);
       if (!skill) {
         return result;
       }
 
-      this.transition(skill, step);
       const newSpec = getSpec(skill, step);
-      this.stack.push({ id: newSpec.id!, spec: newSpec! })
+      this.transition(newSpec);
+      //this.stack.push({ id: newSpec.id!, spec: newSpec! })
       return result;
     } else {
       const result = await this.dispatcher.executeTool(this.session, toolCall);
@@ -61,7 +61,7 @@ export class SkillVMImpl implements SkillVM {
     }
   }
 
-  private transition(skill: SkillDef, step?: SkillStepDef): void {
+  private transition(newSpec: VMSpec): void {
     let curSpec = this.currentSpec;
     let curOp: VMOp | undefined;
     for (let op of curSpec.ops) {
@@ -72,6 +72,14 @@ export class SkillVMImpl implements SkillVM {
 
     if (!curOp) {
       console.log("transition: cannot find op:" + curSpec.id)
+      throw "cannot file op";
+    }
+
+    if (curOp.code === "call") {
+      this.stack.push({ id: newSpec.id!, spec: newSpec })
+    } else {
+      this.stack.pop();
+      this.stack.push({ id: newSpec.id!, spec: newSpec })
     }
   }
 }

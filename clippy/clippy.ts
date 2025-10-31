@@ -444,11 +444,14 @@ class ClippyFloat {
       this.expand();
     });
 
-    // Click on collapsed float to expand
+    // Click on float: expand if collapsed, prevent propagation if expanded
     this.floatEl.addEventListener('click', (e) => {
       if (!this.isExpanded) {
         e.stopPropagation();
         this.expand();
+      } else {
+        // Prevent clicks inside the expanded prompt from closing it
+        e.stopPropagation();
       }
     });
 
@@ -483,13 +486,6 @@ class ClippyFloat {
     document.addEventListener('click', (e) => {
       if (this.isExpanded && !this.floatEl.contains(e.target as Node)) {
         this.collapse();
-      }
-    });
-
-    // Prevent clicks inside the prompt from closing
-    this.floatEl.addEventListener('click', (e) => {
-      if (this.isExpanded) {
-        e.stopPropagation();
       }
     });
   }

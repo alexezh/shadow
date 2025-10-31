@@ -69,7 +69,7 @@ export class SkilledAIClient {
       console.log(`assistant: [elapsed: ${elapsed}] [tt: ${totals.totalPromptTokens}] ${responseText}`);
 
       // Add the complete assistant message
-      vmCtx.pushAssistantMessage(assistantMessage.content);
+      vmCtx.pushAssistantMessage(assistantMessage);
 
       //this.process
       const rawContent = (assistantMessage.content || '').trim();

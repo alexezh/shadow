@@ -42,7 +42,7 @@ export type SkillDef = {
 export function getSpec(skill: SkillDef, step?: SkillStepDef): VMSpec {
   const newSpec = step ? step.spec : skill.spec;
   if (!newSpec?.id) {
-    newSpec!.id = skill.name + "!" + step?.name;
+    newSpec!.id = skill.name + "!" + (step?.name ?? "");
   }
   return newSpec!;
 }
