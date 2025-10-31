@@ -1,10 +1,21 @@
 import type { ToolDef } from "./tooldef.js";
 
-export type ChildSkillDef = {
+export type VMOp = {
+  code: "next" | "call",
+  target: string;
+}
+
+export type VMSpec = {
+  tools?: ToolDef[];
+  ops: VMOp[];
+}
+
+export type SkillStepDef = {
   step: string;
   text: string;
-  tools?: ToolDef[];
+  spec?: VMSpec;
 }
+
 export type SkillDef = {
   name: string;
   keywords: string[];
@@ -14,6 +25,6 @@ export type SkillDef = {
     content: string;
   }
   test_keywords?: string[];
-  tools?: ToolDef[];
-  childSkill?: ChildSkillDef[];
+  spec?: VMSpec;
+  childSkill?: SkillStepDef[];
 }

@@ -1,11 +1,11 @@
 import type { Database } from "../database.js";
 import { CORE_SKILLS } from "./coreskills.js";
-import type { ChildSkillDef, SkillDef } from "./skilldef.js";
+import type { SkillStepDef, SkillDef } from "./skilldef.js";
 
 
 export async function getSkills(
   database: Database,
-  args: { name: string; step?: string; }): Promise<{ skill?: SkillDef, step?: ChildSkillDef, result: string }> {
+  args: { name: string; step?: string; }): Promise<{ skill?: SkillDef, step?: SkillStepDef, result: string }> {
   console.log("getSkills: " + JSON.stringify(args));
 
   let skill = CORE_SKILLS.find((x) => x.name === args.name);

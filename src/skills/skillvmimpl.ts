@@ -3,7 +3,7 @@ import { retryWithBackoff } from "../openai/retrywithbackoff.js";
 import { MCPToolCall, ToolDispatcher } from "../openai/tooldispatcher.js";
 import { Session } from "../server/session.js";
 import { getSkills } from "./getSkills.js";
-import type { ChildSkillDef, SkillDef } from "./skilldef.js";
+import type { SkillStepDef, SkillDef } from "./skilldef.js";
 import type { CompletionStream, SkillVM } from "./skillvm.js";
 import { SkillVMContext } from "./skillvmcontext.js";
 
@@ -11,16 +11,17 @@ import { SkillVMContext } from "./skillvmcontext.js";
  * as we run through skills, we build stack of things
  */
 export class SkillVMImpl implements SkillVM {
-  private stack: {
-    skill: SkillDef;
-    step?: ChildSkillDef;
-  }[] = [];
+  private stack: VMStep[] = [];
   private dispatcher: ToolDispatcher;
   private session: Session;
 
   public constructor(session: Session, dispatcher: ToolDispatcher) {
     this.dispatcher = dispatcher;
     this.session = session;
+  }
+
+  private get currentStep(): VMStep {
+    return this.stack[this.stack.length - 1];
   }
 
   createContext(systemPrompt: string, initialUserMessage: string, contextMessage?: {
@@ -31,7 +32,7 @@ export class SkillVMImpl implements SkillVM {
   }
 
   //private currentSkill
-  public pushStep(skill: SkillDef, step?: ChildSkillDef): void {
+  public pushStep(skill: SkillDef, step?: SkillStepDef): void {
     this.stack.push({ skill, step })
   }
 
@@ -42,9 +43,9 @@ export class SkillVMImpl implements SkillVM {
   public async executeStep(
     ctx: SkillVMContext,
     func: (skill: SkillDef) => Promise<CompletionStream>): Promise<{ skill: SkillDef, stream: CompletionStream }> {
-    const skill = this.nextSkill;
+    const skill = this.currentStep;
     const stream = await retryWithBackoff(async () => {
-      return func(this.nextSkill);
+      return func(this.currentStep);
     });
 
     return {

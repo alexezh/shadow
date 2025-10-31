@@ -157,7 +157,15 @@ export async function getRootSkill(database: Database, context: ChatPromptContex
     ],
     text: prompt.systemPrompt,
     contextMessage: prompt.contextMessage,
-    tools: [getToolDef("get_skills")]
+    spec:
+    {
+      tools: [getToolDef("get_skills")],
+      ops: [{
+        // any skill, call
+        code: "call",
+        target: "*"
+      }]
+    }
   }
 }
 
