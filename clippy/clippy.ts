@@ -15,6 +15,7 @@ import { VirtualDocument, vdomCache } from "./vdom.js"
 import { EditorContext, CommentThreadRef, getCurrentEditorContext, setCurrentEditorContext } from "./editor-context.js"
 import { renderCommentThreads, fetchCommentThreads } from "./comments.js"
 import { ActionResult, type AgentChange, ConsoleResult, ContentChangeRecord, CreatePartRequest, CreatePartResponse, GetChangesResponse, type GetDocPartResponse, PromptRequest } from "../src/server/messages.js"
+import { createChatFromPartId } from "./chat.js"
 
 // Toolbar button handlers
 const buttons = {
@@ -530,12 +531,25 @@ async function selectPart(partId: string): Promise<void> {
   if (!docContent) return;
 
   try {
+    // Check if this is a chat part
+    const partInfo = allParts.find(p => p.id === partId);
+    if (partInfo && partInfo.kind === 'chat') {
+      // Render inline chat
+      await createChatFromPartId(getSessionId()!, partId, true, docContent);
+      renderPartsList();
+      logToConsole(`Switched to chat part: ${partId}`, 'info');
+      return;
+    }
+
     // Check if new part is already in cache
     let vdom = vdomCache.get(partId);
 
     if (vdom) {
       // Load from cache
       logToConsole(`Loading part from cache: ${partId}`, 'info');
+
+      // Re-render the cached document to the shadow root
+      vdom.render();
 
       // Restore editor context
       setCurrentEditorContext(vdom.editorContext!);
@@ -640,7 +654,6 @@ async function createPart(editorContext: EditorContext | null, kind: "chat" | "d
 // Parts toolbar button handlers
 const addDraftBtn = document.getElementById('btn-add-draft');
 const addChatBtn = document.getElementById('btn-add-chat');
-const addPromptBtn = document.getElementById('btn-add-prompt');
 const moreBtn = document.getElementById('parts-more-btn');
 
 if (addDraftBtn) {
@@ -652,12 +665,6 @@ if (addDraftBtn) {
 if (addChatBtn) {
   addChatBtn.addEventListener('click', () => {
     createPart(getCurrentEditorContext(), 'chat');
-  });
-}
-
-if (addPromptBtn) {
-  addPromptBtn.addEventListener('click', () => {
-    createPart(getCurrentEditorContext(), 'prompt');
   });
 }
 

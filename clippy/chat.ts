@@ -12,6 +12,14 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+export interface ChatWindowOptions {
+  partId: string;
+  sessionId: string;
+  initialMessages?: ChatMessage[];
+  inline?: boolean;  // If true, render inline in provided container
+  containerEl?: HTMLElement;  // For inline mode, use this container
+}
+
 /**
  * Chat window for a comment thread or chat part
  */
@@ -19,130 +27,365 @@ export class ChatWindow {
   private containerEl: HTMLElement;
   private shadowRoot: ShadowRoot;
   private messagesEl: HTMLElement;
-  private inputEl: HTMLTextAreaElement;
+  private inputEl: HTMLTextAreaElement | HTMLDivElement;
   private sendBtn: HTMLButtonElement;
   private partId: string;
   private sessionId: string;
   private messages: ChatMessage[];
+  private inline: boolean;
 
-  constructor(partId: string, sessionId: string, initialMessages: ChatMessage[] = []) {
-    this.partId = partId;
-    this.sessionId = sessionId;
-    this.messages = initialMessages;
+  constructor(options: ChatWindowOptions | string, sessionId?: string, initialMessages?: ChatMessage[]) {
+    // Support both old and new constructor signatures
+    if (typeof options === 'string') {
+      this.partId = options;
+      this.sessionId = sessionId!;
+      this.messages = initialMessages || [];
+      this.inline = false;
+      this.containerEl = document.createElement('div');
+    } else {
+      this.partId = options.partId;
+      this.sessionId = options.sessionId;
+      this.messages = options.initialMessages || [];
+      this.inline = options.inline || false;
+      this.containerEl = options.containerEl || document.createElement('div');
+    }
 
-    // Create container element
-    this.containerEl = document.createElement('div');
-    this.containerEl.className = 'chat-window-host';
-    this.containerEl.style.position = 'fixed';
-    this.containerEl.style.right = '20px';
-    this.containerEl.style.bottom = '20px';
-    this.containerEl.style.width = '400px';
-    this.containerEl.style.height = '600px';
-    this.containerEl.style.zIndex = '1000';
+    if (!this.inline) {
+      // Floating window mode
+      this.containerEl.className = 'chat-window-host';
+      this.containerEl.style.position = 'fixed';
+      this.containerEl.style.right = '20px';
+      this.containerEl.style.bottom = '20px';
+      this.containerEl.style.width = '400px';
+      this.containerEl.style.height = '600px';
+      this.containerEl.style.zIndex = '1000';
 
-    // Create shadow root for style isolation
-    this.shadowRoot = this.containerEl.attachShadow({ mode: 'open' });
+      // Create shadow root for style isolation
+      this.shadowRoot = this.containerEl.attachShadow({ mode: 'open' });
+    } else {
+      // Inline mode - use existing shadow root or create new one
+      this.shadowRoot = this.containerEl.shadowRoot || this.containerEl.attachShadow({ mode: 'open' });
+    }
 
     // Create chat window inside shadow root
     this.createChatWindow();
 
     this.messagesEl = this.shadowRoot.querySelector('.chat-messages') as HTMLElement;
-    this.inputEl = this.shadowRoot.querySelector('.chat-input') as HTMLTextAreaElement;
+    if (this.inline) {
+      this.inputEl = this.shadowRoot.querySelector('.chat-input-inline') as HTMLDivElement;
+    } else {
+      this.inputEl = this.shadowRoot.querySelector('.chat-input') as HTMLTextAreaElement;
+    }
     this.sendBtn = this.shadowRoot.querySelector('.chat-send-btn') as HTMLButtonElement;
 
     this.setupEventListeners();
     this.renderMessages();
 
-    document.body.appendChild(this.containerEl);
+    if (!this.inline) {
+      document.body.appendChild(this.containerEl);
+    }
   }
 
   /**
    * Create the chat window DOM structure inside shadow root
    */
   private createChatWindow(): void {
+    // Clear shadow root
+    this.shadowRoot.innerHTML = '';
+
     // Add styles to shadow root
     const style = document.createElement('style');
-    style.textContent = `
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
+    if (this.inline) {
+      // Inline mode styles - messages on top, prompt on bottom
+      style.textContent = `
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
 
-      .chat-window {
-        width: 100%;
-        height: 100%;
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      }
-    `;
+        .chat-window {
+          width: 100%;
+          height: 100%;
+          background: #fff;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          overflow: hidden;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .chat-messages {
+          flex: 1;
+          overflow-y: auto;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          gap: 12px;
+        }
+
+        .chat-message {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .chat-message-user {
+          align-items: flex-end;
+        }
+
+        .chat-message-assistant {
+          align-items: flex-start;
+        }
+
+        .chat-message-bubble {
+          max-width: 80%;
+          padding: 10px 14px;
+          border-radius: 12px;
+          font-size: 13px;
+          line-height: 1.5;
+          word-wrap: break-word;
+        }
+
+        .chat-message-user .chat-message-bubble {
+          background: #3b82f6;
+          color: white;
+        }
+
+        .chat-message-assistant .chat-message-bubble {
+          background: #f3f4f6;
+          color: #1f2937;
+        }
+
+        .chat-input-area {
+          border-top: 1px solid #e5e7eb;
+          padding: 16px;
+          display: flex;
+          flex-direction: row;
+          gap: 8px;
+          align-items: flex-end;
+          background: #fff;
+        }
+
+        .chat-input-inline {
+          flex: 1;
+          min-height: 44px;
+          max-height: 200px;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          padding: 8px 12px;
+          overflow-y: auto;
+          font-family: inherit;
+          font-size: 13px;
+          line-height: 1.5;
+        }
+
+        .chat-input-inline:focus {
+          outline: 2px solid #3b82f6;
+          outline-offset: -2px;
+        }
+
+        .chat-input-inline:empty:before {
+          content: 'Type your message...';
+          color: #9ca3af;
+        }
+
+        .chat-send-btn {
+          flex-shrink: 0;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #3b82f6;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 700;
+          cursor: pointer;
+          padding: 0;
+          line-height: 1;
+        }
+
+        .chat-send-btn:hover {
+          background: #2563eb;
+        }
+
+        .chat-send-btn:disabled {
+          background: #9ca3af;
+          cursor: not-allowed;
+        }
+      `;
+    } else {
+      // Floating window mode styles
+      style.textContent = `
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
+        .chat-window {
+          width: 100%;
+          height: 100%;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .chat-messages {
+          flex: 1;
+          overflow-y: auto;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          gap: 12px;
+        }
+
+        .chat-message {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .chat-message-user {
+          align-items: flex-end;
+        }
+
+        .chat-message-assistant {
+          align-items: flex-start;
+        }
+
+        .chat-message-bubble {
+          max-width: 80%;
+          padding: 10px 14px;
+          border-radius: 12px;
+          font-size: 13px;
+          line-height: 1.5;
+          word-wrap: break-word;
+        }
+
+        .chat-message-user .chat-message-bubble {
+          background: #3b82f6;
+          color: white;
+        }
+
+        .chat-message-assistant .chat-message-bubble {
+          background: #f3f4f6;
+          color: #1f2937;
+        }
+
+        .chat-input-area {
+          border-top: 1px solid #e5e7eb;
+          padding: 16px;
+          display: flex;
+          flex-direction: row;
+          gap: 8px;
+          align-items: flex-end;
+          background: #fff;
+        }
+
+        .chat-input {
+          flex: 1;
+          border: 1px solid #e5e7eb;
+          border-radius: 6px;
+          padding: 8px 12px;
+          font-family: inherit;
+          font-size: 13px;
+          resize: none;
+          min-height: 40px;
+          max-height: 100px;
+        }
+
+        .chat-send-btn {
+          flex-shrink: 0;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #3b82f6;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 700;
+          cursor: pointer;
+          padding: 0;
+          line-height: 1;
+        }
+
+        .chat-send-btn:hover {
+          background: #2563eb;
+        }
+
+        .chat-send-btn:disabled {
+          background: #9ca3af;
+          cursor: not-allowed;
+        }
+      `;
+    }
 
     const windowEl = document.createElement('div');
     windowEl.className = 'chat-window';
 
-    // Header
-    const header = document.createElement('div');
-    header.className = 'chat-header';
-    header.style.padding = '16px';
-    header.style.borderBottom = '1px solid #e5e7eb';
-    header.style.display = 'flex';
-    header.style.justifyContent = 'space-between';
-    header.style.alignItems = 'center';
-    header.style.background = '#f9fafb';
-    header.innerHTML = `
-      <span style="font-weight: 600; font-size: 14px;">Chat - ${this.partId.substring(0, 12)}</span>
-      <button class="chat-close-btn" style="border: none; background: none; cursor: pointer; font-size: 20px; color: #6b7280; padding: 0; width: 24px; height: 24px;">&times;</button>
-    `;
+    // Header (only for floating mode)
+    if (!this.inline) {
+      const header = document.createElement('div');
+      header.className = 'chat-header';
+      header.style.padding = '16px';
+      header.style.borderBottom = '1px solid #e5e7eb';
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.alignItems = 'center';
+      header.style.background = '#f9fafb';
+      header.innerHTML = `
+        <span style="font-weight: 600; font-size: 14px;">Chat - ${this.partId.substring(0, 12)}</span>
+        <button class="chat-close-btn" style="border: none; background: none; cursor: pointer; font-size: 20px; color: #6b7280; padding: 0; width: 24px; height: 24px;">&times;</button>
+      `;
+      windowEl.appendChild(header);
+    }
 
-    // Messages container
+    // Messages container - always on top
     const messagesContainer = document.createElement('div');
     messagesContainer.className = 'chat-messages';
-    messagesContainer.style.flex = '1';
-    messagesContainer.style.overflowY = 'auto';
-    messagesContainer.style.padding = '16px';
-    messagesContainer.style.display = 'flex';
-    messagesContainer.style.flexDirection = 'column';
-    messagesContainer.style.gap = '12px';
+    windowEl.appendChild(messagesContainer);
 
-    // Input area
+    // Input area - always on bottom
     const inputArea = document.createElement('div');
     inputArea.className = 'chat-input-area';
-    inputArea.style.padding = '16px';
-    inputArea.style.borderTop = '1px solid #e5e7eb';
-    inputArea.style.display = 'flex';
-    inputArea.style.gap = '8px';
-    inputArea.innerHTML = `
-      <textarea class="chat-input" placeholder="Type a message..." style="
-        flex: 1;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        padding: 8px 12px;
-        font-family: inherit;
-        font-size: 13px;
-        resize: none;
-        min-height: 40px;
-        max-height: 100px;
-      "></textarea>
-      <button class="chat-send-btn" style="
-        border: none;
-        background: #3b82f6;
-        color: white;
-        border-radius: 6px;
-        padding: 8px 16px;
-        font-size: 13px;
-        cursor: pointer;
-        font-weight: 500;
-      ">Send</button>
-    `;
 
-    windowEl.appendChild(header);
-    windowEl.appendChild(messagesContainer);
+    if (this.inline) {
+      // Inline mode: use contenteditable div
+      const inputDiv = document.createElement('div');
+      inputDiv.className = 'chat-input-inline';
+      inputDiv.contentEditable = 'true';
+      inputDiv.setAttribute('role', 'textbox');
+      inputDiv.setAttribute('aria-label', 'Type your message');
+      inputArea.appendChild(inputDiv);
+    } else {
+      // Floating mode: use textarea
+      const textarea = document.createElement('textarea');
+      textarea.className = 'chat-input';
+      textarea.placeholder = 'Type a message...';
+      inputArea.appendChild(textarea);
+    }
+
+    // Send button
+    const sendBtn = document.createElement('button');
+    sendBtn.className = 'chat-send-btn';
+    sendBtn.innerHTML = '↑'; // Up arrow like clippy
+    sendBtn.setAttribute('aria-label', 'Send');
+    inputArea.appendChild(sendBtn);
+
     windowEl.appendChild(inputArea);
 
     this.shadowRoot.appendChild(style);
@@ -153,11 +396,15 @@ export class ChatWindow {
    * Setup event listeners
    */
   private setupEventListeners(): void {
-    // Close button
-    const closeBtn = this.shadowRoot.querySelector('.chat-close-btn') as HTMLButtonElement;
-    closeBtn.addEventListener('click', () => {
-      this.close();
-    });
+    // Close button (floating mode only)
+    if (!this.inline) {
+      const closeBtn = this.shadowRoot.querySelector('.chat-close-btn') as HTMLButtonElement;
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          this.close();
+        });
+      }
+    }
 
     // Send button
     this.sendBtn.addEventListener('click', () => {
@@ -172,11 +419,20 @@ export class ChatWindow {
       }
     });
 
-    // Auto-resize textarea
-    this.inputEl.addEventListener('input', () => {
-      this.inputEl.style.height = 'auto';
-      this.inputEl.style.height = Math.min(this.inputEl.scrollHeight, 100) + 'px';
-    });
+    // Auto-resize (textarea only)
+    if (!this.inline && this.inputEl instanceof HTMLTextAreaElement) {
+      this.inputEl.addEventListener('input', () => {
+        this.inputEl.style.height = 'auto';
+        this.inputEl.style.height = Math.min(this.inputEl.scrollHeight, 100) + 'px';
+      });
+    }
+
+    // Auto-focus the input when chat loads (inline mode)
+    if (this.inline) {
+      setTimeout(() => {
+        this.inputEl.focus();
+      }, 100);
+    }
   }
 
   /**
@@ -268,7 +524,11 @@ export class ChatWindow {
    * Send a message using the sendPrompt pattern
    */
   private async sendMessage(): Promise<void> {
-    const content = this.inputEl.value.trim();
+    // Get content from either textarea or contenteditable div
+    const content = this.inline
+      ? (this.inputEl as HTMLDivElement).textContent?.trim() || ''
+      : (this.inputEl as HTMLTextAreaElement).value.trim();
+
     if (!content) return;
 
     // Add user message to chat immediately
@@ -281,12 +541,19 @@ export class ChatWindow {
 
     this.messages.push(userMessage);
     this.renderMessages();
-    this.inputEl.value = '';
-    this.inputEl.style.height = 'auto';
+
+    // Clear input
+    if (this.inline) {
+      (this.inputEl as HTMLDivElement).textContent = '';
+    } else {
+      (this.inputEl as HTMLTextAreaElement).value = '';
+      this.inputEl.style.height = 'auto';
+    }
 
     // Disable send button while processing
     this.sendBtn.disabled = true;
-    this.sendBtn.textContent = 'Sending...';
+    const originalContent = this.sendBtn.innerHTML;
+    this.sendBtn.innerHTML = '⋯'; // Ellipsis for loading
 
     try {
       // Send prompt to server using executecommand API
@@ -299,7 +566,7 @@ export class ChatWindow {
 
       logToConsole(`Sending chat message to part ${this.partId}: ${content}`, 'info');
 
-      const response = await fetch('/api/executecommand', {
+      const response = await fetch('/api/executeprompt', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -333,7 +600,7 @@ export class ChatWindow {
     } finally {
       // Re-enable send button
       this.sendBtn.disabled = false;
-      this.sendBtn.textContent = 'Send';
+      this.sendBtn.innerHTML = originalContent;
     }
   }
 
@@ -441,14 +708,24 @@ export function createChatFromThread(thread: CommentThread, sessionId: string): 
 /**
  * Create a chat window from a part ID (fetches messages from server)
  */
-export async function createChatFromPartId(sessionId: string, partId: string): Promise<ChatWindow | null> {
+export async function createChatFromPartId(sessionId: string, partId: string, inline: boolean = false, containerEl?: HTMLElement): Promise<ChatWindow | null> {
   const messages = await fetchChatMessages(sessionId, partId);
   if (messages.length === 0) {
     logToConsole(`No messages found for chat part ${partId}`, 'warn');
   }
 
-  const chat = new ChatWindow(partId, sessionId, messages);
-  chat.show();
-
-  return chat;
+  if (inline && containerEl) {
+    const chat = new ChatWindow({
+      partId,
+      sessionId,
+      initialMessages: messages,
+      inline: true,
+      containerEl
+    });
+    return chat;
+  } else {
+    const chat = new ChatWindow(partId, sessionId, messages);
+    chat.show();
+    return chat;
+  }
 }
