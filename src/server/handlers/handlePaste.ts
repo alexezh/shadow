@@ -22,7 +22,10 @@ export function handlePaste(doc: YDoc, range: YRange, content: string): ActionRe
   const node = doc.getBodyPart().getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
-    return { changes: [] };
+    return {
+      partId: doc.getBodyPart().id,
+      changes: []
+    };
   }
 
   // Try to parse as HTML first, fall back to plain text
@@ -64,12 +67,18 @@ function pasteNodes(doc: YDoc, range: YRange, content: YNode[]): ActionResult {
   const node = doc.getBodyPart().getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
-    return { changes: [] };
+    return {
+      partId: doc.getBodyPart().id,
+      changes: []
+    };
   }
 
   if (!node.parent) {
     console.log('pasteNodes: no parent');
-    return { changes: [] };
+    return {
+      partId: doc.getBodyPart().id,
+      changes: []
+    };
   }
 
   // need to delete range first
@@ -124,6 +133,7 @@ function pasteNodes(doc: YDoc, range: YRange, content: YNode[]): ActionResult {
   });
 
   return {
+    partId: doc.getBodyPart().id,
     changes,
     newPosition: { element: node.id, offset: node.length }
   };

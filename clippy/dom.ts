@@ -19,13 +19,6 @@ function getElementByIdInContext(id: string, shadowRoot?: ShadowRoot | null): HT
   return document.getElementById(id);
 }
 
-/**
- * Get the shadow root from doc-content element
- */
-function getDocContentShadowRoot(): ShadowRoot | null {
-  const docContent = document.getElementById('doc-content');
-  return docContent?.shadowRoot || null;
-}
 
 // Session management
 let sessionId: string | null = null;
@@ -241,7 +234,7 @@ export function applyAgentChanges(editorCtx: EditorContext, changes: ContentChan
 
 // Apply changes to document
 function applyChanges(editorCtx: EditorContext, changes: ContentChangeRecord[]): void {
-  const shadowRoot = getDocContentShadowRoot();
+  const shadowRoot = editorCtx.getShadowRoot();
 
   // Apply each change based on operation type
   for (const change of changes) {
@@ -325,7 +318,7 @@ export function updateCursorPosition(editorCtx: EditorContext, newPosition: { el
   const cursor = editorCtx.cursor;
   if (!cursor) return;
 
-  const shadowRoot = getDocContentShadowRoot();
+  const shadowRoot = editorCtx.getShadowRoot();
   const element = getElementByIdInContext(newPosition.element, shadowRoot);
   if (!element) return;
 
@@ -352,7 +345,7 @@ export function updateSelection(
   const cursor = editorCtx.cursor;
   if (!cursor) return;
 
-  const shadowRoot = getDocContentShadowRoot();
+  const shadowRoot = editorCtx.getShadowRoot();
   const startElement = getElementByIdInContext(newRange.startElement, shadowRoot);
   const endElement = getElementByIdInContext(newRange.endElement, shadowRoot);
 

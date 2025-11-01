@@ -13,6 +13,13 @@ export class VirtualDocument {
   private shadowRoot: ShadowRoot | null = null;
   public readonly commentThreads = new Map<string, CommentThread>();
 
+  /**
+   * Get the shadow root for this virtual document
+   */
+  public getShadowRoot(): ShadowRoot | null {
+    return this.shadowRoot;
+  }
+
   constructor(args: {
     partId: string,
     containerEl: HTMLElement,

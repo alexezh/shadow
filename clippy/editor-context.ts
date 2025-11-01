@@ -55,6 +55,13 @@ export class EditorContext {
     return this.vdom.partId;
   }
 
+  /**
+   * Get the shadow root for this document
+   */
+  public getShadowRoot(): ShadowRoot | null {
+    return this.vdom.getShadowRoot();
+  }
+
   constructor(documentEl: HTMLElement, vdom: VirtualDocument) {
     this.vdom = vdom;
     this.cursor = null;

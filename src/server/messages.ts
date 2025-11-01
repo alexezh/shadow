@@ -59,12 +59,13 @@ export interface ContentChangeRecord {
 }
 
 export interface AgentChange {
-  sessionId: string;
   partId: string;
+  sessionId: string;
   changes: ContentChangeRecord[];
 }
 
 export interface ActionResult {
+  partId: string;
   changes: ContentChangeRecord[];
   newPosition?: { element: string; offset: number };
   newRange?: YRange;

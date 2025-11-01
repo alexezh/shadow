@@ -41,6 +41,82 @@ export class IPCursor {
     document.body.appendChild(this.cursorEl);
   }
 
+  /**
+   * Get caret range from point, supporting shadow DOM
+   */
+  private getCaretRangeFromPoint(x: number, y: number): Range | null {
+    const shadowRoot = this.editorContext.getShadowRoot();
+
+    if (shadowRoot) {
+      // When using shadow DOM, we need to find the element at the point
+      // and then calculate the text position manually
+      const elementsFromPoint = document.elementsFromPoint(x, y);
+
+      // Find the shadow content wrapper
+      const shadowContent = shadowRoot.querySelector('#shadow-content');
+      if (!shadowContent) return null;
+
+      // Use shadow root's version of caretRangeFromPoint if available
+      // Note: This is a browser-specific feature, may not work in all browsers
+      if (typeof (shadowRoot as any).caretRangeFromPoint === 'function') {
+        return (shadowRoot as any).caretRangeFromPoint(x, y);
+      }
+
+      // Fallback: Find text node at position within shadow content
+      const walker = document.createTreeWalker(
+        shadowContent,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let textNode: Node | null;
+      while ((textNode = walker.nextNode())) {
+        if (!textNode.parentElement) continue;
+
+        const rect = textNode.parentElement.getBoundingClientRect();
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+          // Found the element, now find offset within text
+          const range = document.createRange();
+          const text = textNode.textContent || '';
+
+          // Binary search for the character at this position
+          let offset = 0;
+          for (let i = 0; i < text.length; i++) {
+            range.setStart(textNode, i);
+            range.setEnd(textNode, i + 1);
+            const charRect = range.getBoundingClientRect();
+            if (x < charRect.left + charRect.width / 2) {
+              offset = i;
+              break;
+            }
+            offset = i + 1;
+          }
+
+          const finalRange = document.createRange();
+          finalRange.setStart(textNode, offset);
+          finalRange.setEnd(textNode, offset);
+          return finalRange;
+        }
+      }
+
+      return null;
+    }
+
+    // Fallback to standard method for non-shadow DOM
+    return document.caretRangeFromPoint(x, y);
+  }
+
+  /**
+   * Get element by ID within shadow DOM
+   */
+  private getElementByIdInShadow(id: string): HTMLElement | null {
+    const shadowRoot = this.editorContext.getShadowRoot();
+    if (shadowRoot) {
+      return shadowRoot.querySelector(`#${CSS.escape(id)}`);
+    }
+    return document.getElementById(id);
+  }
+
   setupEventListeners(): void {
     // Mouse down to position cursor (not on release)
     let isMouseDown = false;
@@ -54,8 +130,8 @@ export class IPCursor {
       isMouseDown = true;
       isShiftDown = e.shiftKey;
 
-      // Get position at click
-      const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      // Get position at click using shadow DOM-aware method
+      const range = this.getCaretRangeFromPoint(e.clientX, e.clientY);
       if (!range || !range.startContainer) return;
 
       if (isShiftDown && this.position.node) {
@@ -106,8 +182,8 @@ export class IPCursor {
         // Prevent browser default selection
         e.preventDefault();
 
-        // Create/extend selection while dragging
-        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        // Create/extend selection while dragging using shadow DOM-aware method
+        const range = this.getCaretRangeFromPoint(e.clientX, e.clientY);
         if (range && range.startContainer) {
           this.position.node = range.startContainer;
           this.position.offset = range.startOffset;
@@ -134,8 +210,8 @@ export class IPCursor {
     this.documentEl.addEventListener('dblclick', (e) => {
       e.preventDefault();
 
-      // Select word at double-click position
-      const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      // Select word at double-click position using shadow DOM-aware method
+      const range = this.getCaretRangeFromPoint(e.clientX, e.clientY);
       if (!range || !range.startContainer) return;
 
       const node = range.startContainer;
@@ -191,13 +267,13 @@ export class IPCursor {
   }
 
   positionAtClick(e: MouseEvent): void {
-    // Get the clicked position
-    const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    // Get the clicked position using shadow DOM-aware method
+    const range = this.getCaretRangeFromPoint(e.clientX, e.clientY);
     const clickedParagraph = (e.target as HTMLElement)?.closest('p[id]');
 
     const hasValidRange = !!(range && range.startContainer);
     const rangeElementId = hasValidRange ? findElementId(range.startContainer) : null;
-    const rangeElement = rangeElementId ? document.getElementById(rangeElementId) : null;
+    const rangeElement = rangeElementId ? this.getElementByIdInShadow(rangeElementId) : null;
     const rangeIsParagraph = rangeElement && rangeElement.tagName === 'P';
 
     if ((!hasValidRange || !rangeIsParagraph) && clickedParagraph) {

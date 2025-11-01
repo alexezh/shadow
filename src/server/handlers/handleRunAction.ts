@@ -63,6 +63,7 @@ export function handleRunAction(session: Session, req: RunActionRequest): Action
     default:
       // Other formatting commands - placeholder
       return {
+        partId: doc.getBodyPart().id,
         changes: [],
         newPosition: { element: req.range.startElement, offset: req.range.startOffset }
       };
@@ -90,6 +91,7 @@ function formatRange(doc: YDoc, range: YRange, func: (props: { [key: string]: an
   }
 
   return {
+    partId: doc.getBodyPart().id,
     changes: changeRecords,
     newPosition: { element: range.startElement, offset: range.startOffset }
   };
@@ -118,6 +120,7 @@ function handleDelete(doc: YDoc, range: YRange, key: "backspace" | "delete"): Ac
   }
 
   return {
+    partId: doc.getBodyPart().id,
     changes: changeRecords,
     newPosition: { element: node!.id, offset: range.startOffset ? range.startOffset - 1 : 0 }
   };
@@ -127,7 +130,10 @@ function handleType(doc: YDoc, range: YRange, text: string): ActionResult {
   const node = doc.getBodyPart().getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
-    return { changes: [] };
+    return {
+      partId: doc.getBodyPart().id,
+      changes: []
+    };
   }
 
   const para = node as YPara;
@@ -142,6 +148,7 @@ function handleType(doc: YDoc, range: YRange, text: string): ActionResult {
   const html = makeHtml(node);
 
   return {
+    partId: doc.getBodyPart().id,
     changes: [
       { id: node.id, html, op: "changed" }
     ],
@@ -154,7 +161,10 @@ function handleSplit(doc: YDoc, range: YRange): ActionResult {
   const node = doc.getBodyPart().getNodeById(range.startElement);
 
   if (!node || !(node instanceof YPara)) {
-    return { changes: [] };
+    return {
+      partId: doc.getBodyPart().id,
+      changes: []
+    };
   }
 
   const offset = Math.max(0, Math.min(range.startOffset, node.length));
@@ -168,6 +178,7 @@ function handleSplit(doc: YDoc, range: YRange): ActionResult {
   const secondHtml = makeHtml(newNode);
 
   return {
+    partId: doc.getBodyPart().id,
     changes: [
       { id: node.id, html: firstHtml, op: "changed" },
       { id: newNode.id, html: secondHtml, prevId: node.id, op: "inserted" }
