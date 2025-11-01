@@ -104,6 +104,10 @@ export class YTextContainer extends YNode {
     return this.children;
   }
 
+  getChildAt(idx: number): YNode {
+    return this.children[idx];
+  }
+
   /**
    * Get children in range with optional depth control
    * @param range Optional range to filter children
@@ -189,14 +193,19 @@ export class YTextContainer extends YNode {
     }
   }
 
-  spliceChildren(idx: number, deleteCount: number, ...added: YNode[]): void {
+  spliceChildren(idx: number, deleteCount: number, ...added: YNode[]): YNode[] {
+    let deletedNodes: YNode[] = [];
     for (let i = 0; i < deleteCount; i++) {
-      this.doc?.unlinkNodeInternal(this.children[idx + i]);
+      const toDelete = this.children[idx + i];
+      this.doc?.unlinkNodeInternal(toDelete);
+      deletedNodes.push(toDelete);
     }
     this.children.splice(idx, deleteCount, ...added);
     for (let node of added) {
       this.doc?.linkNodeInternal(this, node)
     }
+
+    return deletedNodes;
   }
 
   indexOf(node: YNode): number {

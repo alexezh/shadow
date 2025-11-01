@@ -133,9 +133,9 @@ async function pollChanges(): Promise<void> {
           // Action result - apply changes
           const actionResult = resp.data as ActionResult;
 
-          const editorContext = vdomCache.get(resp.partId!)?.editorContext;
+          const editorContext = vdomCache.get((resp.data as ActionResult).partId!)?.editorContext;
           if (!editorContext) {
-            logToConsole("pollChanges: cannot find part:" + resp.partId);
+            logToConsole("pollChanges: cannot find part:" + (resp.data as ActionResult).partId);
             continue;
           }
 
@@ -144,9 +144,9 @@ async function pollChanges(): Promise<void> {
           // Action result - apply changes
           const actionResult = resp.data as AgentChange;
 
-          const editorContext = vdomCache.get(resp.partId!)?.editorContext;
+          const editorContext = vdomCache.get((resp.data as AgentChange).partId!)?.editorContext;
           if (!editorContext) {
-            logToConsole("pollChanges: cannot find part:" + resp.partId);
+            logToConsole("pollChanges: cannot find part:" + (resp.data as AgentChange).partId);
             continue;
           }
 

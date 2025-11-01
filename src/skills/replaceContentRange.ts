@@ -5,7 +5,7 @@ import { YNode, YTextContainer } from "../om/YNode.js";
 import { YPara } from "../om/YPara.js";
 import { YPropSet } from "../om/YPropSet.js";
 import { YStr } from "../om/YStr.js";
-import { ContentChangeRecord } from "../server/messages.js";
+import { ContentChangeRecord, PartId } from "../server/messages.js";
 import { Session } from "../server/session.js";
 
 /**
@@ -15,7 +15,7 @@ export async function replaceContentRange(
   session: Session,
   args: {
     docid: string;
-    partid: string;
+    partid: PartId;
     format: string;
     start_para?: string;
     end_para?: string;
@@ -67,16 +67,28 @@ export async function replaceContentRange(
     }
     idx++;
   }
-  parent!.spliceChildren(idxStart, idxEnd - idxStart, ...loaded!);
+
+  let deletedNodes = parent!.spliceChildren(idxStart, idxEnd - idxStart, ...loaded!);
 
   const changeRecords: ContentChangeRecord[] = [];
+  for (let item of deletedNodes) {
+    changeRecords.push({
+      id: item.id,
+      html: null,
+      op: "deleted"
+    })
+  }
+
+  let prevElem = idxStart > 0 ? parent?.getChildAt(idxStart - 1) : undefined;
   for (let item of loaded!) {
     const html = makeHtml(item);
     changeRecords.push({
       id: item.id,
       html: html,
-      op: "changed"
+      prevId: prevElem?.id,
+      op: "inserted"
     })
+    prevElem = item;
   }
 
   session.sendUpdate(session.id, args.partid, changeRecords);

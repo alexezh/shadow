@@ -134,7 +134,8 @@ function extractElementProps(
 
   const borderAttr = element.attr('border');
   if (borderAttr) {
-    props['border-width'] = borderAttr;
+    // HTML border attribute specifies width, convert to full CSS border
+    props['border'] = `${borderAttr}px solid black`;
   }
 
   const colspanAttr = element.attr('colspan');

@@ -1,7 +1,7 @@
 import type { Database } from "../database";
 import type { YDoc } from "../om/YDoc";
 import type { SkillVM } from "../skills/skillvm";
-import type { ContentChangeRecord, GetChangesResponse } from "./messages";
+import type { ContentChangeRecord, GetChangesResponse, PartId } from "./messages";
 
 export interface Session {
   id: string;
@@ -13,6 +13,6 @@ export interface Session {
   readonly vm: SkillVM;
   currentPartId: string;
   sendConsole(html: string): void;
-  sendUpdate(sessionId: string, partId: string, changeRecords: ContentChangeRecord[]): void;
+  sendUpdate(sessionId: string, partId: PartId, changeRecords: ContentChangeRecord[]): void;
 }
 

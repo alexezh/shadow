@@ -338,18 +338,18 @@ export class HttpServer {
       session.changeResolvers.push(resolve);
     });
 
+    let timeoutRes: http.ServerResponse | undefined = res;
     // Set timeout to prevent indefinite hanging (60 seconds)
     const timeout = setTimeout(() => {
-      const index = session.changeResolvers.indexOf(changePromise as any);
-      if (index > -1) {
-        session.changeResolvers.splice(index, 1);
+      if (timeoutRes) {
+        timeoutRes.writeHead(200, { 'Content-Type': 'application/json' });
+        timeoutRes.end(JSON.stringify([]));
       }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify([]));
     }, 60000);
 
     const changes = await changePromise;
     clearTimeout(timeout);
+    timeoutRes = undefined;
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(changes));

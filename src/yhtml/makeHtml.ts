@@ -1,4 +1,4 @@
-import { YNode } from '../om/YNode.js';
+import { YNode, YTextContainer } from '../om/YNode.js';
 import { paraProp, YPara } from '../om/YPara.js';
 import { YBody } from '../om/YBody.js';
 import { YTable } from '../om/YTable.js';
@@ -143,28 +143,26 @@ function makeHtmlRecursive(node: YNode, writer: HtmlWriter): void {
   if (node instanceof YPara) {
     makeParaHtml(node, writer);
   } else if (node instanceof YBody) {
-    writer.writeOpenTag('div', { id: node.id });
-    for (const child of node.getChildren()) {
-      makeHtmlRecursive(child, writer);
-    }
-    writer.writeCloseTag('div');
+    addContainerTag(writer, "div", node);
   } else if (node instanceof YTable) {
-    writer.writeOpenTag('table', { id: node.id });
-    for (const child of node.getChildren()) {
-      makeHtmlRecursive(child, writer);
-    }
-    writer.writeCloseTag('table');
+    addContainerTag(writer, "table", node);
   } else if (node instanceof YRow) {
-    writer.writeOpenTag('tr', { id: node.id });
-    for (const child of node.getChildren()) {
-      makeHtmlRecursive(child, writer);
-    }
-    writer.writeCloseTag('tr');
+    addContainerTag(writer, "tr", node);
   } else if (node instanceof YCell) {
-    writer.writeOpenTag('td', { id: node.id });
-    for (const child of node.getChildren()) {
-      makeHtmlRecursive(child, writer);
-    }
-    writer.writeCloseTag('td');
+    addContainerTag(writer, "td", node);
   }
+}
+
+function addContainerTag(writer: HtmlWriter, tag: string, node: YTextContainer) {
+  const style = propSetToStyle(node.props);
+  const attrs: any = { id: node.id };
+  if (style) {
+    attrs.style = style;
+  }
+  writer.writeOpenTag(tag, attrs);
+  for (const child of node.getChildren()) {
+    makeHtmlRecursive(child, writer);
+  }
+  writer.writeCloseTag(tag);
+
 }

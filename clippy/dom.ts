@@ -285,19 +285,30 @@ function applyChanges(editorCtx: EditorContext, changes: ContentChangeRecord[]):
                 prevElement.parentElement.insertBefore(newElement, prevElement.nextSibling);
                 //logToConsole(`Inserted new element ${change.id} after ${change.prevId}`);
               } else {
-                logToConsole(`Warning: prevId ${change.prevId} not found, appending to body`, 'warn');
-                // Fallback: append to shadow content wrapper
+                logToConsole(`Warning: prevId ${change.prevId} not found, inserting at beginning`, 'warn');
+                // Fallback: insert as first paragraph
                 const contentWrapper = shadowRoot?.querySelector('#shadow-content');
                 if (contentWrapper && contentWrapper.firstChild) {
-                  contentWrapper.firstChild.appendChild(newElement);
+                  const firstChild = contentWrapper.firstChild.firstChild;
+                  if (firstChild) {
+                    contentWrapper.firstChild.insertBefore(newElement, firstChild);
+                  } else {
+                    contentWrapper.firstChild.appendChild(newElement);
+                  }
                 }
               }
             } else {
-              // No prevId - append to shadow content wrapper
+              // No prevId - insert as first paragraph
               const contentWrapper = shadowRoot?.querySelector('#shadow-content');
               if (contentWrapper && contentWrapper.firstChild) {
-                contentWrapper.firstChild.appendChild(newElement);
-                logToConsole(`Inserted new element ${change.id} at end`);
+                const firstChild = contentWrapper.firstChild.firstChild;
+                if (firstChild) {
+                  contentWrapper.firstChild.insertBefore(newElement, firstChild);
+                  logToConsole(`Inserted new element ${change.id} at beginning`);
+                } else {
+                  contentWrapper.firstChild.appendChild(newElement);
+                  logToConsole(`Inserted new element ${change.id} (no children)`);
+                }
               }
             }
           }

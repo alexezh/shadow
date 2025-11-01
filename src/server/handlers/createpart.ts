@@ -6,11 +6,12 @@ import { YPara } from '../../om/YPara.js';
 import { make31BitId } from '../../om/make31bitid.js';
 import { YPropSet } from '../../om/YPropSet.js';
 import { copyRange } from '../../om/copyRange.js';
+import { CreatePartRequest } from '../messages.js';
 
 export async function handleCreatePart(sessions: ReadonlyMap<string, Session>,
   res: http.ServerResponse, body: string): Promise<void> {
   try {
-    const { sessionId, kind, selectionRange } = JSON.parse(body);
+    const { sessionId, kind, selectionRange } = JSON.parse(body) as CreatePartRequest;
 
     const session = sessions.get(sessionId);
     if (!session) {

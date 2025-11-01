@@ -2,17 +2,17 @@ import { SkillDef } from "./skilldef";
 import { applyFormatStep } from "./formatskill.js";
 import { getToolDef } from "./tooldef.js";
 
-const chunkHtml = `
- - For large or complex HTML structures (sections, subsections, large tables, or cells), break them into manageable parts:
- - Use make_id to generate a unique partid for each HTML part
-  - If the HTML part is larger than ~1000 tokens, break it into chunks:
-      * Call store_content(partid, docid, html, chunkIndex=0, eos=false) for the first chunk",
-    - If the HTML part is under ~1000 tokens, store it in a single call:",
-      * Call store_htmlpart(partid, docid, html, chunkIndex=0, eos=true)",
-    - In the parent HTML, embed a reference comment: <!-- htmlpart:include id=\\\"<partid>\\\" scope=\\\"section|subsection|table|cell\\\" target=\\\"<target-id>\\\" required=\\\"true\\\" -->",
-    - Example for a large table cell: <!-- htmlpart:include id=\\\"a1b2c3\\\" scope=\\\"cell\\\" target=\\\"t-outer:r-12:c-2\\\" required=\\\"true\\\" -->",
-  For the main document content, use store_htmlpart(partid='0', docid, html, chunkIndex=<n>, eos=<bool>) with the docid retrieved from context and sequential chunkIndex.",
-  `
+// const chunkHtml = `
+//  - For large or complex HTML structures (sections, subsections, large tables, or cells), break them into manageable parts:
+//   - If the HTML part is larger than ~1000 tokens, break it into chunks:
+//       * Call store_content(partid, docid, html, chunkIndex=0, eos=false) for the first chunk",
+//     - If the HTML part is under ~1000 tokens, store it in a single call:",
+//       * Call store_htmlpart(partid, docid, html, chunkIndex=0, eos=true)",
+//     - In the parent HTML, embed a reference comment: <!-- htmlpart:include id=\\\"<partid>\\\" scope=\\\"section|subsection|table|cell\\\" target=\\\"<target-id>\\\" required=\\\"true\\\" -->",
+//     - Example for a large table cell: <!-- htmlpart:include id=\\\"a1b2c3\\\" scope=\\\"cell\\\" target=\\\"t-outer:r-12:c-2\\\" required=\\\"true\\\" -->",
+//   For the main document content, use store_htmlpart(partid='0', docid, html, chunkIndex=<n>, eos=<bool>) with the docid retrieved from context and sequential chunkIndex.",
+//   `
+const chunkHtml = "";
 
 export const editSkill: SkillDef =
 {
@@ -133,6 +133,7 @@ Execution rules:
     "Confirm edit_mode=='insert_text' and read the active selection from context (this selection is treated as the insertion anchor).",
     "Use the end element/offset from the selection range as the starting point for insertion.",
     "Draft the new content. Split large additions (sections, tables, long lists) into manageable chunks.",
+    "Use HTML to represent text and formatting",
     "For each chunk, call replace_contentrange with start and end equal to the current anchor (use the last_id returned from the previous call as the new start).",
     ${chunkHtml}
   ],

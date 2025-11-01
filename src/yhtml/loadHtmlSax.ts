@@ -199,7 +199,8 @@ export class HtmlSaxLoader {
       props['background-color'] = attribs['bgcolor'];
     }
     if (attribs['border']) {
-      props['border-width'] = attribs['border'];
+      // HTML border attribute specifies width, convert to full CSS border
+      props['border'] = `${attribs['border']}px solid black`;
     }
     if (attribs['colspan']) {
       props['colspan'] = attribs['colspan'];

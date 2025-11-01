@@ -48,8 +48,6 @@ export type GetDocPartResponse = {
 
 export type GetChangesResponse = {
   kind: "console" | "action" | "agent",
-  sessionId?: string;
-  partId?: string;
   data: ActionResult | ConsoleResult | AgentChange
 };
 
@@ -57,6 +55,9 @@ export interface ConsoleResult {
   html: string;
 }
 
+export type PartId = string & {
+  __tag_partid: never;
+}
 export interface ContentChangeRecord {
   id: string;
   html: string | null;
@@ -65,13 +66,13 @@ export interface ContentChangeRecord {
 }
 
 export interface AgentChange {
-  // partId: string;
-  // sessionId: string;
+  partId: PartId;
+  sessionId: string;
   changes: ContentChangeRecord[];
 }
 
 export interface ActionResult {
-  //partId: string;
+  partId: PartId;
   changes: ContentChangeRecord[];
   newPosition?: { element: string; offset: number };
   newRange?: YRange;

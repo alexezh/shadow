@@ -4,13 +4,14 @@ import { YStyleStore } from './YStyleStore.js';
 import { YPropSet } from './YPropSet.js';
 import { YCommentThread } from './YCommentThread.js';
 import { YPara } from './YPara.js';
+import type { PartId } from '../server/messages.js';
 
 export type YDocPartKind = "main" | "draft" | "summary" | "chat" | "comment" | "prompt";
 
 export class YDocPart {
   public body?: YBody;
   public readonly doc: YDoc;
-  public readonly id: string;
+  public readonly id: PartId;
   public readonly kind: YDocPartKind;
   public readonly title: string;
   public readonly threads: YCommentThread[] = [];
@@ -19,7 +20,7 @@ export class YDocPart {
 
   public constructor(doc: YDoc, id: string, kind: YDocPartKind, title?: string, body?: YBody) {
     this.doc = doc;
-    this.id = id;
+    this.id = id as PartId;
     this.kind = kind;
     this.title = title ?? "";
     this.body = body;
@@ -184,10 +185,6 @@ export class YDoc {
 
   getBody(): YBody {
     return this._parts.get("main")!.body!;
-  }
-
-  addPart(part: YDocPart) {
-    this._parts.set(part.id, part);
   }
 
   getBodyPart(): YDocPart {

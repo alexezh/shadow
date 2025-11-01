@@ -3,7 +3,7 @@ import type { YDoc } from "../om/YDoc.js";
 import { ToolDispatcher } from "../openai/tooldispatcher.js";
 import { SkillVM } from "../skills/skillvm.js";
 import { SkillVMImpl } from "../skills/skillvmimpl.js";
-import { AgentChange, ConsoleResult, ContentChangeRecord, GetChangesResponse } from "./messages.js";
+import type { AgentChange, ConsoleResult, ContentChangeRecord, GetChangesResponse, PartId } from "./messages.js";
 import type { Session } from "./session.js";
 
 export class SessionImpl implements Session {
@@ -41,7 +41,7 @@ export class SessionImpl implements Session {
     }
   }
 
-  public sendUpdate(sessionId: string, partId: string, changeRecords: ContentChangeRecord[]) {
+  public sendUpdate(sessionId: string, partId: PartId, changeRecords: ContentChangeRecord[]) {
     const data: AgentChange = {
       sessionId,
       partId,
