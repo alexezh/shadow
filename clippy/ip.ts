@@ -172,9 +172,7 @@ export class IPCursor {
       selectionAnchor = null;
 
       // Restore Clippy on mouse button release
-      if (this.editorContext?.clippyFloat) {
-        this.editorContext.clippyFloat.show();
-      }
+      this.editorContext.showFloaty();
     });
 
     this.documentEl.addEventListener('mousemove', (e) => {
@@ -322,7 +320,7 @@ export class IPCursor {
           this.cursorEl.style.height = `${retryRect.height || 20}px`;
 
           if (this.editorContext?.clippyFloat && this.visible) {
-            this.editorContext.clippyFloat.positionBelowCursor();
+            this.editorContext.positionBelowCursor();
           }
         }
       });
@@ -336,7 +334,7 @@ export class IPCursor {
 
     // Update Clippy position if it exists and is visible
     if (this.editorContext?.clippyFloat && this.visible) {
-      this.editorContext.clippyFloat.positionBelowCursor();
+      this.editorContext.positionBelowCursor();
     }
   }
 
@@ -347,8 +345,8 @@ export class IPCursor {
 
     // Show clippy at cursor position
     if (this.editorContext?.clippyFloat) {
-      this.editorContext.clippyFloat.positionBelowCursor();
-      this.editorContext.clippyFloat.show();
+      this.editorContext.positionBelowCursor();
+      this.editorContext.showFloaty();
     }
   }
 
