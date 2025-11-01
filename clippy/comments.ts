@@ -11,7 +11,7 @@ export function renderCommentThreads(editorContext: EditorContext): void {
   const existingThreads = document.querySelectorAll('.comment-thread-float');
   existingThreads.forEach(el => el.remove());
 
-  const threads = editorContext.getAllCommentThreads();
+  const threads = editorContext.vdom.getAllCommentThreads();
 
   logToConsole(`Rendering ${threads.length} comment threads`, 'info');
 
@@ -142,7 +142,10 @@ function createThreadMenu(thread: CommentThread): HTMLElement {
   chatOption.addEventListener('click', (e) => {
     e.stopPropagation();
     menu.style.display = 'none';
-    createChatFromThread(thread);
+    const sessionId = getSessionId();
+    if (sessionId) {
+      createChatFromThread(thread, sessionId);
+    }
   });
 
   // Draft option

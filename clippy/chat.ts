@@ -1,4 +1,4 @@
-import { CommentThread } from "./editor-context.js";
+import type { CommentThread } from "./editor-context.js";
 import { logToConsole } from "./dom.js";
 
 /**
@@ -13,47 +13,78 @@ export interface ChatMessage {
 }
 
 /**
- * Chat window for a comment thread
+ * Chat window for a comment thread or chat part
  */
 export class ChatWindow {
-  private windowEl: HTMLElement;
+  private containerEl: HTMLElement;
+  private shadowRoot: ShadowRoot;
   private messagesEl: HTMLElement;
   private inputEl: HTMLTextAreaElement;
   private sendBtn: HTMLButtonElement;
-  private threadId: string;
+  private partId: string;
+  private sessionId: string;
   private messages: ChatMessage[];
 
-  constructor(threadId: string, initialMessages: ChatMessage[] = []) {
-    this.threadId = threadId;
+  constructor(partId: string, sessionId: string, initialMessages: ChatMessage[] = []) {
+    this.partId = partId;
+    this.sessionId = sessionId;
     this.messages = initialMessages;
-    this.windowEl = this.createChatWindow();
-    this.messagesEl = this.windowEl.querySelector('.chat-messages') as HTMLElement;
-    this.inputEl = this.windowEl.querySelector('.chat-input') as HTMLTextAreaElement;
-    this.sendBtn = this.windowEl.querySelector('.chat-send-btn') as HTMLButtonElement;
+
+    // Create container element
+    this.containerEl = document.createElement('div');
+    this.containerEl.className = 'chat-window-host';
+    this.containerEl.style.position = 'fixed';
+    this.containerEl.style.right = '20px';
+    this.containerEl.style.bottom = '20px';
+    this.containerEl.style.width = '400px';
+    this.containerEl.style.height = '600px';
+    this.containerEl.style.zIndex = '1000';
+
+    // Create shadow root for style isolation
+    this.shadowRoot = this.containerEl.attachShadow({ mode: 'open' });
+
+    // Create chat window inside shadow root
+    this.createChatWindow();
+
+    this.messagesEl = this.shadowRoot.querySelector('.chat-messages') as HTMLElement;
+    this.inputEl = this.shadowRoot.querySelector('.chat-input') as HTMLTextAreaElement;
+    this.sendBtn = this.shadowRoot.querySelector('.chat-send-btn') as HTMLButtonElement;
 
     this.setupEventListeners();
     this.renderMessages();
+
+    document.body.appendChild(this.containerEl);
   }
 
   /**
-   * Create the chat window DOM structure
+   * Create the chat window DOM structure inside shadow root
    */
-  private createChatWindow(): HTMLElement {
+  private createChatWindow(): void {
+    // Add styles to shadow root
+    const style = document.createElement('style');
+    style.textContent = `
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      .chat-window {
+        width: 100%;
+        height: 100%;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+    `;
+
     const windowEl = document.createElement('div');
     windowEl.className = 'chat-window';
-    windowEl.style.position = 'fixed';
-    windowEl.style.right = '20px';
-    windowEl.style.bottom = '20px';
-    windowEl.style.width = '400px';
-    windowEl.style.height = '600px';
-    windowEl.style.background = '#fff';
-    windowEl.style.border = '1px solid #e5e7eb';
-    windowEl.style.borderRadius = '12px';
-    windowEl.style.boxShadow = '0 10px 25px rgba(0, 0, 0, 0.15)';
-    windowEl.style.display = 'flex';
-    windowEl.style.flexDirection = 'column';
-    windowEl.style.zIndex = '1000';
-    windowEl.style.overflow = 'hidden';
 
     // Header
     const header = document.createElement('div');
@@ -65,7 +96,7 @@ export class ChatWindow {
     header.style.alignItems = 'center';
     header.style.background = '#f9fafb';
     header.innerHTML = `
-      <span style="font-weight: 600; font-size: 14px;">Chat - Thread ${this.threadId.substring(0, 8)}</span>
+      <span style="font-weight: 600; font-size: 14px;">Chat - ${this.partId.substring(0, 12)}</span>
       <button class="chat-close-btn" style="border: none; background: none; cursor: pointer; font-size: 20px; color: #6b7280; padding: 0; width: 24px; height: 24px;">&times;</button>
     `;
 
@@ -114,9 +145,8 @@ export class ChatWindow {
     windowEl.appendChild(messagesContainer);
     windowEl.appendChild(inputArea);
 
-    document.body.appendChild(windowEl);
-
-    return windowEl;
+    this.shadowRoot.appendChild(style);
+    this.shadowRoot.appendChild(windowEl);
   }
 
   /**
@@ -124,7 +154,7 @@ export class ChatWindow {
    */
   private setupEventListeners(): void {
     // Close button
-    const closeBtn = this.windowEl.querySelector('.chat-close-btn') as HTMLButtonElement;
+    const closeBtn = this.shadowRoot.querySelector('.chat-close-btn') as HTMLButtonElement;
     closeBtn.addEventListener('click', () => {
       this.close();
     });
@@ -235,38 +265,89 @@ export class ChatWindow {
   }
 
   /**
-   * Send a message
+   * Send a message using the sendPrompt pattern
    */
-  private sendMessage(): void {
+  private async sendMessage(): Promise<void> {
     const content = this.inputEl.value.trim();
     if (!content) return;
 
-    const message: ChatMessage = {
+    // Add user message to chat immediately
+    const userMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
       content: content,
       timestamp: new Date()
     };
 
-    this.messages.push(message);
+    this.messages.push(userMessage);
     this.renderMessages();
     this.inputEl.value = '';
     this.inputEl.style.height = 'auto';
 
-    // TODO: Send message to server
-    logToConsole(`Chat message sent: ${content}`, 'info');
+    // Disable send button while processing
+    this.sendBtn.disabled = true;
+    this.sendBtn.textContent = 'Sending...';
 
-    // Simulate assistant response (placeholder)
-    setTimeout(() => {
-      const response: ChatMessage = {
+    try {
+      // Send prompt to server using executecommand API
+      const payload = {
+        sessionId: this.sessionId,
+        prompt: content,
+        partId: this.partId,
+        docId: this.sessionId
+      };
+
+      logToConsole(`Sending chat message to part ${this.partId}: ${content}`, 'info');
+
+      const response = await fetch('/api/executecommand', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      // After sending, fetch updated chat messages from the server
+      // The server should have added both user message and assistant response
+      await this.refreshMessages();
+
+      logToConsole(`Chat message sent successfully`, 'info');
+    } catch (error) {
+      logToConsole(`Error sending chat message: ${(error as Error).message}`, 'error');
+
+      // Show error message in chat
+      const errorMessage: ChatMessage = {
         id: `msg-${Date.now()}`,
-        role: 'assistant',
-        content: 'This is a placeholder response. Integration with AI assistant coming soon.',
+        role: 'system',
+        content: `Error: ${(error as Error).message}`,
         timestamp: new Date()
       };
-      this.messages.push(response);
+      this.messages.push(errorMessage);
       this.renderMessages();
-    }, 1000);
+    } finally {
+      // Re-enable send button
+      this.sendBtn.disabled = false;
+      this.sendBtn.textContent = 'Send';
+    }
+  }
+
+  /**
+   * Refresh messages from server
+   */
+  private async refreshMessages(): Promise<void> {
+    try {
+      const messages = await fetchChatMessages(this.sessionId, this.partId);
+      this.messages = messages;
+      this.renderMessages();
+    } catch (error) {
+      logToConsole(`Error refreshing chat messages: ${(error as Error).message}`, 'error');
+    }
   }
 
   /**
@@ -281,14 +362,21 @@ export class ChatWindow {
    * Show the chat window
    */
   public show(): void {
-    this.windowEl.style.display = 'flex';
+    this.containerEl.style.display = 'block';
   }
 
   /**
-   * Close the chat window
+   * Hide the chat window
+   */
+  public hide(): void {
+    this.containerEl.style.display = 'none';
+  }
+
+  /**
+   * Close and remove the chat window
    */
   public close(): void {
-    this.windowEl.remove();
+    this.containerEl.remove();
   }
 
   /**
@@ -335,7 +423,7 @@ export async function fetchChatMessages(sessionId: string, chatId: string): Prom
 /**
  * Create a chat window from a comment thread
  */
-export function createChatFromThread(thread: CommentThread): ChatWindow {
+export function createChatFromThread(thread: CommentThread, sessionId: string): ChatWindow {
   const messages: ChatMessage[] = thread.comments.map((comment, index) => ({
     id: comment.id,
     role: 'user' as const,
@@ -343,22 +431,23 @@ export function createChatFromThread(thread: CommentThread): ChatWindow {
     timestamp: comment.timestamp
   }));
 
-  const chat = new ChatWindow(thread.id, messages);
+  // Use thread ID as part ID for thread-based chats
+  const chat = new ChatWindow(thread.id, sessionId, messages);
   chat.show();
 
   return chat;
 }
 
 /**
- * Create a chat window from a chat ID (fetches messages from server)
+ * Create a chat window from a part ID (fetches messages from server)
  */
-export async function createChatFromId(sessionId: string, chatId: string): Promise<ChatWindow | null> {
-  const messages = await fetchChatMessages(sessionId, chatId);
+export async function createChatFromPartId(sessionId: string, partId: string): Promise<ChatWindow | null> {
+  const messages = await fetchChatMessages(sessionId, partId);
   if (messages.length === 0) {
-    logToConsole(`No messages found for chat ${chatId}`, 'warn');
+    logToConsole(`No messages found for chat part ${partId}`, 'warn');
   }
 
-  const chat = new ChatWindow(chatId, messages);
+  const chat = new ChatWindow(partId, sessionId, messages);
   chat.show();
 
   return chat;

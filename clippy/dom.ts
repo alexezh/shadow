@@ -1,7 +1,7 @@
-import type { YRange } from "../src/om/YRange";
-import type { ActionResult, ContentChangeRecord } from "../src/server/messages";
-import type { EditorContext } from "./editor-context";
-import { vdomCache } from "./vdom";
+import type { YRange } from "../src/om/YRange.js";
+import type { ActionResult, ContentChangeRecord } from "../src/server/messages.js";
+import type { EditorContext } from "./editor-context.js";
+import { vdomCache } from "./vdom.js";
 
 // Console logging
 const consoleEl = document.getElementById('console') as HTMLElement;

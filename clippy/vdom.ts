@@ -43,9 +43,10 @@ export class VirtualDocument {
    * Apply this virtual document to the DOM using Shadow DOM
    */
   private attachToDOM(containerEl: HTMLElement, styleElId: string = 'doc-styles'): void {
-    // Create shadow root if it doesn't exist
+    // Reuse existing shadow root if containerEl already has one, otherwise create new
     if (!this.shadowRoot) {
-      this.shadowRoot = containerEl.attachShadow({ mode: 'open' });
+      // Check if containerEl already has a shadow root (from a previous VirtualDocument)
+      this.shadowRoot = containerEl.shadowRoot || containerEl.attachShadow({ mode: 'open' });
     }
 
     // Create a wrapper div for the content
@@ -66,7 +67,8 @@ export class VirtualDocument {
     });
     styleEl.textContent = cssRules.join('\n\n');
 
-    // Clear shadow root and add style + content
+    // Clear shadow root and replace with new style + content
+    // This effectively "switches" the document content
     this.shadowRoot.innerHTML = '';
     this.shadowRoot.appendChild(styleEl);
     this.shadowRoot.appendChild(contentWrapper);
