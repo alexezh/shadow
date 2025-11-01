@@ -149,8 +149,8 @@ export class HttpServer {
     }
 
     // API endpoint to execute command (from Clippy)
-    if (url === '/api/executecommand' && req.method === 'POST') {
-      await this.handleExecuteCommand(req, res);
+    if (url === '/api/executeprompt' && req.method === 'POST') {
+      await this.handleExecutePrompt(req, res);
       return;
     }
 
@@ -269,7 +269,7 @@ export class HttpServer {
     });
   }
 
-  private async handleExecuteCommand(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  private async handleExecutePrompt(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     let body = '';
     req.on('data', chunk => {
       body += chunk.toString();
@@ -289,20 +289,17 @@ export class HttpServer {
         console.log(`Execute command: session=${request.sessionId}, prompt="${request.prompt}"`);
 
         // Execute the command
-        const result =
-          executePrompt({
-            session: session,
-            prompt: request.prompt,
-            partId: request.partId,
-            docId: request.docId,
-            selection: { ...request.selection!, kind: getSelectionKind(request.selection!) }
-          });
-        // Notify waiting clients
-        //this.notifyChangeListeners(session.id);
-        return "success";
+        await executePrompt({
+          session: session,
+          prompt: request.prompt,
+          partId: request.partId,
+          docId: request.docId,
+          selection: { ...request.selection!, kind: getSelectionKind(request.selection!) }
+        });
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, result }));
+        res.end(JSON.stringify({ success: true }));
+        return "success";
       } catch (error) {
         console.error('Error handling executecommand:', error);
         res.writeHead(400, { 'Content-Type': 'application/json' });

@@ -495,6 +495,7 @@ export class OpenAIClientResponses implements OpenAIClient {
 
         conversationState.lastPhase = lastPhase;
         return {
+          kind: "raw",
           response: JSON.stringify(controlEnvelope, null, 2),
           conversationId: '',
           usage: {
@@ -510,6 +511,7 @@ export class OpenAIClientResponses implements OpenAIClient {
             console.warn('⚠️ Received multiple consecutive empty responses from the model. Breaking loop.');
             conversationState.lastPhase = lastPhase;
             return {
+              kind: "raw",
               response: 'Error: Model returned multiple empty responses',
               conversationId: '',
               usage: {
@@ -528,6 +530,7 @@ export class OpenAIClientResponses implements OpenAIClient {
         conversationState.lastPhase = lastPhase;
 
         return {
+          kind: "raw",
           response: trimmedContent,
           conversationId: '',
           usage: {
@@ -541,6 +544,7 @@ export class OpenAIClientResponses implements OpenAIClient {
 
     conversationState.lastPhase = lastPhase;
     return {
+      kind: "raw",
       response: 'Max iterations reached without final response',
       conversationId: '',
       usage: {

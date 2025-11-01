@@ -2,7 +2,11 @@ import type { YDoc, YDocPart } from "./YDoc";
 import { YPropSet } from "./YPropSet";
 import { YRange } from "./YRange";
 
-export function getSelectionKind(range: YRange): "point" | "range" {
+export function getSelectionKind(range: YRange | undefined): "point" | "range" {
+  if (!range) {
+    return "point";
+  }
+
   if (range.startOffset === range.endOffset && range.startElement === range.endElement) {
     return "point"
   } else {

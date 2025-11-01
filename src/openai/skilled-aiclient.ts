@@ -155,7 +155,8 @@ export class SkilledAIClient {
           vmCtx.lastPhase = lastPhase;
 
           return {
-            response: JSON.stringify(controlEnvelope, null, 2),
+            kind: "envelope",
+            response: controlEnvelope,
             conversationId: '',
             usage: {
               promptTokens: totals.totalPromptTokens,
@@ -171,6 +172,7 @@ export class SkilledAIClient {
           vmCtx.lastPhase = lastPhase;
 
           return {
+            kind: "raw",
             response: rawContent,
             conversationId: '',
             usage: {
@@ -189,6 +191,7 @@ export class SkilledAIClient {
     vmCtx.lastPhase = lastPhase;
 
     return {
+      kind: "raw",
       response: 'Max iterations reached without final response',
       conversationId: '',
       usage: {

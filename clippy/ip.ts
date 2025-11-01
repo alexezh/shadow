@@ -383,6 +383,22 @@ export class IPCursor {
   }
 
   handleKeyDown(e: KeyboardEvent): void {
+    // Don't handle keyboard events if they're coming from chat input or other contenteditable elements
+    // Check the composed path to see if the event originated from inside a shadow DOM with contenteditable
+    const composedPath = e.composedPath();
+    for (const element of composedPath) {
+      if (element instanceof HTMLElement) {
+        // Check if this is a contenteditable element (like chat input)
+        if (element.isContentEditable && element.getAttribute('contenteditable') === 'true') {
+          return; // Let the event be handled by the contenteditable element
+        }
+        // Check for textarea or input elements
+        if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
+          return;
+        }
+      }
+    }
+
     // Ensure cursor is visible for keyboard navigation
     if (!this.visible) {
       this.visible = true;

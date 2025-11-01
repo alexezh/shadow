@@ -10,11 +10,21 @@ import { skilledWorker } from "./skills/skilledworker.js";
 import { loadDoc } from "./server/loaddoc.js";
 import type { ExecutePromptContext } from "./openai/executepromptcontext.js";
 import { OpenAIClientChatLegacy } from "./openai/openai-chatclientlegacy.js";
+import { PromptResponse } from "./server/messages.js";
+import { PhaseGatedEnvelope } from "./openai/phase-envelope.js";
 
 type PromptMetadata = {
 };
 
-export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
+function makePromptResponse(ctx: ExecutePromptContext, text: string): PromptResponse {
+  return {
+    sessionId: ctx.session.id,
+    partId: ctx.partId,
+    response: text
+  };
+}
+
+export async function executePrompt(ctx: ExecutePromptContext): Promise<PromptResponse> {
   const parts = ctx.prompt.split(' ');
   const cmd = parts[0];
 
@@ -37,8 +47,7 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
 
     case '!get-instruction':
       if (parts.length < 2) {
-        console.log('Usage: get-rule <term1> [term2] ...');
-        return;
+        return makePromptResponse(ctx, 'Usage: get-rule <term1> [term2] ...');
       }
       await handleGetInstructions(ctx.session.database, parts.slice(1));
       break;
@@ -57,8 +66,7 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
 
     case '!load-doc':
       if (parts.length < 2) {
-        console.log('Usage: !load-doc <filename>');
-        return;
+        return makePromptResponse(ctx, 'Usage: !load-doc <filename>');
       }
       await loadDoc(ctx.session, parts[1]);
       break;
@@ -81,8 +89,7 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
 
     case '!make-html':
       if (parts.length < 2) {
-        console.log('Usage: !make-html <markdown-filename>');
-        return;
+        return makePromptResponse(ctx, 'Usage: !make-html <markdown-filename>');
       }
       await makeHtml(parts[1]);
       break;
@@ -97,16 +104,14 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
 
     case '!editpart':
       if (parts.length < 3) {
-        console.log('Usage: !editpart <docid> <partid>');
-        return;
+        return makePromptResponse(ctx, 'Usage: !editpart <docid> <partid>');
       }
       await handleEditPart(ctx.session.database, parts[1], parts[2]);
       break;
 
     case '!export':
       if (parts.length < 2) {
-        console.log('Usage: !assemble <docid>');
-        return;
+        return makePromptResponse(ctx, 'Usage: !assemble <docid>');
       }
       await handleExport(ctx.session.database, parts[1]);
       break;
@@ -115,10 +120,13 @@ export async function executePrompt(ctx: ExecutePromptContext): Promise<void> {
       // Treat as chat message if not starting with !
       if (!ctx.prompt.startsWith('!')) {
         const result = await skilledWorker(ctx);
-      } else {
-        console.log('Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, !assemble, exit');
+        return makePromptResponse(ctx, result.result?.kind === "raw" ?
+          result.result?.response as string :
+          (result.result?.response as PhaseGatedEnvelope).envelope.content)
       }
   }
+
+  return makePromptResponse(ctx, 'Unknown command. Available: !init, !import-doc, !import-blueprint, !make-sample, !make-html, !listparts, !editpart, !assemble, exit');
 }
 
 async function handleInit(database: Database): Promise<void> {

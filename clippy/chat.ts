@@ -413,7 +413,8 @@ export class ChatWindow {
 
     // Enter key to send (Shift+Enter for new line)
     this.inputEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      const ke = e as KeyboardEvent;
+      if (ke.key === 'Enter' && !ke.shiftKey) {
         e.preventDefault();
         this.sendMessage();
       }

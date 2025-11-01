@@ -1,6 +1,6 @@
 import { youAreShadow } from "./rootskill.js";
 import { Database } from "../database.js";
-import { OpenAIClient, ConversationState } from "../openai/openai-client.js";
+import { OpenAIClient, ConversationState, getResponseFromChatResult } from "../openai/openai-client.js";
 import { CORE_SKILLS } from "./coreskills.js";
 import { initRuleModel } from "../fact/initRuleModel.js";
 import { ConversationStateResponses } from "../openai/openai-responsesclient.js";
@@ -91,11 +91,11 @@ Requirements:
 Return only the finished manual.`;
 
   const conversationState = new ConversationStateResponses(systemPrompt, userPrompt);
-  const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
+  const response = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
     requireEnvelope: false
   });
 
-  return response.trim();
+  return getResponseFromChatResult(response).trim();
 }
 
 async function generateAdditionalKeywords(openaiClient: OpenAIClient, originalTerms: string[], ruleJson: string): Promise<string[]> {
@@ -119,12 +119,12 @@ Examples:
 Return only the task - oriented terms as a comma - separated list, no explanations.`;
 
     const conversationState = new ConversationStateResponses(systemPrompt, userPrompt);
-    const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
+    const chatResponse = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
       requireEnvelope: false
     });
 
     // Parse the response to extract terms
-    const additionalTerms = response
+    const additionalTerms = getResponseFromChatResult(chatResponse)
       .split(',')
       .map(t => t.trim())
       .filter(t => t.length > 0);

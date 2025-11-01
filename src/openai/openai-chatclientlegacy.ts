@@ -450,6 +450,7 @@ export class OpenAIClientChatLegacy implements OpenAIClient {
           conversationState.lastPhase = lastPhase;
 
           return {
+            kind: "raw",
             response: JSON.stringify(controlEnvelope, null, 2),
             conversationId: '',
             usage: {
@@ -466,6 +467,7 @@ export class OpenAIClientChatLegacy implements OpenAIClient {
           conversationState.lastPhase = lastPhase;
 
           return {
+            kind: "raw",
             response: rawContent,
             conversationId: '',
             usage: {
@@ -484,6 +486,7 @@ export class OpenAIClientChatLegacy implements OpenAIClient {
     conversationState.lastPhase = lastPhase;
 
     return {
+      kind: "raw",
       response: 'Max iterations reached without final response',
       conversationId: '',
       usage: {

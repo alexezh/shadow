@@ -553,6 +553,12 @@ async function selectPart(partId: string): Promise<void> {
 
       // Restore editor context
       setCurrentEditorContext(vdom.editorContext!);
+
+      // Reattach clippy float to the restored context
+      const clippyFloat = (window as any).__clippyFloat;
+      if (clippyFloat && vdom.editorContext) {
+        vdom.editorContext.clippyFloat = clippyFloat;
+      }
     } else {
       // Fetch from server
       const response = await fetch(`/api/getpart?sessionId=${getSessionId()}&partId=${partId}`);
@@ -575,6 +581,12 @@ async function selectPart(partId: string): Promise<void> {
 
       // Initialize editor context
       setCurrentEditorContext(vdom.editorContext!);
+
+      // Attach clippy float to the new context
+      const clippyFloat = (window as any).__clippyFloat;
+      if (clippyFloat && vdom.editorContext) {
+        vdom.editorContext.clippyFloat = clippyFloat;
+      }
 
       // Load comment threads if any
       if (commentThreadRefs.length > 0 && vdom.editorContext) {
@@ -688,6 +700,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (currentEditorContext) {
       currentEditorContext.clippyFloat = clippyFloat;
     }
+
+    // Store clippy globally so we can reattach it when switching contexts
+    (window as any).__clippyFloat = clippyFloat;
 
     // TODO: review
     // Show Clippy when cursor becomes visible

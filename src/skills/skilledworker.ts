@@ -1,4 +1,4 @@
-import { ConversationState, TokenUsage } from "../openai/openai-client.js";
+import type { ChatResult, ConversationState, TokenUsage } from "../openai/openai-client.js";
 import { PhaseGatedEnvelope } from "../openai/phase-envelope.js";
 import type { ExecutePromptContext } from "../openai/executepromptcontext.js";
 import { getRootSkill } from "./rootskill.js";
@@ -14,7 +14,7 @@ interface StepCompletion {
 
 export async function skilledWorker(
   promptCtx: ExecutePromptContext,
-): Promise<{ response: string; conversationState: ConversationState; usage: TokenUsage }> {
+): Promise<{ result: ChatResult | undefined; conversationState: ConversationState; usage: TokenUsage }> {
 
   const skilledClient = new SkilledAIClient();
   const startAt = performance.now();
@@ -28,7 +28,7 @@ export async function skilledWorker(
   );
 
   let currentPrompt = promptCtx.prompt;
-  let lastResponse = '';
+  let lastResult: ChatResult | undefined;
   const aggregateUsage: TokenUsage = {
     promptTokens: 0,
     completionTokens: 0,
@@ -45,12 +45,12 @@ export async function skilledWorker(
       currentPrompt
     );
 
-    lastResponse = result.response;
+    lastResult = result;
     aggregateUsage.promptTokens += result.usage.promptTokens;
     aggregateUsage.completionTokens += result.usage.completionTokens;
     aggregateUsage.totalTokens += result.usage.totalTokens;
 
-    const envelope = tryParseJson<PhaseGatedEnvelope>(lastResponse);
+    const envelope = (lastResult.kind === "raw") ? tryParseJson<PhaseGatedEnvelope>(lastResult.response as string) : lastResult.response as PhaseGatedEnvelope;
     if (!envelope) {
       break;
     }
@@ -69,10 +69,10 @@ export async function skilledWorker(
   const contextSummary = vmCtx.getSummary();
   console.log(`skilledWorker: elapsed=${elapsedSeconds.toFixed(2)}s prompt=${aggregateUsage.promptTokens} completion=${aggregateUsage.completionTokens} total=${aggregateUsage.totalTokens}`);
   console.log(`Context usage: messages=${contextSummary.messageCount} chars=${contextSummary.messageChars} trackedPrompt=${contextSummary.promptTokens} trackedCompletion=${contextSummary.completionTokens}`);
-  console.log('Response:', lastResponse);
+  console.log('Response:', JSON.stringify(lastResult?.response));
 
   return {
-    response: lastResponse,
+    result: lastResult,
     conversationState: vmCtx,
     usage: aggregateUsage
   };

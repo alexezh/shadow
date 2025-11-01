@@ -47,6 +47,42 @@ export class VirtualDocument {
   }
 
   /**
+   * Re-render this virtual document to the DOM (useful when switching back to a cached document)
+   */
+  public render(): void {
+    if (!this.shadowRoot) {
+      console.error('Cannot render VirtualDocument: no shadow root');
+      return;
+    }
+
+    // Create a wrapper div for the content
+    const contentWrapper = document.createElement('div');
+    contentWrapper.id = 'shadow-content';
+    contentWrapper.innerHTML = this.html;
+
+    // Create style element inside shadow root
+    const styleEl = document.createElement('style');
+    styleEl.id = 'doc-styles';
+
+    // Convert styles array to CSS string
+    const cssRules = this.styles.map(style => {
+      const props = Object.entries(style.properties)
+        .map(([key, value]) => `  ${key}: ${value};`)
+        .join('\n');
+      return `${style.selector} {\n${props}\n}`;
+    });
+    styleEl.textContent = cssRules.join('\n\n');
+
+    // Clear shadow root and replace with new style + content
+    this.shadowRoot.innerHTML = '';
+    this.shadowRoot.appendChild(styleEl);
+    this.shadowRoot.appendChild(contentWrapper);
+
+    // Apply comment thread markers to paragraphs
+    this.applyCommentMarkers(contentWrapper);
+  }
+
+  /**
    * Apply this virtual document to the DOM using Shadow DOM
    */
   private attachToDOM(containerEl: HTMLElement, styleElId: string = 'doc-styles'): void {

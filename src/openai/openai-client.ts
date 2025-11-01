@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
-import { ChatCompletionTool } from 'openai/resources/index.js';
-import { Session } from '../server/session.js';
+import type { ChatCompletionTool } from 'openai/resources/index.js';
+import type { Session } from '../server/session.js';
+import type { PhaseGatedEnvelope } from './phase-envelope.js';
 
 export interface ConversationState {
 
@@ -13,9 +14,18 @@ export interface TokenUsage {
 }
 
 export interface ChatResult {
-  response: string;
+  response: string | PhaseGatedEnvelope;
+  kind: "raw" | "envelope";
   conversationId: string;
   usage: TokenUsage;
+}
+
+export function getResponseFromChatResult(result: ChatResult): string {
+  if (result.kind === "envelope") {
+    return (result.response as PhaseGatedEnvelope).envelope?.content ?? "";
+  } else {
+    return result.response as string;
+  }
 }
 
 export interface OpenAIClient {

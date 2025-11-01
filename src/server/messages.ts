@@ -8,6 +8,12 @@ export interface PromptRequest {
   selection?: YRange;
 }
 
+export interface PromptResponse {
+  sessionId: string;
+  partId?: string;
+  response?: string;
+}
+
 export type GetThreadRequest = {
   docId: string;
   partId: string;

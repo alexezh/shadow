@@ -1,6 +1,6 @@
 import { Database } from '../database.js';
 import OpenAI from 'openai';
-import { OpenAIClient } from '../openai/openai-client.js';
+import { getResponseFromChatResult, OpenAIClient } from '../openai/openai-client.js';
 import { youAreShadow } from './rootskill.js';
 import { ConversationStateResponses } from '../openai/openai-responsesclient.js';
 import { generateEmbedding } from '../openai/generateembedding.js';
@@ -70,12 +70,12 @@ Examples:
 Return only the terms as a comma-separated list, no explanations.`;
 
     const conversationState = new ConversationStateResponses(systemPrompt, userPrompt);
-    const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
+    const chatResult = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
       requireEnvelope: false
     });
 
     // Parse the response to extract terms
-    const additionalTerms = response
+    const additionalTerms = getResponseFromChatResult(chatResult)
       .split(',')
       .map(t => t.trim())
       .filter(t => t.length > 0);

@@ -1,4 +1,4 @@
-import { OpenAIClient, ConversationState } from '../openai/openai-client.js';
+import { OpenAIClient, ConversationState, getResponseFromChatResult } from '../openai/openai-client.js';
 import * as cheerio from 'cheerio';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -69,9 +69,10 @@ The HTML should be complete and ready to use as sample content.`;
 Please generate appropriate HTML elements and suggest a filename.`;
 
     const conversationState = new ConversationStateResponses(systemPrompt, userPrompt);
-    const { response } = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
+    const chatResult = await openaiClient.chatWithMCPTools(undefined, [], conversationState, userPrompt, {
       requireEnvelope: false
     });
+    const response = getResponseFromChatResult(chatResult);
 
     // Extract filename from response
     const filenameMatch = response.match(/FILENAME:\s*(.+\.html)/i);
