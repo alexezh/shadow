@@ -45,7 +45,13 @@ export async function handleCreatePart(sessions: ReadonlyMap<string, Session>,
 
     // If no selection or error, use default content
     if (!part.body || part.body.getChildren().length === 0) {
-      const defaultText = kind === 'chat' ? 'Chat created. Ask me anything!\n' : 'Draft content will appear here. Click to position cursor.\n';
+      let defaultText = 'Draft content will appear here. Click to position cursor.\n';
+      if (kind === 'chat') {
+        defaultText = 'Chat created. Ask me anything!\n';
+      } else if (kind === 'prompt') {
+        defaultText = 'Enter your prompt here. Use the editor to compose your request.\n';
+      }
+
       const para = new YPara(make31BitId(), YPropSet.create({}),
         new YStr(defaultText, YPropSet.create({})));
       if (!part.body) {

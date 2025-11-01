@@ -599,7 +599,7 @@ async function selectPart(partId: string): Promise<void> {
   }
 }
 
-async function createPart(editorContext: EditorContext | null, kind: "chat" | "draft"): Promise<void> {
+async function createPart(editorContext: EditorContext | null, kind: "chat" | "draft" | "prompt"): Promise<void> {
   if (!editorContext) return;
 
   try {
@@ -640,6 +640,7 @@ async function createPart(editorContext: EditorContext | null, kind: "chat" | "d
 // Parts toolbar button handlers
 const addDraftBtn = document.getElementById('btn-add-draft');
 const addChatBtn = document.getElementById('btn-add-chat');
+const addPromptBtn = document.getElementById('btn-add-prompt');
 const moreBtn = document.getElementById('parts-more-btn');
 
 if (addDraftBtn) {
@@ -651,6 +652,12 @@ if (addDraftBtn) {
 if (addChatBtn) {
   addChatBtn.addEventListener('click', () => {
     createPart(getCurrentEditorContext(), 'chat');
+  });
+}
+
+if (addPromptBtn) {
+  addPromptBtn.addEventListener('click', () => {
+    createPart(getCurrentEditorContext(), 'prompt');
   });
 }
 

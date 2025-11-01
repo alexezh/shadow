@@ -5,7 +5,7 @@ import { YPropSet } from './YPropSet.js';
 import { YCommentThread } from './YCommentThread.js';
 import { YPara } from './YPara.js';
 
-export type YDocPartKind = "main" | "draft" | "summary" | "chat" | "comment";
+export type YDocPartKind = "main" | "draft" | "summary" | "chat" | "comment" | "prompt";
 
 export class YDocPart {
   public body?: YBody;

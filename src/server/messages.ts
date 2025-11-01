@@ -73,7 +73,7 @@ export interface ActionResult {
 
 export type CreatePartRequest = {
   sessionId: string,
-  kind: "draft" | "chat",
+  kind: "draft" | "chat" | "prompt",
   selectionRange: YRange | null
 }
 
